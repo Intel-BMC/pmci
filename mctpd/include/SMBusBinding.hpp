@@ -4,9 +4,10 @@
 
 #include <iostream>
 
-class SMbusBinding : public MctpBinding
-{
-  public:
-    SMbusBinding();
-    ~SMbusBinding()=default;
+class SMBusBinding : public MctpBinding {
+public:
+  SMBusBinding() = delete;
+  SMBusBinding(std::shared_ptr<sdbusplus::asio::object_server> &objServer,
+               std::string &objPath);
+  ~SMBusBinding() = default;
 };

@@ -1,11 +1,11 @@
 [Unit]
 Description=MCTP Daemon
-SyslogIdentifier=phosphor-mctpd
 
 [Service]
+ExecStart=/usr/bin/mctpd -b %i
+SyslogIdentifier=mctpd-%i
 Restart=always
 RestartSec=5
-ExecStart=/usr/bin/mctpd
 
 [Install]
 WantedBy=multi-user.target

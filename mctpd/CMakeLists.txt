@@ -50,7 +50,7 @@ include_directories (${PROJECT_SOURCE_DIR}/include)
 
 set (
     SERVICE_FILES
-    ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctpd.service
+    ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctpd@.service
 )
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
