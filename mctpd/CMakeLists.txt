@@ -85,5 +85,21 @@ else ()
     target_link_libraries (${PROJECT_NAME} -lmctp_intel i2c)
 endif ()
 
+if (${MCTPD_BUILD_UT})
+include (CTest)
+
+set (TEST_FILES tests/test-mctpd.cpp)
+
+enable_testing ()
+
+add_executable (test-mctpd ${TEST_FILES})
+find_package (GTest REQUIRED)
+target_link_libraries(test-mctpd ${GTEST_LIBRARIES} sdbusplus libmctp systemd -lpthread )
+
+add_test (test-mctpd test-mctpd
+          "--gtest_output=xml:test-mctpd.xml")
+install (TARGETS test-mctpd DESTINATION bin)
+endif (${MCTPD_BUILD_UT})
+
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
