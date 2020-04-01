@@ -3,6 +3,8 @@ cmake_minimum_required (VERSION 3.5 FATAL_ERROR)
 # Set project name here
 project (mctpd CXX)
 
+option (BUILD_STANDALONE "Use outside of YOCTO depedencies system" OFF)
+
 set (BUILD_SHARED_LIBRARIES OFF)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,10 +55,35 @@ set (
     ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctpd@.service
 )
 
-add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
+if (BUILD_STANDALONE)
+    configure_file (CMakeLists.txt.in 3rdparty/CMakeLists.txt)
+    execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
+    execute_process (COMMAND ${CMAKE_COMMAND} --build .
+                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
+    set (CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/prefix ${CMAKE_PREFIX_PATH})
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/prefix/include)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/sdbusplus-src)
+    link_directories (${CMAKE_BINARY_DIR}/sdbusplus-src/.libs)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/phosphor-logging-src)
+    link_directories (${CMAKE_BINARY_DIR}/phosphor-logging-src/.libs)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libmctp-src)
+    link_directories (${CMAKE_BINARY_DIR}/libmctp-src)
+endif ()
 
-target_link_libraries (${PROJECT_NAME} i2c sdbusplus -lsystemd -lboost_system
-                       libmctp -lpthread -lstdc++fs)
+find_package (Boost 1.71 REQUIRED)
+include_directories (SYSTEM ${BOOST_SRC_DIR})
+
+add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
+target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
+                        -lpthread -lstdc++fs)
+
+if (BUILD_STANDALONE)
+    target_link_libraries (${PROJECT_NAME}
+                           ${CMAKE_BINARY_DIR}/libmctp/libmctp_intel.a)
+else ()
+    target_link_libraries (${PROJECT_NAME} -lmctp_intel i2c)
+endif ()
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
