@@ -2,25 +2,47 @@
 
 #include <iostream>
 #include <sdbusplus/asio/object_server.hpp>
+#include <xyz/openbmc_project/MCTP/Base/server.hpp>
 
-enum class binding
+using mctp_server = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
+
+struct SMBusConfiguration
 {
-    SMBus = 0x01,
-    PCIe = 0x02,
-    Usb = 0x03,
-    Kcs = 0x04,
-    Serial = 0x05,
-    VendorDefined = 0xFF
+    const mctp_server::BindingTypes bindingType =
+        mctp_server::BindingTypes::MctpOverSmbus;
+    mctp_server::MctpPhysicalMediumIdentifiers mediumId;
+    mctp_server::BindingModeTypes mode;
+    uint8_t defaultEid;
+    std::vector<uint8_t> eidPool;
+    std::string bus;
 };
+
+struct PcieConfiguration
+{
+    const mctp_server::BindingTypes bindingType =
+        mctp_server::BindingTypes::MctpOverSmbus;
+    mctp_server::BindingModeTypes mode;
+    uint8_t defaultEid;
+};
+
+using ConfigurationVariant =
+    std::variant<SMBusConfiguration, PcieConfiguration>;
 
 class MctpBinding
 {
   public:
     MctpBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
-                std::string& objPath);
+                std::string& objPath, ConfigurationVariant& conf);
     MctpBinding() = delete;
     ~MctpBinding() = default;
 
   private:
     uint8_t eid;
+    bool staticEid;
+    std::vector<uint8_t> uuid;
+    mctp_server::BindingTypes bindingID{};
+    mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
+    mctp_server::BindingModeTypes bindingModeType{};
+
+    void createUuid(void);
 };

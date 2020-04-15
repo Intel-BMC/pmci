@@ -1,17 +1,14 @@
 {
-  "smbus": [
-    {
+  "smbus": {
       "role": "busowner",
       "default-eid":0,
       "eid-pool":[8,9,10,11,12,13,14,15,16,17,18,19,20],
-      "bus":"/dev/i2c-2"
-    }
-  ],
-  "pcie": [
-    {
+      "bus":"/dev/i2c-2",
+      "PhysicalMediumID":"Smbus3OrI2c400khzCompatible"
+  },
+  "pcie": {
       "role": "endpoint",
       "default-eid": 0
-    }
-  ]
+  }
 }
 

@@ -88,6 +88,7 @@ if (BUILD_STANDALONE)
                            ${CMAKE_BINARY_DIR}/libmctp/libmctp_intel.a)
 else ()
     target_link_libraries (${PROJECT_NAME} -lmctp_intel i2c)
+    target_link_libraries (${PROJECT_NAME} -lphosphor_dbus)
 endif ()
 
 if (${MCTPD_BUILD_UT})
