@@ -55,6 +55,11 @@ set (
     ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctpd@.service
 )
 
+set (
+    CONFIG_FILES
+    ${PROJECT_SOURCE_DIR}/configurations/mctp_config.json
+)
+
 if (BUILD_STANDALONE)
     configure_file (CMakeLists.txt.in 3rdparty/CMakeLists.txt)
     execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
@@ -103,3 +108,4 @@ endif (${MCTPD_BUILD_UT})
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
+install (FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
