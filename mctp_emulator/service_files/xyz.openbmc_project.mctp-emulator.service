@@ -1,0 +1,9 @@
+[Unit]
+Description=MCTP Emulator
+
+[Service]
+ExecStart=/usr/bin/mctp-emulator
+SyslogIdentifier=mctp-emulator
+
+[Install]
+WantedBy=multi-user.target
