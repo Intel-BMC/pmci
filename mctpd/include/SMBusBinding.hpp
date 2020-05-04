@@ -8,7 +8,7 @@ class SMBusBinding : public MctpBinding
 {
   public:
     SMBusBinding() = delete;
-    SMBusBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
+    SMBusBinding(std::shared_ptr<object_server>& objServer,
                  std::string& objPath, ConfigurationVariant& conf,
                  boost::asio::io_context& ioc);
     ~SMBusBinding() = default;

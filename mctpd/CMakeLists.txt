@@ -99,22 +99,27 @@ add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
                         -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel i2c)
 
+install (TARGETS ${PROJECT_NAME} DESTINATION bin)
+install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
+install (FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
+
 if (${MCTPD_BUILD_UT})
 include (CTest)
 
-set (TEST_FILES tests/test-mctpd.cpp)
+set (TEST_FILES tests/test-mctpd.cpp src/MCTPBinding.cpp)
 
 enable_testing ()
 
 add_executable (test-mctpd ${TEST_FILES})
+target_compile_definitions(test-mctpd PRIVATE "USE_MOCK")
+
 find_package (GTest REQUIRED)
-target_link_libraries(test-mctpd ${GTEST_LIBRARIES} sdbusplus -lmctp_intel systemd -lpthread )
+target_link_libraries(test-mctpd ${GTEST_LIBRARIES} sdbusplus -lmctp_intel systemd -lpthread gmock)
+target_link_libraries(test-mctpd -lphosphor_dbus)
 
 add_test (test-mctpd test-mctpd
           "--gtest_output=xml:test-mctpd.xml")
 install (TARGETS test-mctpd DESTINATION bin)
 endif (${MCTPD_BUILD_UT})
 
-install (TARGETS ${PROJECT_NAME} DESTINATION bin)
-install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)
-install (FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
+

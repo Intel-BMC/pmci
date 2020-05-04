@@ -9,13 +9,12 @@
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
 
-MctpBinding::MctpBinding(
-    std::shared_ptr<sdbusplus::asio::object_server>& objServer,
-    std::string& objPath, ConfigurationVariant& conf,
-    boost::asio::io_context& ioc) :
+MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
+                         std::string& objPath, ConfigurationVariant& conf,
+                         boost::asio::io_context& ioc) :
     io(ioc)
 {
-    std::shared_ptr<sdbusplus::asio::dbus_interface> mctpInterface =
+    std::shared_ptr<dbus_interface> mctpInterface =
         objServer->add_interface(objPath, mctp_server::interface);
 
     try

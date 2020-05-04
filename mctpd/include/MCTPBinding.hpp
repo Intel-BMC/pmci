@@ -4,6 +4,15 @@
 #include <sdbusplus/asio/object_server.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
 
+#ifdef USE_MOCK
+#include "../tests/mocks/objectServerMock.hpp"
+using object_server = mctpd_mock::object_server_mock;
+using dbus_interface = mctpd_mock::dbus_interface_mock;
+#else
+using object_server = sdbusplus::asio::object_server;
+using dbus_interface = sdbusplus::asio::dbus_interface;
+#endif
+
 using mctp_server = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
 
 struct SMBusConfiguration
@@ -35,9 +44,8 @@ using ConfigurationVariant =
 class MctpBinding
 {
   public:
-    MctpBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
-                std::string& objPath, ConfigurationVariant& conf,
-                boost::asio::io_context& ioc);
+    MctpBinding(std::shared_ptr<object_server>& objServer, std::string& objPath,
+                ConfigurationVariant& conf, boost::asio::io_context& ioc);
     MctpBinding() = delete;
     ~MctpBinding() = default;
 

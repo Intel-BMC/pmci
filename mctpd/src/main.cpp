@@ -169,7 +169,7 @@ int main(int argc, char* argv[])
     bus = std::make_shared<sdbusplus::asio::connection>(ioc);
 
     std::string mctpServiceName = "xyz.openbmc_project.MCTP-";
-    auto objectServer = std::make_shared<sdbusplus::asio::object_server>(bus);
+    auto objectServer = std::make_shared<object_server>(bus);
     bus->request_name((mctpServiceName + binding).c_str());
 
     auto objManager = std::make_shared<sdbusplus::server::manager::manager>(
