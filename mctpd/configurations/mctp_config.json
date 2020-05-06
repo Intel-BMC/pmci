@@ -10,7 +10,9 @@
   },
   "pcie": {
       "role": "endpoint",
-      "default-eid": 0
+      "default-eid":0,
+      "PhysicalMediumID":"Pcie2",
+      "bdf":0
   }
 }
 

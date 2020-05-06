@@ -26,7 +26,14 @@ MctpBinding::MctpBinding(
             bindingMediumID = smbusConf->mediumId;
             bindingModeType = smbusConf->mode;
         }
-        // TODO: else { pcieConf = std::get<PcieConfiguration>...
+        else if (PcieConfiguration* pcieConf =
+                     std::get_if<PcieConfiguration>(&conf))
+        {
+            eid = pcieConf->defaultEid;
+            bindingID = pcieConf->bindingType;
+            bindingMediumID = pcieConf->mediumId;
+            bindingModeType = pcieConf->mode;
+        }
 
         createUuid();
         mctpInterface->register_property("Eid", eid);

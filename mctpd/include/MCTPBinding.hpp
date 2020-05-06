@@ -22,9 +22,11 @@ struct SMBusConfiguration
 struct PcieConfiguration
 {
     const mctp_server::BindingTypes bindingType =
-        mctp_server::BindingTypes::MctpOverSmbus;
+        mctp_server::BindingTypes::MctpOverPcieVdm;
+    mctp_server::MctpPhysicalMediumIdentifiers mediumId;
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
+    uint16_t bdf;
 };
 
 using ConfigurationVariant =
@@ -38,13 +40,15 @@ class MctpBinding
     MctpBinding() = delete;
     ~MctpBinding() = default;
 
+  protected:
+    mctp_server::BindingModeTypes bindingModeType{};
+
   private:
     uint8_t eid;
     bool staticEid;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
-    mctp_server::BindingModeTypes bindingModeType{};
 
     void createUuid(void);
 };

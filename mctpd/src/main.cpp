@@ -1,4 +1,5 @@
 #include "MCTPBinding.hpp"
+#include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
 
 #include <CLI/CLI.hpp>
@@ -112,6 +113,9 @@ void parseConfig(mctp_server::BindingTypes bindingType,
             pcieConfig.defaultEid = pcie.at("default-eid").get<uint8_t>();
             pcieConfig.mode =
                 stringToBindingModeMap.at(pcie.at("role").get<std::string>());
+            pcieConfig.mediumId = stringToMediumID.at(
+                pcie.at("PhysicalMediumID").get<std::string>());
+            pcieConfig.bdf = pcie.at("bdf").get<uint16_t>();
 
             conf.emplace<PcieConfiguration>(pcieConfig);
             break;
@@ -182,6 +186,7 @@ int main(int argc, char* argv[])
         }
         case mctp_server::BindingTypes::MctpOverPcieVdm:
         {
+            PCIeBinding PCIe(objectServer, mctpBaseObj, mctpdConfiuration);
             break;
         }
         default:

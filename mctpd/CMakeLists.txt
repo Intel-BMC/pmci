@@ -42,11 +42,16 @@ set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -I ${STAGING_KERNEL_DIR}/include/
 set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 # Add header and sources here
-set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/main.cpp ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
-     ${PROJECT_SOURCE_DIR}/src/SMBusBinding.cpp)
+set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/main.cpp
+     ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
+     ${PROJECT_SOURCE_DIR}/src/SMBusBinding.cpp
+     ${PROJECT_SOURCE_DIR}/src/PCIeBinding.cpp
+)
 
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/MCTPBinding.hpp
-     ${PROJECT_SOURCE_DIR}/include/SMBusBinding.hpp)
+     ${PROJECT_SOURCE_DIR}/include/SMBusBinding.hpp
+     ${PROJECT_SOURCE_DIR}/include/PCIeBinding.hpp
+)
 
 include_directories (${PROJECT_SOURCE_DIR}/include)
 
