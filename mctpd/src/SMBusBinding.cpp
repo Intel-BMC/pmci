@@ -1,6 +1,9 @@
 #include "SMBusBinding.hpp"
 
-std::string smbusIntf = "xyz.openbmc_project.mctp.smbus";
+#include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
+
+using smbus_server =
+    sdbusplus::xyz::openbmc_project::MCTP::Binding::server::SMBus;
 
 SMBusBinding::SMBusBinding(
     std::shared_ptr<sdbusplus::asio::object_server>& objServer,
@@ -9,7 +12,7 @@ SMBusBinding::SMBusBinding(
 {
     // TODO: Add SMBusInterfaces here
     std::shared_ptr<sdbusplus::asio::dbus_interface> smbusInterface =
-        objServer->add_interface(objPath, smbusIntf.c_str());
+        objServer->add_interface(objPath, smbus_server::interface);
 
     smbusInterface->initialize();
 }
