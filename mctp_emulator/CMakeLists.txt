@@ -56,12 +56,13 @@ set (
 set (
     CONFIG_FILES
     ${PROJECT_SOURCE_DIR}/configurations/req_resp.json
+    ${PROJECT_SOURCE_DIR}/configurations/endpoints.json
 )
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 
 target_link_libraries (${PROJECT_NAME} i2c sdbusplus -lsystemd -lboost_system
-                       -lmctp_intel -lpthread -lstdc++fs)
+                       -lmctp_intel -lpthread -lstdc++fs -lphosphor_dbus)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)

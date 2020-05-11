@@ -1,0 +1,52 @@
+{
+    "Endpoints": [
+        {
+            "Eid": 1,
+            "Mode": "0",
+            "NetworkId": 10,
+            "SupportedMessageTypes": {
+                "Ethernet": false,
+                "MctpControl": true,
+                "NCSI": false,
+                "NVMeMgmtMsg": false,
+                "PLDM": true,
+                "SPDM": true,
+                "VDIANA": false,
+                "VDPCI": true
+            },
+            "Uuid": "endpointuuid0001"
+        },
+        {
+            "Eid": 2,
+            "Mode": "1",
+            "NetworkId": 20,
+            "SupportedMessageTypes": {
+                "Ethernet": false,
+                "MctpControl": true,
+                "NCSI": false,
+                "NVMeMgmtMsg": false,
+                "PLDM": true,
+                "SPDM": true,
+                "VDIANA": false,
+                "VDPCI": true
+            },
+            "Uuid": "endpointuuid0002"
+        },
+        {
+            "Eid": 3,
+            "Mode": "2",
+            "NetworkId": 30,
+            "SupportedMessageTypes": {
+                "Ethernet": false,
+                "MctpControl": true,
+                "NCSI": false,
+                "NVMeMgmtMsg": false,
+                "PLDM": true,
+                "SPDM": true,
+                "VDIANA": false,
+                "VDPCI": true
+            },
+            "Uuid": "endpointuuid0003"
+        }
+    ]
+}
