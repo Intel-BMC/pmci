@@ -15,6 +15,8 @@ struct SMBusConfiguration
     uint8_t defaultEid;
     std::vector<uint8_t> eidPool;
     std::string bus;
+    bool arpMasterSupport;
+    uint8_t bmcSlaveAddr;
 };
 
 struct PcieConfiguration

@@ -97,6 +97,10 @@ void parseConfig(mctp_server::BindingTypes bindingType,
                 smbus.at("eid-pool").get<std::vector<uint8_t>>();
             smbusConfig.mediumId = stringToMediumID.at(
                 smbus.at("PhysicalMediumID").get<std::string>());
+            smbusConfig.arpMasterSupport =
+                smbus.at("ARPMasterSupport").get<bool>();
+            smbusConfig.bmcSlaveAddr =
+                smbus.at("BMCSlaveAddress").get<uint8_t>();
             conf.emplace<SMBusConfiguration>(smbusConfig);
             break;
         }

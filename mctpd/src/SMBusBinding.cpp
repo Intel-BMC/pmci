@@ -1,5 +1,8 @@
 #include "SMBusBinding.hpp"
 
+#include "MCTPBinding.hpp"
+
+#include <phosphor-logging/log.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/SMBus/server.hpp>
 
 using smbus_server =
@@ -10,9 +13,27 @@ SMBusBinding::SMBusBinding(
     std::string& objPath, ConfigurationVariant& conf) :
     MctpBinding(objServer, objPath, conf)
 {
-    // TODO: Add SMBusInterfaces here
     std::shared_ptr<sdbusplus::asio::dbus_interface> smbusInterface =
         objServer->add_interface(objPath, smbus_server::interface);
 
-    smbusInterface->initialize();
+    try
+    {
+        this->arpMasterSupport =
+            std::get<SMBusConfiguration>(conf).arpMasterSupport;
+        this->bus = std::get<SMBusConfiguration>(conf).bus;
+        this->bmcSlaveAddr = std::get<SMBusConfiguration>(conf).bmcSlaveAddr;
+        smbusInterface->register_property("ArpMasterSupport", arpMasterSupport);
+        smbusInterface->register_property("BusNumber", bus);
+        smbusInterface->register_property("BmcSlaveAddress", bmcSlaveAddr);
+        smbusInterface->initialize();
+    }
+
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SMBus Interface init failed",
+            phosphor::logging::entry("Exception:", e.what()));
+
+        throw;
+    }
 }

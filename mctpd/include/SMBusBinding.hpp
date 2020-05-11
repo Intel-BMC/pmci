@@ -11,4 +11,9 @@ class SMBusBinding : public MctpBinding
     SMBusBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
                  std::string& objPath, ConfigurationVariant& conf);
     ~SMBusBinding() = default;
+
+  private:
+    std::string bus;
+    bool arpMasterSupport;
+    uint8_t bmcSlaveAddr;
 };
