@@ -66,19 +66,30 @@ set (
 )
 
 if (BUILD_STANDALONE)
+    set (CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/libs/googletest/
+         ${CMAKE_BINARY_DIR}/libs/boost/ ${CMAKE_PREFIX_PATH})
+
     configure_file (CMakeLists.txt.in 3rdparty/CMakeLists.txt)
     execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
                      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
     execute_process (COMMAND ${CMAKE_COMMAND} --build .
                      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
-    set (CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/prefix ${CMAKE_PREFIX_PATH})
-    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/prefix/include)
-    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/sdbusplus-src)
-    link_directories (${CMAKE_BINARY_DIR}/sdbusplus-src/.libs)
-    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/phosphor-logging-src)
-    link_directories (${CMAKE_BINARY_DIR}/phosphor-logging-src/.libs)
-    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libmctp-src)
-    link_directories (${CMAKE_BINARY_DIR}/libmctp-src)
+
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/sdbusplus/include)
+    link_directories (${CMAKE_BINARY_DIR}/libs/sdbusplus/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/src/phosphor-logging)
+    link_directories (${CMAKE_BINARY_DIR}/src/phosphor-logging/.libs)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/libmctp/include)
+    link_directories (${CMAKE_BINARY_DIR}/libs/libmctp/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/phosphor-dbus-interfaces/include)
+    link_directories (${CMAKE_BINARY_DIR}/libs/phosphor-dbus-interfaces/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/include)
+    link_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/googletest/include)
+    link_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/googletest/lib)
+
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/CLIUtils/include)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/nlohmann-json/include)
 endif ()
 
 find_package (Boost 1.71 REQUIRED)
@@ -86,15 +97,7 @@ include_directories (SYSTEM ${BOOST_SRC_DIR})
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
-                        -lpthread -lstdc++fs)
-
-if (BUILD_STANDALONE)
-    target_link_libraries (${PROJECT_NAME}
-                           ${CMAKE_BINARY_DIR}/libmctp/libmctp_intel.a)
-else ()
-    target_link_libraries (${PROJECT_NAME} -lmctp_intel i2c)
-    target_link_libraries (${PROJECT_NAME} -lphosphor_dbus)
-endif ()
+                        -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel i2c)
 
 if (${MCTPD_BUILD_UT})
 include (CTest)
@@ -105,7 +108,7 @@ enable_testing ()
 
 add_executable (test-mctpd ${TEST_FILES})
 find_package (GTest REQUIRED)
-target_link_libraries(test-mctpd ${GTEST_LIBRARIES} sdbusplus libmctp systemd -lpthread )
+target_link_libraries(test-mctpd ${GTEST_LIBRARIES} sdbusplus -lmctp_intel systemd -lpthread )
 
 add_test (test-mctpd test-mctpd
           "--gtest_output=xml:test-mctpd.xml")
