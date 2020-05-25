@@ -20,12 +20,16 @@ PCIeBinding::PCIeBinding(
         else
             discoveredFlag = pcie_binding::DiscoveryFlags::Undiscovered;
 
-        pcieInterface->register_property("BDF", bdf);
+        registerProperty(pcieInterface, "BDF", bdf);
 
-        pcieInterface->register_property(
-            "DiscoveredFlag",
+        registerProperty(
+            pcieInterface, "DiscoveredFlag",
             pcie_binding::convertDiscoveryFlagsToString(discoveredFlag));
-        pcieInterface->initialize();
+        if (pcieInterface->initialize() == false)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
     }
     catch (std::exception& e)
     {

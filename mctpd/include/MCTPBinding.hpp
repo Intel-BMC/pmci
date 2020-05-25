@@ -52,6 +52,18 @@ class MctpBinding
   protected:
     mctp_server::BindingModeTypes bindingModeType{};
 
+    template <typename Interface, typename PropertyType>
+    void registerProperty(Interface ifc, const std::string& name,
+                          const PropertyType& property,
+                          sdbusplus::asio::PropertyPermission access =
+                              sdbusplus::asio::PropertyPermission::readOnly)
+    {
+        if (ifc->register_property(name, property, access) != true)
+        {
+            throw std::invalid_argument(name);
+        }
+    }
+
   private:
     uint8_t eid;
     bool staticEid;

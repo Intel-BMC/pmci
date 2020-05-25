@@ -22,10 +22,14 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
             std::get<SMBusConfiguration>(conf).arpMasterSupport;
         this->bus = std::get<SMBusConfiguration>(conf).bus;
         this->bmcSlaveAddr = std::get<SMBusConfiguration>(conf).bmcSlaveAddr;
-        smbusInterface->register_property("ArpMasterSupport", arpMasterSupport);
-        smbusInterface->register_property("BusNumber", bus);
-        smbusInterface->register_property("BmcSlaveAddress", bmcSlaveAddr);
-        smbusInterface->initialize();
+        registerProperty(smbusInterface, "ArpMasterSupport", arpMasterSupport);
+        registerProperty(smbusInterface, "BusNumber", bus);
+        registerProperty(smbusInterface, "BmcSlaveAddress", bmcSlaveAddr);
+        if (smbusInterface->initialize() == false)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
     }
 
     catch (std::exception& e)

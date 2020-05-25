@@ -35,27 +35,36 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             bindingMediumID = pcieConf->mediumId;
             bindingModeType = pcieConf->mode;
         }
+        else
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::invalid_argument));
+        }
 
         createUuid();
-        mctpInterface->register_property("Eid", eid);
+        registerProperty(mctpInterface, "Eid", eid);
 
-        mctpInterface->register_property("StaticEid", staticEid);
+        registerProperty(mctpInterface, "StaticEid", staticEid);
 
-        mctpInterface->register_property("Uuid", uuid);
+        registerProperty(mctpInterface, "Uuid", uuid);
 
-        mctpInterface->register_property(
-            "BindingID", mctp_server::convertBindingTypesToString(bindingID));
+        registerProperty(mctpInterface, "BindingID",
+                         mctp_server::convertBindingTypesToString(bindingID));
 
-        mctpInterface->register_property(
-            "BindingMediumID",
+        registerProperty(
+            mctpInterface, "BindingMediumID",
             mctp_server::convertMctpPhysicalMediumIdentifiersToString(
                 bindingMediumID));
 
-        mctpInterface->register_property(
-            "BindingMode",
+        registerProperty(
+            mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
 
-        mctpInterface->initialize();
+        if (mctpInterface->initialize() == false)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
     }
     catch (std::exception& e)
     {
