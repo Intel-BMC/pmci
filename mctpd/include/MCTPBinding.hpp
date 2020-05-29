@@ -36,7 +36,8 @@ class MctpBinding
 {
   public:
     MctpBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
-                std::string& objPath, ConfigurationVariant& conf);
+                std::string& objPath, ConfigurationVariant& conf,
+                boost::asio::io_context& ioc);
     MctpBinding() = delete;
     ~MctpBinding() = default;
 
@@ -49,6 +50,7 @@ class MctpBinding
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
+    boost::asio::io_context& io;
 
     void createUuid(void);
 };

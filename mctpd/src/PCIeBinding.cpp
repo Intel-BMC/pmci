@@ -4,8 +4,9 @@
 
 PCIeBinding::PCIeBinding(
     std::shared_ptr<sdbusplus::asio::object_server>& objServer,
-    std::string& objPath, ConfigurationVariant& conf) :
-    MctpBinding(objServer, objPath, conf)
+    std::string& objPath, ConfigurationVariant& conf,
+    boost::asio::io_context& ioc) :
+    MctpBinding(objServer, objPath, conf, ioc)
 {
     std::shared_ptr<sdbusplus::asio::dbus_interface> pcieInterface =
         objServer->add_interface(objPath, pcie_binding::interface);

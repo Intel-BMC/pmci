@@ -177,16 +177,20 @@ int main(int argc, char* argv[])
 
     // TODO: Initialise binding based on configurations exposed by Entity
     // Manager
+    std::variant<std::unique_ptr<SMBusBinding>, std::unique_ptr<PCIeBinding>>
+        ptr;
     switch (bindingType)
     {
         case mctp_server::BindingTypes::MctpOverSmbus:
         {
-            SMBusBinding SMBus(objectServer, mctpBaseObj, mctpdConfiuration);
+            ptr = std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
+                                                 mctpdConfiuration, ioc);
             break;
         }
         case mctp_server::BindingTypes::MctpOverPcieVdm:
         {
-            PCIeBinding PCIe(objectServer, mctpBaseObj, mctpdConfiuration);
+            ptr = std::make_unique<PCIeBinding>(objectServer, mctpBaseObj,
+                                                mctpdConfiuration, ioc);
             break;
         }
         default:
