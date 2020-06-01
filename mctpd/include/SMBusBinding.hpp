@@ -2,6 +2,8 @@
 
 #include "MCTPBinding.hpp"
 
+#include <libmctp-smbus.h>
+
 #include <iostream>
 
 class SMBusBinding : public MctpBinding
@@ -11,10 +13,16 @@ class SMBusBinding : public MctpBinding
     SMBusBinding(std::shared_ptr<object_server>& objServer,
                  std::string& objPath, ConfigurationVariant& conf,
                  boost::asio::io_context& ioc);
-    ~SMBusBinding() = default;
+    virtual ~SMBusBinding();
+    virtual void initializeBinding(ConfigurationVariant& conf) override;
 
   private:
+    void SMBusInit(ConfigurationVariant& conf);
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
+    struct mctp_binding_smbus* smbus = nullptr;
+    int inFd{-1};  // in_fd for the smbus binding
+    int outFd{-1}; // out_fd for the root bus
+    std::vector<std::pair<int, int>> muxFds;
 };

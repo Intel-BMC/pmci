@@ -39,3 +39,10 @@ PCIeBinding::PCIeBinding(
         throw;
     }
 }
+
+void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
+{
+    initializeMctp();
+
+    // TODO: Initialise PCIe binding
+}

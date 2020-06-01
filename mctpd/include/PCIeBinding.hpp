@@ -14,7 +14,8 @@ class PCIeBinding : public MctpBinding
     PCIeBinding(std::shared_ptr<sdbusplus::asio::object_server>& objServer,
                 std::string& objPath, ConfigurationVariant& conf,
                 boost::asio::io_context& ioc);
-    ~PCIeBinding() = default;
+    virtual ~PCIeBinding() = default;
+    virtual void initializeBinding(ConfigurationVariant& conf) override;
 
   private:
     uint16_t bdf;

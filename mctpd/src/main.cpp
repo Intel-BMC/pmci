@@ -174,11 +174,11 @@ int main(int argc, char* argv[])
 
     auto objManager = std::make_shared<sdbusplus::server::manager::manager>(
         *bus, mctpBaseObj.c_str());
-
     // TODO: Initialise binding based on configurations exposed by Entity
     // Manager
     std::variant<std::unique_ptr<SMBusBinding>, std::unique_ptr<PCIeBinding>>
         ptr;
+
     switch (bindingType)
     {
         case mctp_server::BindingTypes::MctpOverSmbus:
@@ -199,6 +199,18 @@ int main(int argc, char* argv[])
         }
     }
 
+    try
+    {
+        std::visit([&mctpdConfiuration](
+                       auto& b) { b->initializeBinding(mctpdConfiuration); },
+                   ptr);
+    }
+    catch (...)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to intialize MCTP binding. Exiting..");
+        return -1;
+    }
     ioc.run();
 
     return 0;

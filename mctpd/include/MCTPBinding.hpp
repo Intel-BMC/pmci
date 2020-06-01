@@ -41,16 +41,23 @@ struct PcieConfiguration
 using ConfigurationVariant =
     std::variant<SMBusConfiguration, PcieConfiguration>;
 
+void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
+               size_t /*len*/, void* /*msg_binding_private*/);
+
 class MctpBinding
 {
   public:
     MctpBinding(std::shared_ptr<object_server>& objServer, std::string& objPath,
                 ConfigurationVariant& conf, boost::asio::io_context& ioc);
     MctpBinding() = delete;
-    ~MctpBinding() = default;
+    virtual ~MctpBinding();
+    virtual void initializeBinding(ConfigurationVariant& conf) = 0;
 
   protected:
     mctp_server::BindingModeTypes bindingModeType{};
+    struct mctp* mctp = nullptr;
+    uint8_t ownEid;
+    void initializeMctp(void);
 
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,
@@ -65,12 +72,13 @@ class MctpBinding
     }
 
   private:
-    uint8_t eid;
     bool staticEid;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     boost::asio::io_context& io;
+    std::shared_ptr<object_server>& objectServer;
+    std::shared_ptr<dbus_interface> mctpInterface;
 
     void createUuid(void);
 };
