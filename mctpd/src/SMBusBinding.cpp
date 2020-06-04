@@ -109,7 +109,8 @@ int getSMBusOutputAddress(uint8_t dstEid, uint8_t* outAddr)
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                            std::string& objPath, ConfigurationVariant& conf,
                            boost::asio::io_context& ioc) :
-    MctpBinding(objServer, objPath, conf, ioc)
+    MctpBinding(objServer, objPath, conf, ioc),
+    smbusSlaveSocket(ioc)
 {
     std::shared_ptr<dbus_interface> smbusInterface =
         objServer->add_interface(objPath, smbus_server::interface);
@@ -157,6 +158,7 @@ void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
 
 SMBusBinding::~SMBusBinding()
 {
+    smbusSlaveSocket.release();
     if (inFd >= 0)
     {
         close(inFd);
@@ -277,4 +279,24 @@ void SMBusBinding::SMBusInit(ConfigurationVariant& /*conf*/)
     mctp_smbus_set_in_fd(smbus, inFd);
     mctp_smbus_set_out_fd(smbus, outFd);
     mctp_binding_set_slave_addr_callback(getSMBusOutputAddress);
+
+    smbusSlaveSocket.assign(boost::asio::ip::tcp::v4(), inFd);
+    readResponse();
+}
+
+void SMBusBinding::readResponse()
+{
+    smbusSlaveSocket.async_wait(
+        boost::asio::ip::tcp::socket::wait_error, [this](auto& ec) {
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error: mctp_smbus_read()");
+                readResponse();
+            }
+            // through libmctp this will invoke rxMessage and message assembly
+            mctp_smbus_read(smbus);
+
+            readResponse();
+        });
 }
