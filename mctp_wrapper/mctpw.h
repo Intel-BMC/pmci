@@ -105,8 +105,8 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
  * vendor_message_type_mask are valid and should be provided, otherwise these
  * parameters are ignored.
  * @param mctpw_bus_handle bus handle @see mctpw_find_bus_by_binding_type()
- * @param type Specyfy message type to use for Rx/Tx
- * @param vendor_id vendor identifier(for Intel: 8086)
+ * @param type specifies message type to use for Rx/Tx
+ * @param vendor_id vendor identifier(for Intel: 0x8086)
  * @param receive_requests indicates that client is responder for a certain
  * message_type
  * @param vendor_message_type vendor message type
