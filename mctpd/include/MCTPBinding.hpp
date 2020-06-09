@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sdbusplus/asio/object_server.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
+#include <xyz/openbmc_project/MCTP/Endpoint/server.hpp>
+#include <xyz/openbmc_project/MCTP/SupportedMessageTypes/server.hpp>
 
 #ifdef USE_MOCK
 #include "../tests/mocks/objectServerMock.hpp"
@@ -17,6 +19,9 @@ using dbus_interface = sdbusplus::asio::dbus_interface;
 #endif
 
 using mctp_server = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
+using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
+using mctp_msg_types =
+    sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
 
 struct SMBusConfiguration
 {
@@ -40,6 +45,27 @@ struct PcieConfiguration
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
     uint16_t bdf;
+};
+
+struct MsgTypes
+{
+    bool mctpControl = true;
+    bool pldm = false;
+    bool ncsi = false;
+    bool ethernet = false;
+    bool nvmeMgmtMsg = false;
+    bool spdm = false;
+    bool vdpci = false;
+    bool vdiana = false;
+};
+
+struct EndpointProperties
+{
+    uint8_t endpointEid;
+    std::string uuid;
+    mctp_server::BindingModeTypes mode;
+    uint16_t networkId;
+    MsgTypes endpointMsgTypes;
 };
 
 struct MsgTypeSupportCtrlResp
@@ -135,6 +161,11 @@ class MctpBinding
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     std::shared_ptr<object_server>& objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
+    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
+        endpointInterface;
+    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
+        msgTypeInterface;
+    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> uuidInterface;
     boost::asio::steady_timer ctrlTxTimer;
 
     void createUuid(void);
@@ -156,4 +187,10 @@ class MctpBinding
     bool getFormattedReq(const unsigned int cmd, std::vector<uint8_t>& req,
                          std::optional<std::vector<uint8_t>> reqParam);
     void busOwnerRegisterEndpoint(const std::vector<uint8_t>& bindingPrivate);
+    void registerMsgTypes(
+        std::shared_ptr<sdbusplus::asio::dbus_interface>& msgTypeIntf,
+        const MsgTypes& messageType);
+    void populateEndpointProperties(const EndpointProperties& epProperties);
+    mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
+    MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
 };

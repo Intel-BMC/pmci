@@ -853,6 +853,148 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
     return true;
 }
 
+void MctpBinding::registerMsgTypes(
+    std::shared_ptr<sdbusplus::asio::dbus_interface>& msgTypeIntf,
+    const MsgTypes& messageType)
+{
+    msgTypeIntf->register_property("MctpControl", messageType.mctpControl);
+    msgTypeIntf->register_property("PLDM", messageType.pldm);
+    msgTypeIntf->register_property("NCSI", messageType.ncsi);
+    msgTypeIntf->register_property("Ethernet", messageType.ethernet);
+    msgTypeIntf->register_property("NVMeMgmtMsg", messageType.nvmeMgmtMsg);
+    msgTypeIntf->register_property("SPDM", messageType.spdm);
+    msgTypeIntf->register_property("VDPCI", messageType.vdpci);
+    msgTypeIntf->register_property("VDIANA", messageType.vdiana);
+    msgTypeIntf->initialize();
+}
+
+void MctpBinding::populateEndpointProperties(
+    const EndpointProperties& epProperties)
+{
+
+    std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
+    std::shared_ptr<sdbusplus::asio::dbus_interface> endpointIntf;
+    std::string mctpEpObj =
+        mctpDevObj + std::to_string(epProperties.endpointEid);
+
+    // Endpoint interface
+    endpointIntf =
+        objectServer->add_interface(mctpEpObj, mctp_endpoint::interface);
+    endpointIntf->register_property(
+        "Mode",
+        mctp_server::convertBindingModeTypesToString(epProperties.mode));
+    endpointIntf->register_property("NetworkId", epProperties.networkId);
+    endpointIntf->initialize();
+    endpointInterface.push_back(endpointIntf);
+
+    // Message type interface
+    std::shared_ptr<sdbusplus::asio::dbus_interface> msgTypeIntf;
+    msgTypeIntf =
+        objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
+    registerMsgTypes(msgTypeIntf, epProperties.endpointMsgTypes);
+    msgTypeInterface.push_back(msgTypeIntf);
+
+    // UUID interface
+    std::shared_ptr<sdbusplus::asio::dbus_interface> uuidIntf;
+    uuidIntf = objectServer->add_interface(mctpEpObj,
+                                           "xyz.openbmc_project.Common.UUID");
+    uuidIntf->register_property("UUID", epProperties.uuid);
+    uuidIntf->initialize();
+    uuidInterface.push_back(uuidIntf);
+}
+
+mctp_server::BindingModeTypes MctpBinding::getEndpointType(const uint8_t types)
+{
+    constexpr uint8_t endpointTypeMask = 0x30;
+    constexpr int endpointTypeShift = 0x04;
+    constexpr uint8_t simpleEndpoint = 0x00;
+    constexpr uint8_t busOwnerBridge = 0x01;
+
+    uint8_t endpointType = (types & endpointTypeMask) >> endpointTypeShift;
+
+    if (endpointType == simpleEndpoint)
+    {
+        return mctp_server::BindingModeTypes::Endpoint;
+    }
+    else if (endpointType == busOwnerBridge)
+    {
+        // TODO: need to differentiate between BusOwner and Bridge
+        return mctp_server::BindingModeTypes::Bridge;
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid endpoint type value");
+        throw;
+    }
+}
+
+MsgTypes MctpBinding::getMsgTypes(const std::vector<uint8_t>& msgType)
+{
+    MsgTypes messageTypes;
+
+    for (auto type : msgType)
+    {
+        switch (type)
+        {
+            case MCTP_MESSAGE_TYPE_MCTP_CTRL: {
+                messageTypes.mctpControl = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_PLDM: {
+                messageTypes.pldm = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_NCSI: {
+                messageTypes.ncsi = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_ETHERNET: {
+                messageTypes.ethernet = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_NVME: {
+                messageTypes.nvmeMgmtMsg = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_SPDM: {
+                messageTypes.spdm = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_VDPCI: {
+                messageTypes.vdpci = true;
+                break;
+            }
+            case MCTP_MESSAGE_TYPE_VDIANA: {
+                messageTypes.vdiana = true;
+                break;
+            }
+            default: {
+                // TODO: Add OEM Message Type support
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Invalid message type");
+                break;
+            }
+        }
+    }
+    return messageTypes;
+}
+
+static std::string formatUUID(guid_t& uuid)
+{
+    const size_t safeBufferLength = 50;
+    char buf[safeBufferLength] = {0};
+    auto ptr = reinterpret_cast<uint8_t*>(&uuid);
+
+    snprintf(
+        buf, safeBufferLength,
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8],
+        ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
+    // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
+    return std::string(buf);
+}
+
 void MctpBinding::busOwnerRegisterEndpoint(
     const std::vector<uint8_t>& bindingPrivate)
 {
@@ -935,7 +1077,25 @@ void MctpBinding::busOwnerRegisterEndpoint(
 
         // TODO: Get Vendor ID command
 
-        // TODO: Expose interface as per the result
+        // Expose interface as per the result
+        EndpointProperties epProperties;
+        epProperties.endpointEid = destEid;
+        mctp_ctrl_resp_get_uuid* getUuidRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
+        epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
+        try
+        {
+            epProperties.mode = getEndpointType(getEidRespPtr->eid_type);
+        }
+        catch (const std::exception&)
+        {
+            return;
+        }
+        // Network ID need to be assigned only if EP is requesting for the same.
+        // Keep Network ID as zero and update it later if a change happend.
+        epProperties.networkId = 0x00;
+        epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+        populateEndpointProperties(epProperties);
     });
 }
 
