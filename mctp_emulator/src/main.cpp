@@ -25,6 +25,8 @@ std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> msgTypeInterface;
 using json = nlohmann::json;
 using mctp_base = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
 using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
+using mctp_msg_types =
+    sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
 
 void initEndPointDevices(
     std::shared_ptr<sdbusplus::asio::object_server>& objectServer)
@@ -107,7 +109,7 @@ void initEndPointDevices(
         endpointInterface.push_back(endpointIntf);
 
         msgTypeIntf =
-            objectServer->add_interface(mctpEpObj, mctp_endpoint::interface);
+            objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
         msgTypeIntf->register_property("MctpControl", mctpControl);
         msgTypeIntf->register_property("PLDM", pldm);
         msgTypeIntf->register_property("NCSI", ncsi);
