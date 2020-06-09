@@ -28,6 +28,11 @@ using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
 using mctp_msg_types =
     sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
 
+std::unordered_map<std::string, mctp_base::BindingModeTypes>
+    stringToBindingModeMap = {
+        {"busowner", mctp_base::BindingModeTypes::BusOwner},
+        {"endpoint", mctp_base::BindingModeTypes::Endpoint}};
+
 void initEndPointDevices(
     std::shared_ptr<sdbusplus::asio::object_server>& objectServer)
 {
@@ -40,7 +45,7 @@ void initEndPointDevices(
     json endpoints = nullptr;
     uint8_t eid;
     std::string uuid;
-    std::string mode;
+    mctp_base::BindingModeTypes mode;
     uint16_t networkId;
     json msgType;
     bool mctpControl;
@@ -70,7 +75,7 @@ void initEndPointDevices(
         {
             eid = iter["Eid"];
             uuid = iter["Uuid"];
-            mode = iter["Mode"];
+            mode = stringToBindingModeMap.at(iter["Mode"]);
             networkId = iter["NetworkId"];
             msgType = iter["SupportedMessageTypes"];
             mctpControl = msgType["MctpControl"];
@@ -88,6 +93,11 @@ void initEndPointDevices(
                       << "exception id: " << e.id << std::endl;
             continue;
         }
+        catch (std::out_of_range& e)
+        {
+            std::cerr << "message: " << e.what() << std::endl;
+            continue;
+        }
 
         std::shared_ptr<sdbusplus::asio::dbus_interface> endpointIntf;
         std::shared_ptr<sdbusplus::asio::dbus_interface> msgTypeIntf;
@@ -102,8 +112,7 @@ void initEndPointDevices(
         endpointIntf->register_property(
             "Uuid", std::vector<uint8_t>(uuid.begin(), uuid.end()));
         endpointIntf->register_property(
-            "Mode", mctp_base::convertBindingModeTypesToString(
-                        static_cast<mctp_base::BindingModeTypes>(1)));
+            "Mode", mctp_base::convertBindingModeTypesToString(mode));
         endpointIntf->register_property("NetworkId", networkId);
         endpointIntf->initialize();
         endpointInterface.push_back(endpointIntf);
