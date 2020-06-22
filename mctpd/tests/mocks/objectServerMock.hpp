@@ -16,10 +16,15 @@ class dbus_interface_mock
                         __attribute__((unused)) const std::string& name){};
     virtual ~dbus_interface_mock(){};
 
-    MOCK_METHOD2(register_property, bool(const char*, uint8_t));
-    MOCK_METHOD2(register_property, bool(const char*, const std::string&));
-    MOCK_METHOD2(register_property, bool(const char*, bool));
-    MOCK_METHOD2(register_property, bool(const char*, std::vector<uint8_t>));
+    MOCK_METHOD3(register_property, bool(const std::string&, uint8_t,
+                                         sdbusplus::asio::PropertyPermission&));
+    MOCK_METHOD3(register_property, bool(const std::string&, const std::string&,
+                                         sdbusplus::asio::PropertyPermission&));
+    MOCK_METHOD3(register_property, bool(const std::string&, bool,
+                                         sdbusplus::asio::PropertyPermission&));
+    MOCK_METHOD3(register_property,
+                 bool(const std::string&, std::vector<uint8_t>,
+                      sdbusplus::asio::PropertyPermission&));
     MOCK_METHOD(bool, initialize, ());
 };
 

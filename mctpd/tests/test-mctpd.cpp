@@ -2,6 +2,7 @@
 
 using ::testing::_;
 using ::testing::An;
+using ::testing::Eq;
 using ::testing::Return;
 using ::testing::StrEq;
 
@@ -39,7 +40,8 @@ class MctpdBaseTest : public ::testing::Test
 
 /*
  * Check if properties for Base interface
- * are registered and interface initialize method
+ * are registered, property permission is always
+ * set to readOnly and interface initialize method
  * is invoked.
  */
 TEST_F(MctpdBaseTest, BaseIfPropertyTest)
@@ -48,35 +50,45 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
                            mctp_server::BindingModeTypes::BusOwner, 1,
                            {2, 3, 4, 5, 6}, "");
     /* Set test pass conditions */
-    EXPECT_CALL(*objectServerMock->dbusIfMock,
-                register_property(StrEq("Eid"), An<uint8_t>()))
-        .Times(1)
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*objectServerMock->dbusIfMock,
-                register_property(StrEq("StaticEid"), An<bool>()))
-        .Times(1)
-        .WillRepeatedly(Return(true));
-
-    EXPECT_CALL(*objectServerMock->dbusIfMock,
-                register_property(StrEq("BindingID"), An<const std::string&>()))
+    EXPECT_CALL(
+        *objectServerMock->dbusIfMock,
+        register_property(StrEq("Eid"), An<uint8_t>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
 
     EXPECT_CALL(
         *objectServerMock->dbusIfMock,
-        register_property(StrEq("BindingMediumID"), An<const std::string&>()))
+        register_property(StrEq("StaticEid"), An<bool>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
 
     EXPECT_CALL(
         *objectServerMock->dbusIfMock,
-        register_property(StrEq("BindingMode"), An<const std::string&>()))
+        register_property(StrEq("BindingID"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
 
-    EXPECT_CALL(*objectServerMock->dbusIfMock,
-                register_property(StrEq("Uuid"), An<std::vector<uint8_t>>()))
+    EXPECT_CALL(
+        *objectServerMock->dbusIfMock,
+        register_property(StrEq("BindingMediumID"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(
+        *objectServerMock->dbusIfMock,
+        register_property(StrEq("BindingMode"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(
+        *objectServerMock->dbusIfMock,
+        register_property(StrEq("Uuid"), An<std::vector<uint8_t>>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
 
