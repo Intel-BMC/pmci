@@ -9,6 +9,8 @@
 #include <sdbusplus/bus.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
 
+#include "libmctp-msgtypes.h"
+#include "libmctp-vdpci.h"
 #include "libmctp.h"
 
 using json = nlohmann::json;
@@ -42,10 +44,34 @@ static void sendMessageReceivedSignal(uint8_t msgType, uint8_t srcEid,
 static std::string getMessageType(uint8_t msgType)
 {
     // TODO: Support for OEM message types
-    std::string messageType = mctp_base::convertMessageTypesToString(
-        static_cast<mctp_base::MessageTypes>(msgType));
-    std::string msgTypeValue =
-        messageType.substr(messageType.find_last_of(".") + 1);
+    std::string msgTypeValue = "Unknown";
+    switch (msgType)
+    {
+        case MCTP_MESSAGE_TYPE_MCTP_CTRL: // 0x00
+            msgTypeValue = "MctpControl";
+            break;
+        case MCTP_MESSAGE_TYPE_PLDM: // 0x01
+            msgTypeValue = "PLDM";
+            break;
+        case MCTP_MESSAGE_TYPE_NCSI: // 0x02
+            msgTypeValue = "NCSI";
+            break;
+        case MCTP_MESSAGE_TYPE_ETHERNET: // 0x03
+            msgTypeValue = "Ethernet";
+            break;
+        case MCTP_MESSAGE_TYPE_NVME: // 0x04
+            msgTypeValue = "NVMeMgmtMsg";
+            break;
+        case MCTP_MESSAGE_TYPE_SPDM: // 0x05
+            msgTypeValue = "SPDM";
+            break;
+        case MCTP_MESSAGE_TYPE_VDPCI: // 0x7E
+            msgTypeValue = "VDPCI";
+            break;
+        case MCTP_MESSAGE_TYPE_VDIANA: // 0x7F
+            msgTypeValue = "VDIANA";
+            break;
+    }
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Message Type: " + msgTypeValue).c_str());
     return msgTypeValue;
@@ -107,12 +133,17 @@ void processResponse()
     });
 }
 
-void processMctpCommand(uint8_t dstEid, std::vector<uint8_t>& payload)
+static std::unordered_map<uint16_t, std::string> vendorMap = {
+    {0x8086, "Intel"},
+};
+
+void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
 {
     uint8_t msgType;
     uint8_t srcEid = dstEid;
     uint8_t msgTag = 0;    // Hardcode Message Tag until a usecase arrives
     bool tagOwner = false; // This is false for responders
+    std::string messageType;
 
     msgType = payload.at(0);
 
@@ -128,13 +159,63 @@ void processMctpCommand(uint8_t dstEid, std::vector<uint8_t>& payload)
     json reqRespData = nullptr;
     try
     {
-        reqRespData = reqResp[getMessageType(msgType)];
+        messageType = getMessageType(msgType);
+        reqRespData = reqResp[messageType];
     }
     catch (json::exception& e)
     {
         std::cerr << "message: " << e.what() << '\n'
                   << "exception id: " << e.id << std::endl;
         return;
+    }
+
+    std::vector<uint8_t> reqHeader;
+    if (messageType == "VDPCI")
+    {
+        if (payload.size() < sizeof(mctp_vdpci_intel_hdr))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "mctp-emulator: Invalid VDPCI message: Insufficient bytes in "
+                "Payload");
+            return;
+        }
+
+        const auto* vdpciMessage =
+            reinterpret_cast<const mctp_vdpci_intel_hdr*>(payload.data());
+        auto vendorIter = vendorMap.find(vdpciMessage->vdpci_hdr.vendor_id);
+        if (vendorIter == vendorMap.end())
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "mctp-emulator: Invalid VDPCI message: Unknown Vendor ID");
+            return;
+        }
+
+        const auto& vendorString = vendorIter->second;
+        if (vendorString == "Intel" && vdpciMessage->reserved != 0x80)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "mctp-emulator: Invalid VDPCI message: Unexpected value in "
+                "reserved byte");
+            return;
+        }
+        try
+        {
+            auto vendorTypeCode =
+                std::to_string(vdpciMessage->vendor_type_code);
+            reqRespData = reqRespData[vendorString][vendorTypeCode];
+        }
+        catch (json::exception& e)
+        {
+            std::cerr << "message: " << e.what() << '\n'
+                      << "exception id: " << e.id << std::endl;
+            return;
+        }
+        reqHeader.insert(reqHeader.end(), payload.begin(),
+                         payload.begin() + sizeof(mctp_vdpci_intel_hdr));
+    }
+    else
+    {
+        reqHeader.push_back(msgType);
     }
 
     for (auto iter : reqRespData)
@@ -162,7 +243,7 @@ void processMctpCommand(uint8_t dstEid, std::vector<uint8_t>& payload)
             continue;
         }
 
-        req.insert(req.begin(), msgType);
+        req.insert(req.begin(), reqHeader.begin(), reqHeader.end());
         if (req == payload)
         {
             phosphor::logging::log<phosphor::logging::level::INFO>(

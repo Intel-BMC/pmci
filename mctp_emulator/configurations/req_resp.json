@@ -60,5 +60,44 @@
                 81
             ]
         }
-    ]
+    ],
+    "VDPCI": {
+        "Intel": {
+            "9": [
+                {
+                    "processing-delay": 2000,
+                    "request": [
+                        1,
+                        0,
+                        4
+                    ],
+                    "response": [
+                        1,
+                        0,
+                        4,
+                        0,
+                        255
+                    ]
+                },
+                {
+                    "processing-delay": 0,
+                    "request": [
+                        2
+                    ],
+                    "response": [
+                        8
+                    ]
+                },
+                {
+                    "processing-delay": -1,
+                    "request": [
+                        4
+                    ],
+                    "response": [
+                        81
+                    ]
+                }
+            ]
+        }
+    }
 }
