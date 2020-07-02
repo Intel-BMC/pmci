@@ -60,6 +60,8 @@ class MctpBinding
     struct mctp* mctp = nullptr;
     uint8_t ownEid;
     void initializeMctp(void);
+    virtual bool getBindingPrivateData(uint8_t dstEid,
+                                       std::vector<uint8_t>& pvtData);
 
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,

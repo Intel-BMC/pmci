@@ -31,6 +31,14 @@ void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
     }
 }
 
+bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
+                                        std::vector<uint8_t>& pvtData)
+{
+    // No Binding data by default
+    pvtData.clear();
+    return true;
+}
+
 MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                          std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
@@ -88,10 +96,13 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                    std::vector<uint8_t> payload) {
                 tagOwner = tagOwner;
                 msgTag = msgTag;
-                // TODO: binding specific private data should be passed to
-                // mctp_message_tx(), handle tagOwner and messageTag
+
+                std::vector<uint8_t> pvtData;
+
+                getBindingPrivateData(dstEid, pvtData);
+
                 return mctp_message_tx(mctp, dstEid, payload.data(),
-                                       payload.size(), NULL);
+                                       payload.size(), pvtData.data());
             });
 
         mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,

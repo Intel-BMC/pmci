@@ -106,6 +106,21 @@ int getSMBusOutputAddress(uint8_t dstEid, uint8_t* outAddr)
     return 0;
 }
 
+bool SMBusBinding::getBindingPrivateData(uint8_t /*dstEid*/,
+                                         std::vector<uint8_t>& pvtData)
+{
+    // TODO: Contruct EID to physical address mapper
+    pvtData.resize(sizeof(mctp_smbus_extra_params));
+    struct mctp_smbus_extra_params* prvt =
+        reinterpret_cast<struct mctp_smbus_extra_params*>(pvtData.data());
+    prvt->fd = this->outFd;
+    prvt->muxHoldTimeOut = 0;
+    prvt->muxFlags = 0;
+    prvt->slave_addr = 0xB0;
+
+    return true;
+}
+
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                            std::string& objPath, ConfigurationVariant& conf,
                            boost::asio::io_context& ioc) :
