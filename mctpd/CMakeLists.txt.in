@@ -18,7 +18,7 @@ externalproject_add (
 externalproject_add (
     sdbusplus-project
     GIT_REPOSITORY https://github.com/openbmc/sdbusplus.git
-    GIT_TAG 5de31846e2b03591504fcdd48efba3487a570197
+    GIT_TAG afe80cf2e5dc4aefe3b041adeb0230e61929bf12
     SOURCE_DIR "${CMAKE_BINARY_DIR}/src/sdbusplus"
     BINARY_DIR "${CMAKE_BINARY_DIR}/libs/sdbusplus"
     CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh &&

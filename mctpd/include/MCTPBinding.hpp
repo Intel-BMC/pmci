@@ -41,6 +41,8 @@ struct PcieConfiguration
 using ConfigurationVariant =
     std::variant<SMBusConfiguration, PcieConfiguration>;
 
+extern std::shared_ptr<sdbusplus::asio::connection> conn;
+
 void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
                size_t /*len*/, void* /*msg_binding_private*/);
 

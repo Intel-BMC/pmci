@@ -11,6 +11,7 @@
 using json = nlohmann::json;
 
 std::string configPath = "/usr/share/mctp/mctp_config.json";
+std::shared_ptr<sdbusplus::asio::connection> conn;
 
 std::unordered_map<std::string, mctp_server::BindingTypes> mctpBindingsMap = {
     {"smbus", mctp_server::BindingTypes::MctpOverSmbus},
@@ -164,16 +165,14 @@ int main(int argc, char* argv[])
     signals.async_wait(
         [&ioc](const boost::system::error_code&, const int&) { ioc.stop(); });
 
-    std::shared_ptr<sdbusplus::asio::connection> bus;
-
-    bus = std::make_shared<sdbusplus::asio::connection>(ioc);
+    conn = std::make_shared<sdbusplus::asio::connection>(ioc);
 
     std::string mctpServiceName = "xyz.openbmc_project.MCTP-";
-    auto objectServer = std::make_shared<object_server>(bus);
-    bus->request_name((mctpServiceName + binding).c_str());
+    auto objectServer = std::make_shared<object_server>(conn);
+    conn->request_name((mctpServiceName + binding).c_str());
 
     auto objManager = std::make_shared<sdbusplus::server::manager::manager>(
-        *bus, mctpBaseObj.c_str());
+        *conn, mctpBaseObj.c_str());
     // TODO: Initialise binding based on configurations exposed by Entity
     // Manager
     std::variant<std::unique_ptr<SMBusBinding>, std::unique_ptr<PCIeBinding>>
