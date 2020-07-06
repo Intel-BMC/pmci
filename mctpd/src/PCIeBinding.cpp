@@ -43,6 +43,31 @@ PCIeBinding::PCIeBinding(
 void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
 {
     initializeMctp();
+    pcie = mctp_binding_astpcie_init();
+    if (pcie == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in MCTP PCIe init");
+        throw std::system_error(
+            std::make_error_code(std::errc::not_enough_memory));
+    }
+    struct mctp_binding* binding = mctp_binding_astpcie_core(pcie);
+    if (binding == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in MCTP binding init");
+        throw std::system_error(
+            std::make_error_code(std::errc::not_enough_memory));
+    }
+    mctp_register_bus(mctp, binding, ownEid);
+    mctp_set_rx_all(mctp, rxMessage, nullptr);
+    mctp_binding_set_tx_enabled(binding, true);
+}
 
-    // TODO: Initialise PCIe binding
+PCIeBinding::~PCIeBinding()
+{
+    if (pcie)
+    {
+        mctp_binding_astpcie_free(pcie);
+    }
 }
