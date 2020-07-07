@@ -75,6 +75,7 @@ static const std::unordered_map<mctpw_binding_type_t, const std::string>
 
 struct clientContext
 {
+    std::shared_ptr<sdbusplus::bus::bus> bus;
     ServiceHandleType* service_h;
     mctpw_message_type_t type;
     uint32_t vendor_id;
@@ -89,9 +90,9 @@ struct clientContext
 
 template <typename Property>
 static auto
-    readPropertyValue(sdbusplus::bus::bus& bus, const std::string& service,
-                      const std::string& path, const std::string& interface,
-                      const std::string& property)
+    read_property_value(sdbusplus::bus::bus& bus, const std::string& service,
+                        const std::string& path, const std::string& interface,
+                        const std::string& property)
 {
     auto msg = bus.new_method_call(service.c_str(), path.c_str(),
                                    "org.freedesktop.DBus.Properties", "Get");
@@ -102,6 +103,27 @@ static auto
     std::variant<Property> v;
     reply.read(v);
     return std::get<Property>(v);
+}
+
+template <typename response_t, typename... args_t>
+static void call_method(sdbusplus::bus::bus& bus, const char* service,
+                        const char* object_path, const char* interface,
+                        const char* method_name, response_t& response,
+                        const args_t&... args)
+{
+    auto msg =
+        bus.new_method_call(service, object_path, interface, method_name);
+
+    msg.append(args...);
+
+    auto reply = bus.call(msg);
+
+    if (reply.is_method_error())
+    {
+        mctpw_exception err(reply.get_errno(), "Call method failed:");
+        throw err;
+    }
+    reply.read(response);
 }
 
 static auto register_signal_handler(sdbusplus::bus::bus& bus,
@@ -139,33 +161,24 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
                 sdbusplus::bus::new_default_system());
         }
 
-        auto msg = mctpwBus->new_method_call(
-            "xyz.openbmc_project.ObjectMapper",
-            "/xyz/openbmc_project/object_mapper",
-            "xyz.openbmc_project.ObjectMapper", "GetObject");
-
+        DictType<std::string, std::vector<std::string>> services;
         std::vector<std::string> interfaces;
         interfaces.push_back(bindingToInterface.at(binding_type));
 
-        msg.append("/xyz/openbmc_project/mctp", interfaces);
-        auto reply = mctpwBus->call(msg);
-        if (reply.is_method_error())
-        {
-            mctpw_exception err(reply.get_errno(), "Method GetObject failed:");
-            throw err;
-        }
-        DictType<std::string, std::vector<std::string>> services;
-        reply.read(services);
+        call_method(*(mctpwBus), "xyz.openbmc_project.ObjectMapper",
+                    "/xyz/openbmc_project/object_mapper",
+                    "xyz.openbmc_project.ObjectMapper", "GetObject", services,
+                    "/xyz/openbmc_project/mctp", interfaces);
 
         for (auto& i : services)
         {
             int bus = -1;
             if (binding_type == mctp_over_smbus)
             {
-                std::string pv = readPropertyValue<std::string>(
+                std::string pv = read_property_value<std::string>(
                     *mctpwBus, i.first, "/xyz/openbmc_project/mctp",
-                    bindingToInterface.at(binding_type), "BusNumber");
-                /* format of BusNumber:path-bus */
+                    bindingToInterface.at(binding_type), "BusPath");
+                /* format of BusPath:path-bus */
                 std::vector<std::string> splitted;
                 boost::split(splitted, pv, boost::is_any_of("-"));
                 if (splitted.size() == 2)
@@ -184,7 +197,7 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
             }
             else if (binding_type == mctp_over_pcie_vdm)
             {
-                uint16_t pv = readPropertyValue<uint16_t>(
+                uint16_t pv = read_property_value<uint16_t>(
                     *mctpwBus, i.first, "/xyz/openbmc_project/mctp",
                     bindingToInterface.at(binding_type), "BDF");
                 /* format of BDF:
@@ -226,8 +239,8 @@ static int network_reconfiguration_cb(sd_bus_message* m, void* userdata,
                                       sd_bus_error* ret_error)
 {
     std::vector<std::string> tracedProperties = {
-        "Eid",          "EidPool",  "Mode", "NetworkId", "discoveredFlag",
-        "SlaveAddress", "BusNumber"};
+        "Eid",          "EidPool", "Mode", "NetworkId", "discoveredFlag",
+        "SlaveAddress", "BusPath"};
     std::vector<std::string> tracedInterfaces = {
         "xyz.openbmc_project.MCTP.Binding.PCIe",
         "xyz.openbmc_project.MCTP.Binding.SMBus",
@@ -352,6 +365,8 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
 
     try
     {
+        ctx->bus = std::make_shared<sdbusplus::bus::bus>(
+            sdbusplus::bus::new_default_system());
         ctx->service_h = static_cast<ServiceHandleType*>(mctpw_bus_handle);
         ctx->type = type;
         ctx->vendor_id = vendor_id;
@@ -439,4 +454,229 @@ void mctpw_unregister_client(void* client_context)
     ctx->thread_mutex.unlock();
     delete ctx;
     return;
+}
+
+int mctpw_get_endpoint_list(void* client_context, mctpw_eid_t* eids,
+                            unsigned* num)
+{
+    unsigned max;
+    int unhandled = 0;
+
+    if (!client_context || !num || !eids || *num == 0)
+    {
+        return -EINVAL;
+    }
+
+    max = *num;
+    *num = 0;
+
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        /*
+         * response format:
+         * DICT[STRING,DICT[STRING,ARRAY[STRING]]] dictionary of path ->
+         * services
+         */
+        DictType<std::string, DictType<std::string, std::vector<std::string>>>
+            values;
+
+        std::vector<std::string> interfaces;
+        interfaces.push_back("xyz.openbmc_project.MCTP.Endpoint");
+
+        call_method(*(ctx->bus), "xyz.openbmc_project.ObjectMapper",
+                    "/xyz/openbmc_project/object_mapper",
+                    "xyz.openbmc_project.ObjectMapper", "GetSubTree", values,
+                    "/xyz/openbmc_project/mctp/device", 0, interfaces);
+
+        for (auto& path : values)
+        {
+            /* ignore entry if service name doesn't match */
+            if (path.second.find(ctx->service_h->second.c_str()) ==
+                path.second.end())
+            {
+                continue;
+            }
+
+            std::string spath = path.first;
+
+            /* format of endpoint path: path/Eid */
+            std::vector<std::string> splitted;
+            boost::split(splitted, spath, boost::is_any_of("/"));
+            if (splitted.size())
+            {
+                try
+                {
+                    /* take the last element and convert it to eid */
+                    if (*num < max)
+                    {
+                        eids[(*num)++] = static_cast<mctpw_eid_t>(
+                            std::stoi(splitted[splitted.size() - 1]));
+                    }
+                    else
+                    {
+                        unhandled++;
+                    }
+                }
+                catch (std::exception& e)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        e.what());
+                }
+            }
+        }
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return unhandled;
+}
+
+int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
+                                     unsigned* num)
+{
+    unsigned max;
+    int unhandled = 0;
+
+    static const std::unordered_map<mctpw_message_type_t, const std::string>
+        msgTypeToPropertyName = {
+            {pldm, "PLDM"},         {ncsi, "NCSI"},
+            {ethernet, "Ethernet"}, {nvme_mgmt_msg, "NVMeMgmtMsg"},
+            {spdm, "SPDM "},        {vdpci, "VDPCI"},
+            {vdiana, "VDIANA"}};
+
+    if (!client_context || !num || !eids || *num == 0)
+    {
+        return -EINVAL;
+    }
+
+    max = *num;
+    *num = 0;
+
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        DictType<sdbusplus::message::object_path,
+                 DictType<std::string,
+                          DictType<std::string, MctpPropertiesVariantType>>>
+            values;
+
+        call_method(*(ctx->bus), ctx->service_h->second.c_str(),
+                    "/xyz/openbmc_project/mctp",
+                    "org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
+                    values);
+
+        for (auto& path : values)
+        {
+            std::string spath = path.first;
+            DictType<std::string,
+                     DictType<std::string, MctpPropertiesVariantType>>
+                interface;
+            if (path.second.find("xyz.openbmc_project.MCTP.Endpoint") !=
+                path.second.end())
+            {
+                try
+                {
+                    DictType<std::string, MctpPropertiesVariantType> msgIf;
+                    /* SupportedMessageTypes interface should be present for
+                     * each endpoint */
+                    msgIf = path.second.at(
+                        "xyz.openbmc_project.MCTP.SupportedMessageTypes");
+                    MctpPropertiesVariantType pv;
+                    pv = msgIf.at(msgTypeToPropertyName.at(ctx->type));
+                    if (std::get<bool>(pv) == true)
+                    {
+                        /* format of of endpoint path: path/Eid */
+                        std::vector<std::string> splitted;
+                        boost::split(splitted, spath, boost::is_any_of("/"));
+                        if (splitted.size())
+                        {
+                            /* take the last element and convert it to eid */
+                            if (*num < max)
+                            {
+                                eids[(*num)++] = static_cast<mctpw_eid_t>(
+                                    std::stoi(splitted[splitted.size() - 1]));
+                            }
+                            else
+                            {
+                                unhandled++;
+                            }
+                        }
+                    }
+                }
+                catch (std::exception& e)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        e.what());
+                }
+            }
+        }
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return unhandled;
+}
+
+int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
+                                  mctpw_endpoint_properties_t* properties)
+{
+    if (!client_context || !properties)
+    {
+        return -EINVAL;
+    }
+
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        /*
+         *  response format:
+         *  <DICT<STRING,VARIANT> objpath interfaces_and_properties
+         */
+        DictType<std::string, MctpPropertiesVariantType> props;
+        std::string object =
+            "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
+
+        call_method(*(ctx->bus), ctx->service_h->second.c_str(), object.c_str(),
+                    "org.freedesktop.DBus.Properties", "GetAll", props,
+                    "xyz.openbmc_project.MCTP.SupportedMessageTypes");
+
+        properties->mctp_control = std::get<bool>(props.at("MctpControl"));
+        properties->pldm = std::get<bool>(props.at("PLDM"));
+        properties->ncsi = std::get<bool>(props.at("NCSI"));
+        properties->ethernet = std::get<bool>(props.at("Ethernet"));
+        properties->nvme_mgmt_msg = std::get<bool>(props.at("NVMeMgmtMsg"));
+        properties->spdm = std::get<bool>(props.at("SPDM"));
+        properties->vdpci = std::get<bool>(props.at("VDPCI"));
+        properties->vdiana = std::get<bool>(props.at("VDIANA"));
+
+        call_method(*(ctx->bus), ctx->service_h->second.c_str(), object.c_str(),
+                    "org.freedesktop.DBus.Properties", "GetAll", props,
+                    "xyz.openbmc_project.MCTP.Endpoint");
+
+        properties->network_id = std::get<uint16_t>(props.at("NetworkId"));
+        // todo: uuid, vendor_type and vendor_type_count
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return 0;
 }

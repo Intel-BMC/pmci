@@ -26,6 +26,7 @@
 
 #include "mctpw.h"
 #define UNUSED(x) (void)(x)
+#define EID_LIST_SIZE 32
 
 void* context;
 volatile bool run_flag = true;
@@ -53,6 +54,8 @@ int main(void)
     void* bus_handler;
     int bus, ret;
     bool found = false;
+    unsigned eid_list_size;
+    mctpw_eid_t eid_list[EID_LIST_SIZE];
 
     signal(SIGINT, signal_handler);
 
@@ -78,6 +81,71 @@ int main(void)
     {
         std::cout << "Client registration failed\n" << std::endl;
         return ret;
+    }
+
+    eid_list_size = EID_LIST_SIZE;
+    if ((ret = mctpw_get_endpoint_list(context, eid_list, &eid_list_size)) < 0)
+    {
+        return ret;
+    }
+    std::cout << std::endl
+              << "On bus " << bus << " found " << eid_list_size << " endpoints."
+              << std::endl;
+    for (unsigned i = 0; i < eid_list_size; i++)
+    {
+        std::cout << "Eid" << i << " = " << static_cast<unsigned>(eid_list[i])
+                  << std::endl;
+    }
+
+    eid_list_size = EID_LIST_SIZE;
+    if ((ret = mctpw_get_matching_endpoint_list(context, eid_list,
+                                                &eid_list_size)) < 0)
+    {
+        return ret;
+    }
+
+    std::cout << std::endl
+              << eid_list_size << " endpoints supports registered message type."
+              << std::endl;
+
+    for (unsigned i = 0; i < eid_list_size; i++)
+    {
+        std::cout << "Eid" << i << " = " << static_cast<unsigned>(eid_list[i])
+                  << std::endl;
+    }
+
+    mctpw_endpoint_properties_t endpoint_prop;
+    for (unsigned i = 0; i < eid_list_size; i++)
+    {
+        if (mctpw_get_endpoint_properties(context, eid_list[i],
+                                          &endpoint_prop) == 0)
+        {
+            std::cout << std::endl
+                      << "EP Eid " << static_cast<unsigned>(eid_list[i])
+                      << " properties:" << std::endl;
+            std::cout << "network_id:"
+                      << static_cast<unsigned>(endpoint_prop.network_id)
+                      << std::endl;
+            std::cout << "mctp_control: "
+                      << (endpoint_prop.mctp_control ? "true" : "false")
+                      << std::endl;
+            std::cout << "pldm: " << (endpoint_prop.pldm ? "true" : "false")
+                      << std::endl;
+            std::cout << "ncsi: " << (endpoint_prop.ncsi ? "true" : "false")
+                      << std::endl;
+            std::cout << "ethernet: "
+                      << (endpoint_prop.ethernet ? "true" : "false")
+                      << std::endl;
+            std::cout << "nvme_mgmt_msg: "
+                      << (endpoint_prop.nvme_mgmt_msg ? "true" : "false")
+                      << std::endl;
+            std::cout << "spdm: " << (endpoint_prop.spdm ? "true" : "false")
+                      << std::endl;
+            std::cout << "vdpci: " << (endpoint_prop.vdpci ? "true" : "false")
+                      << std::endl;
+            std::cout << "vdiana: " << (endpoint_prop.vdiana ? "true" : "false")
+                      << std::endl;
+        }
     }
 
     while (run_flag == true)
