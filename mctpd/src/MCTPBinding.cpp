@@ -10,6 +10,10 @@
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
 
+// map<EID, assigned>
+static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
+std::mutex eidPoolLock;
+
 void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
                void* /*binding_private*/)
 {
@@ -56,6 +60,14 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             bindingID = smbusConf->bindingType;
             bindingMediumID = smbusConf->mediumId;
             bindingModeType = smbusConf->mode;
+
+            // TODO: Add bus owner interface.
+            // TODO: If we are not top most busowner, wait for top mostbus owner
+            // to issue EID Pool
+            if (smbusConf->mode == mctp_server::BindingModeTypes::BusOwner)
+            {
+                initializeEidPool(smbusConf->eidPool);
+            }
         }
         else if (PcieConfiguration* pcieConf =
                      std::get_if<PcieConfiguration>(&conf))
@@ -162,4 +174,64 @@ void MctpBinding::initializeMctp(void)
             std::make_error_code(std::errc::not_enough_memory));
     }
     mctp_set_rx_all(mctp, rxMessage, nullptr);
+}
+
+void MctpBinding::initializeEidPool(const std::vector<mctp_eid_t>& pool)
+{
+    const std::lock_guard<std::mutex> lock(eidPoolLock);
+    for (auto const& epId : pool)
+    {
+        eidPoolMap.emplace(epId, false);
+    }
+}
+
+void MctpBinding::updateEidStatus(const mctp_eid_t endpointId,
+                                  const bool assigned)
+{
+    const std::lock_guard<std::mutex> lock(eidPoolLock);
+    auto eidItr = eidPoolMap.find(endpointId);
+    if (eidItr != eidPoolMap.end())
+    {
+        eidItr->second = assigned;
+        if (assigned)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("EID " + std::to_string(endpointId) + " is assigned").c_str());
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("EID " + std::to_string(endpointId) + " added to pool")
+                    .c_str());
+        }
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Unable to find EID " + std::to_string(endpointId) +
+             " in the pool")
+                .c_str());
+    }
+}
+
+mctp_eid_t MctpBinding::getAvailableEidFromPool(void)
+{
+    // Note:- No need to check for busowner role explicitly when accessing EID
+    // pool since getAvailableEidFromPool will be called only in busowner mode.
+
+    const std::lock_guard<std::mutex> lock(eidPoolLock);
+    for (auto& eidPair : eidPoolMap)
+    {
+        if (!eidPair.second)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Allocated EID: " + std::to_string(eidPair.first)).c_str());
+            eidPair.second = true;
+            return eidPair.first;
+        }
+    }
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "No free EID in the pool");
+    throw std::system_error(
+        std::make_error_code(std::errc::address_not_available));
 }

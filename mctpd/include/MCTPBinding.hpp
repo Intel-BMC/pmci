@@ -1,5 +1,7 @@
 #pragma once
 
+#include <libmctp.h>
+
 #include <iostream>
 #include <sdbusplus/asio/object_server.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
@@ -22,6 +24,7 @@ struct SMBusConfiguration
     mctp_server::MctpPhysicalMediumIdentifiers mediumId;
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
+    // TODO: Use std::set for EID pool to avoid duplicates
     std::vector<uint8_t> eidPool;
     std::string bus;
     bool arpMasterSupport;
@@ -54,6 +57,7 @@ class MctpBinding
     MctpBinding() = delete;
     virtual ~MctpBinding();
     virtual void initializeBinding(ConfigurationVariant& conf) = 0;
+    void initializeEidPool(const std::vector<mctp_eid_t>& eidPool);
 
   protected:
     mctp_server::BindingModeTypes bindingModeType{};
@@ -85,4 +89,6 @@ class MctpBinding
     std::shared_ptr<dbus_interface> mctpInterface;
 
     void createUuid(void);
+    void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
+    mctp_eid_t getAvailableEidFromPool(void);
 };
