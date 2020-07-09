@@ -21,6 +21,7 @@ class SMBusBinding : public MctpBinding
   private:
     void SMBusInit(ConfigurationVariant& conf);
     void readResponse();
+    void initEndpointDiscovery(ConfigurationVariant& conf);
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;

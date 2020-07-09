@@ -162,6 +162,7 @@ void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
     {
         initializeMctp();
         SMBusInit(conf);
+        io.post([this, &conf]() { initEndpointDiscovery(conf); });
     }
 
     catch (std::exception& e)
@@ -314,4 +315,29 @@ void SMBusBinding::readResponse()
 
             readResponse();
         });
+}
+
+void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "InitEndpointDiscovery");
+    bool isBusOwner = std::get<SMBusConfiguration>(conf).mode ==
+                              mctp_server::BindingModeTypes::BusOwner
+                          ? true
+                          : false;
+
+    // TODO: Discovery on physical bus
+    // Assuming discovered endpoint support MCTP
+
+    std::vector<uint8_t> pvtData;
+
+    getBindingPrivateData(0x00, pvtData);
+
+    // The table can have n number of pvtData obtained from discovery
+    std::vector<std::vector<uint8_t>> deviceTableBindingPrivate{pvtData};
+
+    for (std::vector<uint8_t>& bindingPrivate : deviceTableBindingPrivate)
+    {
+        registerEndpoint(bindingPrivate, isBusOwner);
+    }
 }
