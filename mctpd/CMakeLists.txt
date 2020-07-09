@@ -97,7 +97,7 @@ include_directories (SYSTEM ${BOOST_SRC_DIR})
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
-                        -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel i2c)
+                        -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel i2c -lboost_coroutine)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)

@@ -9,7 +9,7 @@ externalproject_add (
     SOURCE_DIR "${CMAKE_BINARY_DIR}/src/boost"
     BINARY_DIR "${CMAKE_BINARY_DIR}/libs/boost"
     CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh
-    BUILD_COMMAND cd <SOURCE_DIR> && ./b2 --exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR> --with-system install
+    BUILD_COMMAND cd <SOURCE_DIR> && ./b2 --exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR> --with-system --with-coroutine install
     INSTALL_COMMAND ""
     UPDATE_COMMAND ""
 )

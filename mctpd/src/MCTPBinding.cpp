@@ -9,10 +9,22 @@
 
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
+constexpr int ctrlTxPollInterval = 5;
+constexpr int ctrlTxRetryDelay = 100;
+constexpr int ctrlTxRetryCount = 2;
 
 // map<EID, assigned>
 static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
 std::mutex eidPoolLock;
+bool ctrlTxTimerExpired = true;
+// <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
+//  Callback>
+static std::vector<
+    std::tuple<PacketState, int, int, mctp_eid_t, std::vector<uint8_t>,
+               std::vector<uint8_t>,
+               std::function<void(PacketState, std::vector<uint8_t>&)>>>
+    ctrlTxQueue;
+std::mutex ctrlTxQueueLock;
 
 void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
                void* /*binding_private*/)
@@ -47,7 +59,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                          std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
     io(ioc),
-    objectServer(objServer)
+    objectServer(objServer), ctrlTxTimer(io)
 {
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
@@ -234,4 +246,169 @@ mctp_eid_t MctpBinding::getAvailableEidFromPool(void)
         "No free EID in the pool");
     throw std::system_error(
         std::make_error_code(std::errc::address_not_available));
+}
+
+bool MctpBinding::sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
+                                  std::vector<uint8_t> bindingPrivate)
+{
+    if (mctp_message_tx(mctp, destEid, req.data(), req.size(),
+                        bindingPrivate.data()) < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error in mctp_message_tx");
+        return false;
+    }
+    return true;
+}
+
+void MctpBinding::processCtrlTxQueue(void)
+{
+    ctrlTxTimerExpired = false;
+    ctrlTxTimer.expires_after(std::chrono::milliseconds(ctrlTxPollInterval));
+    ctrlTxTimer.async_wait([this](const boost::system::error_code& ec) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            // timer aborted do nothing
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "ctrlTxTimer operation_aborted");
+            return;
+        }
+        else if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "ctrlTxTimer failed");
+            return;
+        }
+
+        // Discard the packet if retry count exceeded
+        ctrlTxQueueLock.lock();
+
+        ctrlTxQueue.erase(
+            std::remove_if(
+                ctrlTxQueue.begin(), ctrlTxQueue.end(),
+                [this](auto& ctrlTx) {
+                    auto& [state, retryCount, maxRespDelay, destEid,
+                           bindingPrivate, req, callback] = ctrlTx;
+
+                    maxRespDelay -= ctrlTxPollInterval;
+
+                    // If no reponse:
+                    // Retry the packet on every ctrlTxRetryDelay
+                    // Total no of tries = 1 + ctrlTxRetryCount
+                    if (maxRespDelay > 0 &&
+                        state != PacketState::receivedResponse)
+                    {
+                        if (retryCount > 0 &&
+                            maxRespDelay <= retryCount * ctrlTxRetryDelay)
+                        {
+                            if (sendMctpMessage(destEid, req, bindingPrivate))
+                            {
+                                phosphor::logging::log<
+                                    phosphor::logging::level::INFO>(
+                                    "Packet transmited");
+                                state = PacketState::transmitted;
+                            }
+
+                            // Decrement retry count
+                            retryCount--;
+                        }
+
+                        return false;
+                    }
+
+                    state = PacketState::noResponse;
+                    std::vector<uint8_t> resp1 = {};
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Retry timed out, No response");
+
+                    // Call Callback function
+                    callback(state, resp1);
+                    return true;
+                }),
+            ctrlTxQueue.end());
+
+        ctrlTxQueueLock.unlock();
+
+        if (ctrlTxQueue.empty())
+        {
+            ctrlTxTimer.cancel();
+            ctrlTxTimerExpired = true;
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "ctrlTxQueue empty, canceling timer");
+        }
+        else
+        {
+            processCtrlTxQueue();
+        }
+    });
+}
+
+void MctpBinding::pushToCtrlTxQueue(
+    PacketState state, const mctp_eid_t destEid,
+    const std::vector<uint8_t>& bindingPrivate, const std::vector<uint8_t>& req,
+    std::function<void(PacketState, std::vector<uint8_t>&)>& callback)
+{
+    ctrlTxQueue.push_back(std::make_tuple(
+        state, ctrlTxRetryCount, ((ctrlTxRetryCount + 1) * ctrlTxRetryDelay),
+        destEid, bindingPrivate, req, callback));
+
+    if (sendMctpMessage(destEid, req, bindingPrivate))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Packet transmited");
+        state = PacketState::transmitted;
+    }
+
+    if (ctrlTxTimerExpired)
+    {
+        processCtrlTxQueue();
+    }
+}
+
+PacketState MctpBinding::sendAndRcvMctpCtrl(
+    boost::asio::yield_context& yield, const std::vector<uint8_t>& req,
+    const mctp_eid_t destEid, const std::vector<uint8_t>& bindingPrivate,
+    std::vector<uint8_t>& resp)
+{
+    if (req.empty())
+    {
+        return PacketState::invalidPacket;
+    }
+
+    PacketState pktState = PacketState::pushedForTransmission;
+    boost::system::error_code ec;
+    boost::asio::steady_timer timer(io);
+
+    std::function<void(PacketState, std::vector<uint8_t>&)> callback =
+        [&resp, &pktState, &timer](PacketState state,
+                                   std::vector<uint8_t>& response) {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Callback triggered");
+
+            resp = response;
+            pktState = state;
+            timer.cancel();
+
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("Packet state: " + std::to_string(static_cast<int>(pktState)))
+                    .c_str());
+        };
+
+    pushToCtrlTxQueue(pktState, destEid, bindingPrivate, req, callback);
+
+    do
+    {
+        timer.expires_after(std::chrono::milliseconds(ctrlTxRetryDelay));
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "sendAndRcvMctpCtrl: Timer created, ctrl cmd waiting");
+        timer.async_wait(yield[ec]);
+        if (ec && ec != boost::asio::error::operation_aborted)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "sendAndRcvMctpCtrl: async_wait error");
+        }
+    } while (pktState == PacketState::pushedForTransmission);
+    // Wait for the state to change
+
+    return pktState;
 }

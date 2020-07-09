@@ -41,6 +41,15 @@ struct PcieConfiguration
     uint16_t bdf;
 };
 
+enum class PacketState : uint8_t
+{
+    invalidPacket,
+    pushedForTransmission,
+    transmitted,
+    receivedResponse,
+    noResponse
+};
+
 using ConfigurationVariant =
     std::variant<SMBusConfiguration, PcieConfiguration>;
 
@@ -87,8 +96,22 @@ class MctpBinding
     boost::asio::io_context& io;
     std::shared_ptr<object_server>& objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
+    boost::asio::steady_timer ctrlTxTimer;
 
     void createUuid(void);
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool(void);
+    bool sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
+                         std::vector<uint8_t> bindingPrivate);
+    void processCtrlTxQueue(void);
+    void pushToCtrlTxQueue(
+        PacketState pktState, const mctp_eid_t destEid,
+        const std::vector<uint8_t>& bindingPrivate,
+        const std::vector<uint8_t>& req,
+        std::function<void(PacketState, std::vector<uint8_t>&)>& callback);
+    PacketState sendAndRcvMctpCtrl(boost::asio::yield_context& yield,
+                                   const std::vector<uint8_t>& req,
+                                   const mctp_eid_t destEid,
+                                   const std::vector<uint8_t>& bindingPrivate,
+                                   std::vector<uint8_t>& resp);
 };
