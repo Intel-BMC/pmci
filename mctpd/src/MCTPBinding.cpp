@@ -10,10 +10,11 @@
 
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
+// TODO: Change timing parameters as configurable
 constexpr int ctrlTxPollInterval = 5;
 constexpr int ctrlTxRetryDelay = 100;
 constexpr int ctrlTxRetryCount = 2;
-constexpr int instanceIdMask = 0x1F;
+constexpr size_t minCmdRespSize = 4;
 
 // map<EID, assigned>
 static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
@@ -30,7 +31,7 @@ std::mutex ctrlTxQueueLock;
 
 static uint8_t getInstanceId(const uint8_t msg)
 {
-    return msg & instanceIdMask;
+    return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
 }
 
 static void handleCtrlResp(void* msg, const size_t len)
@@ -470,4 +471,237 @@ PacketState MctpBinding::sendAndRcvMctpCtrl(
     // Wait for the state to change
 
     return pktState;
+}
+
+static uint8_t createInstanceId(void)
+{
+    static uint8_t instanceId = 0x00;
+
+    instanceId = (instanceId + 1) & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
+    return instanceId;
+}
+
+static uint8_t getRqDgramInst(void)
+{
+    uint8_t instanceID = createInstanceId();
+    uint8_t rqDgramInst = instanceID | MCTP_CTRL_HDR_FLAG_REQUEST;
+    return rqDgramInst;
+}
+
+bool MctpBinding::getFormattedReq(const unsigned int cmd,
+                                  std::vector<uint8_t>& req,
+                                  std::optional<std::vector<uint8_t>> reqParam)
+{
+    switch (cmd)
+    {
+        case MCTP_CTRL_CMD_GET_ENDPOINT_ID: {
+            req.resize(sizeof(mctp_ctrl_cmd_get_eid));
+            mctp_ctrl_cmd_get_eid* getEidCmd =
+                reinterpret_cast<mctp_ctrl_cmd_get_eid*>(req.data());
+
+            mctp_encode_ctrl_cmd_get_eid(getEidCmd, getRqDgramInst());
+            return true;
+        }
+        case MCTP_CTRL_CMD_SET_ENDPOINT_ID: {
+            req.resize(sizeof(mctp_ctrl_cmd_set_eid));
+            mctp_ctrl_cmd_set_eid* setEidCmd =
+                reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req.data());
+
+            size_t minParamLen = 2;
+            if (!reqParam.has_value() || reqParam.value().size() < minParamLen)
+            {
+                return false;
+            }
+            std::vector<uint8_t> params = reqParam.value();
+            mctp_ctrl_cmd_set_eid_op setEidOp =
+                static_cast<mctp_ctrl_cmd_set_eid_op>(params[0]);
+            uint8_t eid = params[1];
+
+            mctp_encode_ctrl_cmd_set_eid(setEidCmd, getRqDgramInst(), setEidOp,
+                                         eid);
+            return true;
+        }
+        case MCTP_CTRL_CMD_GET_ENDPOINT_UUID: {
+            req.resize(sizeof(mctp_ctrl_cmd_get_uuid));
+            mctp_ctrl_cmd_get_uuid* getUuid =
+                reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(req.data());
+
+            mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
+            return true;
+        }
+        case MCTP_CTRL_CMD_GET_VERSION_SUPPORT: {
+            req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
+            mctp_ctrl_cmd_get_mctp_ver_support* getVerSupport =
+                reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(
+                    req.data());
+
+            if (!reqParam.has_value() || reqParam.value().empty())
+            {
+                return false;
+            }
+            uint8_t msgTypeNo = reqParam.value().front();
+
+            mctp_encode_ctrl_cmd_get_ver_support(getVerSupport,
+                                                 getRqDgramInst(), msgTypeNo);
+            return true;
+        }
+
+        case MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT: {
+            req.resize(sizeof(mctp_ctrl_cmd_get_msg_type_support));
+            mctp_ctrl_cmd_get_msg_type_support* getMsgType =
+                reinterpret_cast<mctp_ctrl_cmd_get_msg_type_support*>(
+                    req.data());
+
+            mctp_encode_ctrl_cmd_get_msg_type_support(getMsgType,
+                                                      getRqDgramInst());
+            return true;
+        }
+        case MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT: {
+            req.resize(sizeof(mctp_ctrl_cmd_get_vdm_support));
+            mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
+                reinterpret_cast<mctp_ctrl_cmd_get_vdm_support*>(req.data());
+
+            if (!reqParam.has_value() || reqParam.value().empty())
+            {
+                return false;
+            }
+            uint8_t vendorIdSetSelect = reqParam.value().front();
+
+            mctp_encode_ctrl_cmd_get_vdm_support(
+                getVdmSupport, getRqDgramInst(), vendorIdSetSelect);
+            return true;
+        }
+        default: {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Control command not defined");
+            return {};
+        }
+    }
+}
+
+static bool checkMinRespSize(const std::vector<uint8_t>& resp)
+{
+    return (resp.size() >= minCmdRespSize);
+}
+
+template <typename structure>
+static bool checkRespSizeAndCompletionCode(std::vector<uint8_t>& resp)
+{
+    if (!checkMinRespSize(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid response length");
+        return false;
+    }
+
+    structure* respPtr = reinterpret_cast<structure*>(resp.data());
+
+    if (respPtr->completion_code != MCTP_CTRL_CC_SUCCESS ||
+        resp.size() != sizeof(structure))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid response", phosphor::logging::entry("LEN=%d", resp.size()),
+            phosphor::logging::entry("CC=0x%02X", respPtr->completion_code));
+        return false;
+    }
+    return true;
+}
+
+bool MctpBinding::getEidCtrlCmd(boost::asio::yield_context& yield,
+                                const std::vector<uint8_t>& bindingPrivate,
+                                const mctp_eid_t destEid,
+                                std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq(MCTP_CTRL_CMD_GET_ENDPOINT_ID, req, std::nullopt))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get EID: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get EID: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_get_eid>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Get EID failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>("Get EID success");
+    return true;
+}
+
+bool MctpBinding::setEidCtrlCmd(boost::asio::yield_context& yield,
+                                const std::vector<uint8_t>& bindingPrivate,
+                                const mctp_eid_t destEid,
+                                const mctp_ctrl_cmd_set_eid_op operation,
+                                mctp_eid_t eid, std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> reqParam{static_cast<uint8_t>(operation), eid};
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq(MCTP_CTRL_CMD_SET_ENDPOINT_ID, req, reqParam))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Set EID: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Set EID: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_set_eid>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Set EID failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>("Set EID success");
+    return true;
+}
+
+bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
+                                 const std::vector<uint8_t>& bindingPrivate,
+                                 const mctp_eid_t destEid,
+                                 std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq(MCTP_CTRL_CMD_GET_ENDPOINT_UUID, req, std::nullopt))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get UUID: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get UUID: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_get_uuid>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get UUID failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>("Get UUID success");
+    return true;
 }

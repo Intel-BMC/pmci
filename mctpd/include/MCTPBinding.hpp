@@ -1,5 +1,6 @@
 #pragma once
 
+#include <libmctp-cmds.h>
 #include <libmctp.h>
 
 #include <iostream>
@@ -75,6 +76,17 @@ class MctpBinding
     void initializeMctp(void);
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
+    bool getEidCtrlCmd(boost::asio::yield_context& yield,
+                       const std::vector<uint8_t>& bindingPrivate,
+                       const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+    bool setEidCtrlCmd(boost::asio::yield_context& yield,
+                       const std::vector<uint8_t>& bindingPrivate,
+                       const mctp_eid_t destEid,
+                       const mctp_ctrl_cmd_set_eid_op operation, mctp_eid_t eid,
+                       std::vector<uint8_t>& resp);
+    bool getUuidCtrlCmd(boost::asio::yield_context& yield,
+                        const std::vector<uint8_t>& bindingPrivate,
+                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);
 
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,
@@ -114,4 +126,6 @@ class MctpBinding
                                    const mctp_eid_t destEid,
                                    const std::vector<uint8_t>& bindingPrivate,
                                    std::vector<uint8_t>& resp);
+    bool getFormattedReq(const unsigned int cmd, std::vector<uint8_t>& req,
+                         std::optional<std::vector<uint8_t>> reqParam);
 };
