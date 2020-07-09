@@ -42,6 +42,22 @@ struct PcieConfiguration
     uint16_t bdf;
 };
 
+struct MsgTypeSupportCtrlResp
+{
+    mctp_ctrl_msg_hdr ctrlMsgHeader;
+    uint8_t completionCode;
+    uint8_t msgTypeCount;
+    std::vector<uint8_t> msgType;
+};
+
+struct MctpVersionSupportCtrlResp
+{
+    mctp_ctrl_msg_hdr ctrlMsgHeader;
+    uint8_t completionCode;
+    uint8_t verNoEntryCount;
+    std::vector<std::vector<uint8_t>> verNoEntry;
+};
+
 enum class PacketState : uint8_t
 {
     invalidPacket,
@@ -87,6 +103,15 @@ class MctpBinding
     bool getUuidCtrlCmd(boost::asio::yield_context& yield,
                         const std::vector<uint8_t>& bindingPrivate,
                         const mctp_eid_t destEid, std::vector<uint8_t>& resp);
+    bool getMsgTypeSupportCtrlCmd(boost::asio::yield_context& yield,
+                                  const std::vector<uint8_t>& bindingPrivate,
+                                  const mctp_eid_t destEid,
+                                  MsgTypeSupportCtrlResp* msgTypeSupportResp);
+    bool getMctpVersionSupportCtrlCmd(
+        boost::asio::yield_context& yield,
+        const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+        uint8_t msgTypeNo,
+        MctpVersionSupportCtrlResp* mctpVersionSupportCtrlResp);
 
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,

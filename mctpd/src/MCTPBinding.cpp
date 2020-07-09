@@ -15,6 +15,7 @@ constexpr int ctrlTxPollInterval = 5;
 constexpr int ctrlTxRetryDelay = 100;
 constexpr int ctrlTxRetryCount = 2;
 constexpr size_t minCmdRespSize = 4;
+constexpr int completionCodeIndex = 3;
 
 // map<EID, assigned>
 static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
@@ -703,5 +704,151 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     }
 
     phosphor::logging::log<phosphor::logging::level::INFO>("Get UUID success");
+    return true;
+}
+
+bool MctpBinding::getMsgTypeSupportCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+    MsgTypeSupportCtrlResp* msgTypeSupportResp)
+{
+    std::vector<uint8_t> req = {};
+    std::vector<uint8_t> resp = {};
+
+    if (!getFormattedReq(MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT, req,
+                         std::nullopt))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support: Unable to get response");
+        return false;
+    }
+
+    if (!checkMinRespSize(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support: Invalid response");
+        return false;
+    }
+
+    const size_t minMsgTypeRespLen = 5;
+    uint8_t completionCode = resp[completionCodeIndex];
+    if (completionCode != MCTP_CTRL_CC_SUCCESS ||
+        resp.size() <= minMsgTypeRespLen)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support: Invalid response",
+            phosphor::logging::entry("CC=0x%02X", completionCode),
+            phosphor::logging::entry("LEN=0x%02X", resp.size()));
+
+        std::vector<uint8_t> respHeader =
+            std::vector<uint8_t>(resp.begin(), resp.begin() + minCmdRespSize);
+        std::copy(
+            respHeader.begin(), respHeader.end(),
+            reinterpret_cast<uint8_t*>(&msgTypeSupportResp->ctrlMsgHeader));
+        msgTypeSupportResp->completionCode = completionCode;
+        return false;
+    }
+
+    std::copy_n(resp.begin(), minMsgTypeRespLen,
+                reinterpret_cast<uint8_t*>(msgTypeSupportResp));
+    if ((resp.size() - minMsgTypeRespLen) != msgTypeSupportResp->msgTypeCount)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support: Invalid response length");
+        return false;
+    }
+
+    msgTypeSupportResp->msgType.assign(resp.begin() + minMsgTypeRespLen,
+                                       resp.end());
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Get Message Type Support success");
+    return true;
+}
+
+bool MctpBinding::getMctpVersionSupportCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+    const uint8_t msgTypeNo,
+    MctpVersionSupportCtrlResp* mctpVersionSupportCtrlResp)
+{
+    std::vector<uint8_t> req = {};
+    std::vector<uint8_t> resp = {};
+    std::vector<uint8_t> reqParams{msgTypeNo};
+
+    if (!getFormattedReq(MCTP_CTRL_CMD_GET_VERSION_SUPPORT, req, reqParams))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Version Support: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Version Support: Unable to get response");
+        return false;
+    }
+
+    if (!checkMinRespSize(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Version Support: Invalid response");
+        return false;
+    }
+
+    const ssize_t minMsgTypeRespLen = 5;
+    const ssize_t mctpVersionLen = 4;
+    uint8_t completionCode = resp[completionCodeIndex];
+    if (completionCode != MCTP_CTRL_CC_SUCCESS ||
+        resp.size() <= minMsgTypeRespLen)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Version Support: Invalid response",
+            phosphor::logging::entry("CC=0x%02X", completionCode),
+            phosphor::logging::entry("LEN=0x%02X", resp.size()));
+
+        std::vector<uint8_t> respHeader =
+            std::vector<uint8_t>(resp.begin(), resp.begin() + minCmdRespSize);
+        std::copy(respHeader.begin(), respHeader.end(),
+                  reinterpret_cast<uint8_t*>(
+                      &mctpVersionSupportCtrlResp->ctrlMsgHeader));
+        mctpVersionSupportCtrlResp->completionCode = completionCode;
+        return false;
+    }
+
+    std::copy_n(resp.begin(), minMsgTypeRespLen,
+                reinterpret_cast<uint8_t*>(mctpVersionSupportCtrlResp));
+    if ((resp.size() - minMsgTypeRespLen) !=
+        mctpVersionSupportCtrlResp->verNoEntryCount * mctpVersionLen)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Version Support: Invalid response length");
+        return false;
+    }
+
+    for (int iter = 1; iter <= mctpVersionSupportCtrlResp->verNoEntryCount;
+         iter++)
+    {
+        ssize_t verNoEntryStartOffset =
+            minMsgTypeRespLen + (mctpVersionLen * (iter - 1));
+        ssize_t verNoEntryEndOffset =
+            minMsgTypeRespLen + (mctpVersionLen * iter);
+        std::vector<uint8_t> version(resp.begin() + verNoEntryStartOffset,
+                                     resp.begin() + verNoEntryEndOffset);
+
+        mctpVersionSupportCtrlResp->verNoEntry.push_back(version);
+    }
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Get MCTP Version Support success");
     return true;
 }
