@@ -4,6 +4,7 @@
 
 #include <phosphor-logging/log.hpp>
 
+#include "libmctp-cmds.h"
 #include "libmctp-msgtypes.h"
 #include "libmctp.h"
 
@@ -12,6 +13,7 @@ constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
 constexpr int ctrlTxPollInterval = 5;
 constexpr int ctrlTxRetryDelay = 100;
 constexpr int ctrlTxRetryCount = 2;
+constexpr int instanceIdMask = 0x1F;
 
 // map<EID, assigned>
 static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
@@ -25,6 +27,56 @@ static std::vector<
                std::function<void(PacketState, std::vector<uint8_t>&)>>>
     ctrlTxQueue;
 std::mutex ctrlTxQueueLock;
+
+static uint8_t getInstanceId(const uint8_t msg)
+{
+    return msg & instanceIdMask;
+}
+
+static void handleCtrlResp(void* msg, const size_t len)
+{
+    mctp_ctrl_msg_hdr* respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(msg);
+    const std::lock_guard<std::mutex> lock(ctrlTxQueueLock);
+
+    auto reqItr =
+        std::find_if(ctrlTxQueue.begin(), ctrlTxQueue.end(), [&](auto& ctrlTx) {
+            auto& [state, retryCount, maxRespDelay, destEid, bindingPrivate,
+                   req, callback] = ctrlTx;
+
+            mctp_ctrl_msg_hdr* reqHeader =
+                reinterpret_cast<mctp_ctrl_msg_hdr*>(req.data());
+
+            // TODO: Check Message terminus with Instance ID
+            // (EID, TO, Msg Tag) + Instance ID
+            if (getInstanceId(reqHeader->rq_dgram_inst) ==
+                getInstanceId(respHeader->rq_dgram_inst))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "Matching Control command request found");
+
+                uint8_t* tmp = reinterpret_cast<uint8_t*>(msg);
+                std::vector<uint8_t> resp =
+                    std::vector<uint8_t>(tmp, tmp + len);
+                state = PacketState::receivedResponse;
+
+                // Call Callback function
+                callback(state, resp);
+                return true;
+            }
+            return false;
+        });
+
+    if (reqItr != ctrlTxQueue.end())
+    {
+        // Delete the entry from queue after receiving response
+        ctrlTxQueue.erase(reqItr);
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "No matching Control command request found");
+    }
+}
 
 void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
                void* /*binding_private*/)
@@ -44,6 +96,13 @@ void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
                              mctp_server::interface, "MessageReceivedSignal");
         msgSignal.append(msgType, srcEid, msgTag, tagOwner, response);
         msgSignal.signal_send();
+    }
+
+    if (mctp_is_mctp_ctrl_msg(msg, len) && !mctp_ctrl_msg_is_req(msg, len))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "MCTP Control packet response received!!");
+        handleCtrlResp(msg, len);
     }
 }
 
