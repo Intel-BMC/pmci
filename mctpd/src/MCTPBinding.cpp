@@ -147,7 +147,8 @@ void MctpBinding::initializeMctp(void)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to init mctp");
-        throw;
+        throw std::system_error(
+            std::make_error_code(std::errc::not_enough_memory));
     }
     mctp_set_rx_all(mctp, rxMessage, nullptr);
 }
