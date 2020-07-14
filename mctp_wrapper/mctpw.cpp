@@ -16,12 +16,14 @@
 
 #include "mctpw.h"
 
+#include <endian.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include <atomic>
 #include <boost/algorithm/string/classification.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/asio/spawn.hpp>
 #include <boost/container/flat_map.hpp>
 #include <iostream>
 #include <phosphor-logging/log.hpp>
@@ -75,16 +77,17 @@ static const std::unordered_map<mctpw_binding_type_t, const std::string>
 
 struct clientContext
 {
-    std::shared_ptr<sdbusplus::bus::bus> bus;
     ServiceHandleType* service_h;
     mctpw_message_type_t type;
-    uint32_t vendor_id;
+    /* vendor_id, vendor_message_type and vendor_message_type_mask
+     * are stored in the big endian network format */
+    uint16_t vendor_id;
     uint16_t vendor_message_type;
     uint16_t vendor_message_type_mask;
     mctpw_reconfiguration_callback_t nc_cb;
     mctpw_receive_message_callback_t rx_cb;
-    std::atomic_flag thread_run_flag;
-    std::mutex thread_mutex;
+    std::shared_ptr<boost::asio::io_context> io_context;
+    std::shared_ptr<sdbusplus::asio::connection> connection;
     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matchers;
 };
 
@@ -343,8 +346,70 @@ static int network_reconfiguration_cb(sd_bus_message* m, void* userdata,
     return 0;
 }
 
+static int receive_cb(sd_bus_message* m, void* userdata,
+                      sd_bus_error* ret_error)
+{
+    if (!userdata || (ret_error && sd_bus_error_is_set(ret_error)))
+    {
+        return 0;
+    }
+
+    try
+    {
+        clientContext* context = static_cast<clientContext*>(userdata);
+        sdbusplus::message::message message{m};
+
+        if (!context->rx_cb)
+        {
+            return 0;
+        }
+        uint8_t messageType;
+        uint8_t srcEid;
+        uint8_t msgTag;
+        bool tagOwner;
+        std::vector<uint8_t> payload;
+
+        message.read(messageType, srcEid, msgTag, tagOwner, payload);
+
+        if (messageType != context->type)
+        {
+            return 0;
+        }
+
+        if (messageType == VDPCI)
+        {
+            struct VendorHeader
+            {
+                uint16_t vendor_id;
+                uint16_t vendor_message_id;
+            }* vendorHdr = reinterpret_cast<VendorHeader*>(payload.data());
+
+            if ((vendorHdr->vendor_id != context->vendor_id) ||
+                ((vendorHdr->vendor_message_id &
+                  context->vendor_message_type_mask) !=
+                 context->vendor_message_type))
+            {
+                return 0;
+            }
+        }
+        context->rx_cb(context, srcEid, tagOwner, msgTag, payload.data(),
+                       payload.size(), 0);
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+    }
+    catch (...)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unknown exception from  message receive_cb");
+    }
+
+    return 0;
+}
+
 int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
-                          uint32_t vendor_id, bool receive_requests,
+                          uint16_t vendor_id, bool receive_requests,
                           uint16_t vendor_message_type,
                           uint16_t vendor_message_type_mask,
                           mctpw_reconfiguration_callback_t nc_cb,
@@ -365,59 +430,42 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
 
     try
     {
-        ctx->bus = std::make_shared<sdbusplus::bus::bus>(
-            sdbusplus::bus::new_default_system());
+        ctx->io_context = std::make_shared<boost::asio::io_context>();
+        ctx->connection = std::make_shared<sdbusplus::asio::connection>(
+            *(ctx->io_context.get()));
+
         ctx->service_h = static_cast<ServiceHandleType*>(mctpw_bus_handle);
         ctx->type = type;
-        ctx->vendor_id = vendor_id;
-        ctx->vendor_message_type = vendor_message_type;
-        ctx->vendor_message_type_mask = vendor_message_type_mask;
+        ctx->vendor_id = htobe16(vendor_id);
+        ctx->vendor_message_type = htobe16(vendor_message_type);
+        ctx->vendor_message_type_mask = htobe16(vendor_message_type_mask);
         ctx->rx_cb = rx_cb ? rx_cb : nullptr;
         ctx->nc_cb = nc_cb ? nc_cb : nullptr;
 
-        /* check if any async opertations will be used */
-        if (ctx->nc_cb || ctx->rx_cb)
+        if (ctx->nc_cb)
         {
-            std::thread t([=] {
-                try
-                {
-                    sdbusplus::bus::bus bus =
-                        sdbusplus::bus::new_default_system();
-                    if (ctx->nc_cb)
-                    {
-                        ctx->matchers.push_back(register_signal_handler(
-                            bus, network_reconfiguration_cb,
-                            static_cast<void*>(ctx),
-                            "org.freedesktop.DBus.Properties",
-                            "PropertiesChanged", ctx->service_h->second, ""));
-                        ctx->matchers.push_back(register_signal_handler(
-                            bus, network_reconfiguration_cb,
-                            static_cast<void*>(ctx),
-                            "org.freedesktop.DBus.ObjectManager",
-                            "InterfacesAdded", ctx->service_h->second, ""));
-                        ctx->matchers.push_back(register_signal_handler(
-                            bus, network_reconfiguration_cb,
-                            static_cast<void*>(ctx),
-                            "org.freedesktop.DBus.ObjectManager",
-                            "InterfacesRemoved", ctx->service_h->second, ""));
-                    }
-                    // todo: Register for receive signal
-                    ctx->thread_run_flag.test_and_set();
-                    ctx->thread_mutex.lock();
-                    while (ctx->thread_run_flag.test_and_set())
-                    {
-                        bus.process_discard();
-                        bus.wait(10 * 1000);
-                    }
-                }
-                catch (...)
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Unhandled exception in io thread");
-                }
-                ctx->thread_mutex.unlock();
-            });
-            t.detach();
+            ctx->matchers.push_back(register_signal_handler(
+                static_cast<sdbusplus::bus::bus&>(*ctx->connection),
+                network_reconfiguration_cb, static_cast<void*>(ctx),
+                "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                ctx->service_h->second, ""));
+            ctx->matchers.push_back(register_signal_handler(
+                static_cast<sdbusplus::bus::bus&>(*ctx->connection),
+                network_reconfiguration_cb, static_cast<void*>(ctx),
+                "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
+                ctx->service_h->second, ""));
+            ctx->matchers.push_back(register_signal_handler(
+                static_cast<sdbusplus::bus::bus&>(*ctx->connection),
+                network_reconfiguration_cb, static_cast<void*>(ctx),
+                "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
+                ctx->service_h->second, ""));
+        }
+        if (ctx->rx_cb)
+        {
+            ctx->matchers.push_back(register_signal_handler(
+                static_cast<sdbusplus::bus::bus&>(*ctx->connection), receive_cb,
+                static_cast<void*>(ctx), "xyz.openbmc_project.MCTP.Base",
+                "MessageReceivedSignal", ctx->service_h->second, ""));
         }
     }
     catch (std::exception& e)
@@ -437,7 +485,7 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
     return 0;
 }
 
-void mctpw_unregister_client(void* client_context)
+void mctpw_process(void* client_context)
 {
     if (!client_context)
     {
@@ -446,12 +494,40 @@ void mctpw_unregister_client(void* client_context)
 
     clientContext* ctx = static_cast<clientContext*>(client_context);
 
-    /* stop bus processing loop*/
-    ctx->thread_run_flag.clear();
-    /* wait for thread to be sure that ctx ptr will not be used */
-    ctx->thread_mutex.lock();
-    /* unlock mutex before destruction */
-    ctx->thread_mutex.unlock();
+    (ctx->io_context.get())->run();
+    return;
+}
+
+int mctpw_process_one(void* client_context)
+{
+    int ret;
+
+    if (!client_context)
+    {
+        return -ENODEV;
+    }
+
+    clientContext* ctx = static_cast<clientContext*>(client_context);
+
+    ret = (ctx->io_context.get())->poll_one();
+    (ctx->io_context.get())->restart();
+    return ret;
+}
+
+void mctpw_unregister_client(void* client_context)
+{
+    if (!client_context)
+    {
+        return;
+    }
+    clientContext* ctx = static_cast<clientContext*>(client_context);
+    /* stop io */
+    (ctx->io_context.get())->stop();
+    /* before delete ctx wait for io stopped */
+    while (!(ctx->io_context.get())->stopped())
+    {
+        usleep(100);
+    }
     delete ctx;
     return;
 }
@@ -461,7 +537,6 @@ int mctpw_get_endpoint_list(void* client_context, mctpw_eid_t* eids,
 {
     unsigned max;
     int unhandled = 0;
-
     if (!client_context || !num || !eids || *num == 0)
     {
         return -EINVAL;
@@ -484,11 +559,11 @@ int mctpw_get_endpoint_list(void* client_context, mctpw_eid_t* eids,
         std::vector<std::string> interfaces;
         interfaces.push_back("xyz.openbmc_project.MCTP.Endpoint");
 
-        call_method(*(ctx->bus), "xyz.openbmc_project.ObjectMapper",
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    "xyz.openbmc_project.ObjectMapper",
                     "/xyz/openbmc_project/object_mapper",
                     "xyz.openbmc_project.ObjectMapper", "GetSubTree", values,
                     "/xyz/openbmc_project/mctp/device", 0, interfaces);
-
         for (auto& path : values)
         {
             /* ignore entry if service name doesn't match */
@@ -550,7 +625,6 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
             {ETHERNET, "Ethernet"}, {NVME_MGMT_MSG, "NVMeMgmtMsg"},
             {SPDM, "SPDM "},        {VDPCI, "VDPCI"},
             {VDIANA, "VDIANA"}};
-
     if (!client_context || !num || !eids || *num == 0)
     {
         return -EINVAL;
@@ -566,9 +640,8 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
                  DictType<std::string,
                           DictType<std::string, MctpPropertiesVariantType>>>
             values;
-
-        call_method(*(ctx->bus), ctx->service_h->second.c_str(),
-                    "/xyz/openbmc_project/mctp",
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    ctx->service_h->second.c_str(), "/xyz/openbmc_project/mctp",
                     "org.freedesktop.DBus.ObjectManager", "GetManagedObjects",
                     values);
 
@@ -590,6 +663,7 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
                         "xyz.openbmc_project.MCTP.SupportedMessageTypes");
                     MctpPropertiesVariantType pv;
                     pv = msgIf.at(msgTypeToPropertyName.at(ctx->type));
+
                     if (std::get<bool>(pv) == true)
                     {
                         /* format of of endpoint path: path/Eid */
@@ -627,6 +701,7 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
     {
         return -EINVAL;
     }
+
     return unhandled;
 }
 
@@ -649,7 +724,8 @@ int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
         std::string object =
             "/xyz/openbmc_project/mctp/device/" + std::to_string(eid);
 
-        call_method(*(ctx->bus), ctx->service_h->second.c_str(), object.c_str(),
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    ctx->service_h->second.c_str(), object.c_str(),
                     "org.freedesktop.DBus.Properties", "GetAll", props,
                     "xyz.openbmc_project.MCTP.SupportedMessageTypes");
 
@@ -662,7 +738,8 @@ int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
         properties->vdpci = std::get<bool>(props.at("VDPCI"));
         properties->vdiana = std::get<bool>(props.at("VDIANA"));
 
-        call_method(*(ctx->bus), ctx->service_h->second.c_str(), object.c_str(),
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    ctx->service_h->second.c_str(), object.c_str(),
                     "org.freedesktop.DBus.Properties", "GetAll", props,
                     "xyz.openbmc_project.MCTP.Endpoint");
 
@@ -679,4 +756,295 @@ int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
         return -EINVAL;
     }
     return 0;
+}
+
+static void do_send_message_payload(boost::asio::yield_context yield,
+                                    clientContext* ctx, const void* user_ctx,
+                                    mctpw_eid_t dst_eid, bool tag_owner,
+                                    uint8_t tag, uint8_t* payload,
+                                    unsigned payload_length,
+                                    async_operation_status_cb cb)
+{
+    boost::system::error_code ec;
+    try
+    {
+        std::vector<uint8_t> payload_vector;
+
+        payload_vector.push_back(static_cast<uint8_t>(ctx->type));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id >> 8));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type >> 8));
+
+        for (unsigned n = 0; n < payload_length; n++)
+        {
+            payload_vector.push_back(payload[n]);
+        }
+
+        int response = ctx->connection->yield_method_call<int>(
+            yield, ec, ctx->service_h->second.c_str(),
+            "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
+            "SendMctpMessagePayload", dst_eid, tag, tag_owner, payload_vector);
+        if (ec)
+        {
+            cb(ec.value(), user_ctx);
+            return;
+        }
+        if (response == 0)
+        {
+            cb(0, user_ctx);
+            return;
+        }
+        cb(-EIO, user_ctx);
+        return;
+    }
+    catch (...)
+    {
+        cb(-EIO, user_ctx);
+    }
+}
+
+int mctpw_async_send_message(void* client_context, mctpw_eid_t dst_eid,
+                             bool tag_owner, uint8_t tag, uint8_t* payload,
+                             unsigned payload_length, const void* user_ctx,
+                             async_operation_status_cb cb)
+{
+    if (!client_context || !payload || !cb)
+    {
+        return -EINVAL;
+    }
+
+    if (payload_length == 0)
+    {
+        return 0;
+    }
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+
+        boost::asio::spawn(
+            *(ctx->io_context),
+            [ctx, user_ctx, dst_eid, tag_owner, tag, payload, payload_length,
+             cb](boost::asio::yield_context yield) {
+                do_send_message_payload(yield, ctx, user_ctx, dst_eid,
+                                        tag_owner, tag, payload, payload_length,
+                                        cb);
+            });
+
+        return 0;
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return -EIO;
+}
+
+int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
+                       bool tag_owner, uint8_t tag, uint8_t* payload,
+                       unsigned payload_length)
+{
+    if (!client_context || !payload)
+    {
+        return -EINVAL;
+    }
+
+    if (payload_length == 0)
+    {
+        return 0;
+    }
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        int response;
+        std::vector<uint8_t> payload_vector;
+
+        payload_vector.push_back(static_cast<uint8_t>(ctx->type));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id >> 8));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type >> 8));
+
+        for (unsigned n = 0; n < payload_length; n++)
+        {
+            payload_vector.push_back(payload[n]);
+        }
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    ctx->service_h->second.c_str(), "/xyz/openbmc_project/mctp",
+                    "xyz.openbmc_project.MCTP.Base", "SendMctpMessagePayload",
+                    response, dst_eid, tag, tag_owner, payload_vector);
+        if (response == 0)
+        {
+            return 0;
+        }
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return -EIO;
+}
+
+static void do_send_receive_atomic_message(
+    boost::asio::yield_context yield, clientContext* ctx, const void* user_ctx,
+    mctpw_eid_t dst_eid, uint8_t* payload, unsigned payload_length,
+    unsigned timeout, send_receive_atomic_cb cb)
+{
+    boost::system::error_code ec;
+    try
+    {
+        std::vector<uint8_t> payload_vector, response_vector;
+
+        payload_vector.push_back(static_cast<uint8_t>(ctx->type));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id >> 8));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type >> 8));
+
+        for (unsigned n = 0; n < payload_length; n++)
+            payload_vector.push_back(payload[n]);
+
+        response_vector =
+            ctx->connection->yield_method_call<std::vector<uint8_t>>(
+                yield, ec, ctx->service_h->second.c_str(),
+                "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
+                "SendReceiveMctpMessagePayload", dst_eid, payload_vector,
+                static_cast<uint16_t>(timeout));
+        if (ec)
+        {
+            cb(ec.value(), user_ctx, nullptr, 0);
+            return;
+        }
+        if (response_vector.size())
+        {
+            cb(0, user_ctx, response_vector.data(), response_vector.size());
+            return;
+        }
+        cb(-EIO, user_ctx, nullptr, 0);
+        return;
+    }
+    catch (...)
+    {
+        cb(-EIO, user_ctx, nullptr, 0);
+    }
+}
+
+int mctpw_async_send_receive_atomic_message(
+    void* client_context, mctpw_eid_t dst_eid, uint8_t* request_payload,
+    unsigned request_payload_length, unsigned timeout, const void* user_ctx,
+    send_receive_atomic_cb cb)
+{
+    if (!client_context || !request_payload || !cb)
+    {
+        return -EINVAL;
+    }
+
+    if (request_payload_length == 0)
+    {
+        return 0;
+    }
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        boost::asio::spawn(
+            *(ctx->io_context),
+            [ctx, user_ctx, dst_eid, request_payload, request_payload_length,
+             timeout, cb](boost::asio::yield_context yield) {
+                do_send_receive_atomic_message(
+                    yield, ctx, user_ctx, dst_eid, request_payload,
+                    request_payload_length, timeout, cb);
+            });
+
+        return 0;
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return -EIO;
+}
+
+int mctpw_send_receive_atomic_message(void* client_context, mctpw_eid_t dst_eid,
+                                      uint8_t* request_payload,
+                                      unsigned request_payload_length,
+                                      uint8_t* response_payload,
+                                      unsigned* response_payload_length,
+                                      unsigned timeout)
+{
+    if (!client_context || !request_payload || !response_payload ||
+        !response_payload_length)
+    {
+        return -EINVAL;
+    }
+
+    if (request_payload_length == 0)
+    {
+        return 0;
+    }
+    try
+    {
+        clientContext* ctx = static_cast<clientContext*>(client_context);
+        std::vector<uint8_t> payload_vector, response_vector;
+
+        payload_vector.push_back(static_cast<uint8_t>(ctx->type));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id));
+        payload_vector.push_back(static_cast<uint8_t>(ctx->vendor_id >> 8));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type));
+        payload_vector.push_back(
+            static_cast<uint8_t>(ctx->vendor_message_type >> 8));
+
+        for (unsigned n = 0; n < request_payload_length; n++)
+            payload_vector.push_back(request_payload[n]);
+
+        call_method(static_cast<sdbusplus::bus::bus&>(*(ctx->connection)),
+                    ctx->service_h->second.c_str(), "/xyz/openbmc_project/mctp",
+                    "xyz.openbmc_project.MCTP.Base",
+                    "SendReceiveMctpMessagePayload", response_vector, dst_eid,
+                    payload_vector, static_cast<uint16_t>(timeout));
+
+        if (response_vector.size() && *response_payload_length)
+        {
+            unsigned n = 0;
+            for (auto& i : response_vector)
+            {
+                response_payload[n++] = i;
+                if (n >= *response_payload_length)
+                    break;
+            }
+            *response_payload_length = n;
+        }
+        return 0;
+    }
+    catch (std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return -EINVAL;
+    }
+    catch (...)
+    {
+        return -EINVAL;
+    }
+    return -EIO;
 }

@@ -84,8 +84,13 @@ typedef struct
 typedef void (*mctpw_reconfiguration_callback_t)(void* client_context);
 
 typedef void (*mctpw_receive_message_callback_t)(
-    void* client_context, mctpw_eid_t* src_eid, uint8_t tag_owner, uint8_t tag,
+    void* client_context, mctpw_eid_t src_eid, bool tag_owner, uint8_t tag,
     uint8_t* payload, unsigned payload_length, int error);
+
+typedef void (*async_operation_status_cb)(int ec, const void* user_ctx);
+typedef void (*send_receive_atomic_cb)(int ec, const void* user_ctx,
+                                       uint8_t* response,
+                                       unsigned response_length);
 
 /**
  * @brief Helper function to locate MCTP bus for given binding.
@@ -119,7 +124,7 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
  * @return 0 if success or negative error code
  */
 int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
-                          uint32_t vendor_id, bool receive_requests,
+                          uint16_t vendor_id, bool receive_requests,
                           uint16_t vendor_message_type,
                           uint16_t vendor_message_type_mask,
                           mctpw_reconfiguration_callback_t nc_cb,
@@ -140,6 +145,7 @@ void mctpw_unregister_client(void* client_context);
  * @return 0 if success
  *         >0 number of eids not written due to lack of space in the table
  *         or negative error code
+ * @note Function blocks until response is received
  */
 int mctpw_get_endpoint_list(void* client_context, mctpw_eid_t* eids,
                             unsigned* num);
@@ -154,6 +160,7 @@ int mctpw_get_endpoint_list(void* client_context, mctpw_eid_t* eids,
  * @return 0 if success
  *         >0 number of eids not written due to lack of space in the table
  *         or negative error code
+ * @note Function blocks until response is received
  */
 int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
                                      unsigned* num);
@@ -164,6 +171,7 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
  * @param eid eid of endpoint
  * @param properties pointer to mctpw_endpoint_properties_t structure for output
  * @return 0 if success or negative error code
+ * @note Function blocks until response is received
  */
 int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
                                   mctpw_endpoint_properties_t* properties);
@@ -175,25 +183,51 @@ int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
  * registering client otherwise this massage will be rejected.
  * @param client_context Pointer to client context
  * @param dst_eid destination endpoint eid
- * @param tag_owner - indicates if this is request (tag_owner = 1) or reply
+ * @param tag_owner indicates if this is request (tag_owner = 1) or reply
  *                    message (tag_owner = 0)
- * @param tag - numeric tag in rage 0..7 be used to identify messages,
+ * @param tag numeric tag in range 0..7 be used to identify messages,
  *              when sending reply this must be same as received tag.
- * @param datagram_flag if true datagram is send and no response is expected
  * @param payload pointer to buffer contains payload
  * @param payload_length length of payload
+ * @note Function blocks until send operation is confirmed
  * @return 0 if success or negative error code
  */
 int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
-                       uint8_t tag_owner, uint8_t tag, bool datagram_flag,
-                       uint8_t* payload, unsigned payload_length);
+                       bool tag_owner, uint8_t tag, uint8_t* payload,
+                       unsigned payload_length);
+
+/**
+ * @brief Send mctp payload to specyfic endpoint on the bus.
+ * @note Payload start right after 4 byte MCTP header.
+ * Message type encoded in payload must much exactly the message used when
+ * registering client otherwise this massage will be rejected.
+ * @param client_context Pointer to client context
+ * @param dst_eid destination endpoint eid
+ * @param tag_owner indicates if this is request (tag_owner = 1) or reply
+ *                    message (tag_owner = 0)
+ * @param tag numeric tag in range 0..7 be used to identify messages,
+ *              when sending reply this must be same as received tag.
+ * @param payload pointer to buffer contains payload
+ * @param payload_length length of payload
+ * @param usr_ctx pointer to user context data, pointer is passed to
+ *                async_operation_status_cb when callback is invoked
+ * @param cb async operation status callback
+ * @note Function returns without waiting for send confirmation, returned status
+ *      doesn't provide status of data sending only local return code, status of
+ *      send operation is returned via callback
+ * @return 0 if success or negative error code
+ */
+int mctpw_async_send_message(void* client_context, mctpw_eid_t dst_eid,
+                             bool tag_owner, uint8_t tag, uint8_t* payload,
+                             unsigned payload_length, const void* user_ctx,
+                             async_operation_status_cb cb);
 
 /**
  * @brief Send mctp payload to specyfic endpoint on the bus and receive
  * response. This is blocking function, it sends message and waits for response.
- * Bus is blocked for time of message exchange. Rx callbacks are not invoked.
+ * Bus is blocked for time of message exchange.
  * @note tag_owner and tag are generated automatically and not need to be
- * specified.
+ * specified. Common rx callback is not invoked.
  * @param client_context Pointer to client context
  * @param dst_eid destination endpoint eid
  * @param request_payload pointer to payload buffer
@@ -202,6 +236,7 @@ int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
  * @param response_payload_length input:length of buffer
  *                                output:message length
  * @param timeout timeout in ms
+ * @note Function blocks until response is received
  * @return 0 if success or negative error code
  */
 int mctpw_send_receive_atomic_message(void* client_context, mctpw_eid_t dst_eid,
@@ -210,6 +245,47 @@ int mctpw_send_receive_atomic_message(void* client_context, mctpw_eid_t dst_eid,
                                       uint8_t* response_payload,
                                       unsigned* response_payload_length,
                                       unsigned timeout);
+
+/**
+ * @brief Send mctp payload to specyfic endpoint on the bus and receive
+ * response. This is non blocking function, it sends message and returns
+ * response using callback. Bus is blocked for time of message exchange.
+ * @note tag_owner and tag are generated automatically and not need to be
+ * specified. Common rx callback is not invoked.
+ * @param client_context Pointer to client context
+ * @param dst_eid destination endpoint eid
+ * @param request_payload pointer to payload buffer
+ * @param request_payload_length length of payload
+ * @param timeout timeout in ms
+ * @param usr_ctx pointer to user context data, pointer is passed to
+ *                async_operation_status_cb when callback is invoked
+ * @param cb async operation status callback, when not null operation doesn't
+ *           block, status and response of operation is delivered by callback
+ * @return 0 if success or negative error code
+ */
+int mctpw_async_send_receive_atomic_message(
+    void* client_context, mctpw_eid_t dst_eid, uint8_t* request_payload,
+    unsigned request_payload_length, unsigned timeout, const void* user_ctx,
+    send_receive_atomic_cb cb);
+
+/**
+ * @brief Start process async handlers.
+ * @param client_context pointer to client context
+ * @note Function blocks current thread, processing loop can be interrupted by
+ * unregistering client, @see mctpw_unregister_client()
+ */
+void mctpw_process(void* client_context);
+
+/**
+ * @brief Process one async handler.
+ * @param client_context pointer to client context
+ * @return negative error code or if success the number of handlers that were
+ * executed
+ * @note function doesn't block, it try to dispatch one ready handler(dipatching
+ * handler doesn't mean that one client async operation was completed) client,
+ * @see mctpw_unregister_client()
+ */
+int mctpw_process_one(void* client_context);
 
 #ifdef __cplusplus
 }

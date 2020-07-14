@@ -44,12 +44,16 @@ include_directories (SYSTEM ${BOOST_SRC_DIR})
 include_directories (${PROJECT_SOURCE_DIR})
 
 add_library (${PROJECT_NAME} SHARED mctpw.cpp)
-target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd
+target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_coroutine
                         -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel)
 
 add_executable(register examples/register.cpp mctpw.h)
 add_dependencies(register ${PROJECT_NAME})
 target_link_libraries(register mctpw)
+
+add_executable(sendreceive examples/sendreceive.cpp mctpw.h)
+add_dependencies(sendreceive ${PROJECT_NAME})
+target_link_libraries(sendreceive mctpw)
 
 SET_TARGET_PROPERTIES (${PROJECT_NAME} PROPERTIES VERSION 1.0.0 SOVERSION 1 )
 SET_TARGET_PROPERTIES (${PROJECT_NAME} PROPERTIES PUBLIC_HEADER mctpw.h)

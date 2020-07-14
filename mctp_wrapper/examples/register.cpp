@@ -86,6 +86,7 @@ int main(void)
     eid_list_size = EID_LIST_SIZE;
     if ((ret = mctpw_get_endpoint_list(context, eid_list, &eid_list_size)) < 0)
     {
+        mctpw_unregister_client(context);
         return ret;
     }
     std::cout << std::endl
@@ -101,6 +102,7 @@ int main(void)
     if ((ret = mctpw_get_matching_endpoint_list(context, eid_list,
                                                 &eid_list_size)) < 0)
     {
+        mctpw_unregister_client(context);
         return ret;
     }
 
