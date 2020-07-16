@@ -1,5 +1,7 @@
 #include "MCTPBinding.hpp"
 
+#include <endian.h>
+
 #include <chrono>
 #include <fstream>
 #include <iostream>
@@ -182,7 +184,8 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
 
         const auto* vdpciMessage =
             reinterpret_cast<const mctp_vdpci_intel_hdr*>(payload.data());
-        auto vendorIter = vendorMap.find(vdpciMessage->vdpci_hdr.vendor_id);
+        auto vendorIter =
+            vendorMap.find(be16toh(vdpciMessage->vdpci_hdr.vendor_id));
         if (vendorIter == vendorMap.end())
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
