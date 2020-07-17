@@ -1,6 +1,6 @@
 #include "SMBusBinding.hpp"
 
-std::string smbusIntf = "xyz.openbmc_project.mctp.smbus";
+std::string smbusIntf = "xyz.openbmc_project.MCTP.Binding.SMBus";
 
 SMBusBinding::SMBusBinding(
     std::shared_ptr<sdbusplus::asio::object_server>& objServer,
