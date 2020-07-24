@@ -19,7 +19,6 @@ constexpr int completionCodeIndex = 3;
 
 // map<EID, assigned>
 static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
-std::mutex eidPoolLock;
 bool ctrlTxTimerExpired = true;
 // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
 //  Callback>
@@ -28,7 +27,6 @@ static std::vector<
                std::vector<uint8_t>,
                std::function<void(PacketState, std::vector<uint8_t>&)>>>
     ctrlTxQueue;
-std::mutex ctrlTxQueueLock;
 
 static uint8_t getInstanceId(const uint8_t msg)
 {
@@ -38,7 +36,6 @@ static uint8_t getInstanceId(const uint8_t msg)
 static void handleCtrlResp(void* msg, const size_t len)
 {
     mctp_ctrl_msg_hdr* respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(msg);
-    const std::lock_guard<std::mutex> lock(ctrlTxQueueLock);
 
     auto reqItr =
         std::find_if(ctrlTxQueue.begin(), ctrlTxQueue.end(), [&](auto& ctrlTx) {
@@ -251,7 +248,6 @@ void MctpBinding::initializeMctp(void)
 
 void MctpBinding::initializeEidPool(const std::vector<mctp_eid_t>& pool)
 {
-    const std::lock_guard<std::mutex> lock(eidPoolLock);
     for (auto const& epId : pool)
     {
         eidPoolMap.emplace(epId, false);
@@ -261,7 +257,6 @@ void MctpBinding::initializeEidPool(const std::vector<mctp_eid_t>& pool)
 void MctpBinding::updateEidStatus(const mctp_eid_t endpointId,
                                   const bool assigned)
 {
-    const std::lock_guard<std::mutex> lock(eidPoolLock);
     auto eidItr = eidPoolMap.find(endpointId);
     if (eidItr != eidPoolMap.end())
     {
@@ -292,7 +287,6 @@ mctp_eid_t MctpBinding::getAvailableEidFromPool(void)
     // Note:- No need to check for busowner role explicitly when accessing EID
     // pool since getAvailableEidFromPool will be called only in busowner mode.
 
-    const std::lock_guard<std::mutex> lock(eidPoolLock);
     for (auto& eidPair : eidPoolMap)
     {
         if (!eidPair.second)
@@ -342,7 +336,6 @@ void MctpBinding::processCtrlTxQueue(void)
         }
 
         // Discard the packet if retry count exceeded
-        ctrlTxQueueLock.lock();
 
         ctrlTxQueue.erase(
             std::remove_if(
@@ -387,8 +380,6 @@ void MctpBinding::processCtrlTxQueue(void)
                     return true;
                 }),
             ctrlTxQueue.end());
-
-        ctrlTxQueueLock.unlock();
 
         if (ctrlTxQueue.empty())
         {
