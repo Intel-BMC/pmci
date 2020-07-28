@@ -16,7 +16,7 @@ class SMBusBinding : public MctpBinding
     virtual ~SMBusBinding();
     virtual void initializeBinding(ConfigurationVariant& conf) override;
     virtual bool getBindingPrivateData(uint8_t dstEid,
-                                       std::vector<uint8_t>& pvtData);
+                                       std::vector<uint8_t>& pvtData) override;
 
   private:
     void SMBusInit(ConfigurationVariant& conf);
