@@ -95,11 +95,12 @@ static bool isMuxBus(const std::string& bus)
         fs::path("/sys/bus/i2c/devices/i2c-" + bus + "/mux_device"));
 }
 
-int getSMBusOutputAddress(uint8_t dstEid, uint8_t* outAddr)
+/*
+ * dstEid can't be removed because this is a callback passed to libmctp and we
+ * have to match its expected prototype.
+ */
+int getSMBusOutputAddress([[maybe_unused]] uint8_t dstEid, uint8_t* outAddr)
 {
-    // Dummy stuff to get rid of -used-variable compiler error
-    dstEid = dstEid;
-
     // Mapping should rely on routing table and message binding private
     // Handling this here until libmctp implements routing infrastructure
     *outAddr = 0xB0; // Add in card addresses

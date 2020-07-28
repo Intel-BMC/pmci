@@ -172,13 +172,16 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             mctpInterface, "BindingMode",
             mctp_server::convertBindingModeTypesToString(bindingModeType));
 
+        /*
+         * msgTag and tagOwner are not currently used, but can't be removed
+         * since they are defined for SendMctpMessagePayload() in the current
+         * version of MCTP D-Bus interface.
+         */
         mctpInterface->register_method(
             "SendMctpMessagePayload",
-            [this](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
+            [this](uint8_t dstEid, [[maybe_unused]] uint8_t msgTag,
+                   [[maybe_unused]] bool tagOwner,
                    std::vector<uint8_t> payload) {
-                tagOwner = tagOwner;
-                msgTag = msgTag;
-
                 std::vector<uint8_t> pvtData;
 
                 getBindingPrivateData(dstEid, pvtData);
