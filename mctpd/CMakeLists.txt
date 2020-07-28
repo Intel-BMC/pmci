@@ -9,9 +9,7 @@ set (BUILD_SHARED_LIBRARIES OFF)
 set (CMAKE_CXX_STANDARD 17)
 set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set (
-    CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} \
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
     -Werror \
     -Wall \
     -Wextra \
@@ -23,17 +21,24 @@ set (
     -Woverloaded-virtual \
     -Wpedantic \
     -Wconversion \
-    -Wduplicated-cond \
-    -Wduplicated-branches \
-    -Wlogical-op \
     -Wnull-dereference \
-    -Wuseless-cast \
     -Wdouble-promotion \
     -Wformat=2 \
-"
-)
+")
 
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-strict-aliasing -Wno-cast-align")
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+        -Wuseless-cast \
+        -Wduplicated-cond \
+        -Wduplicated-branches \
+        -Wlogical-op \
+    ")
+elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} \
+        -Wno-c++20-designator \
+        -Wno-c99-extensions \
+    ")
+endif()
 
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -I ${STAGING_KERNEL_DIR}/include/uapi
      -I ${STAGING_KERNEL_DIR}/include")
@@ -120,5 +125,4 @@ add_test (test-mctpd test-mctpd
           "--gtest_output=xml:test-mctpd.xml")
 install (TARGETS test-mctpd DESTINATION bin)
 endif (${MCTPD_BUILD_UT})
-
 
