@@ -23,7 +23,6 @@ set (
     -Woverloaded-virtual \
     -Wpedantic \
     -Wconversion \
-    -Wmisleading-indentation \
     -Wduplicated-cond \
     -Wduplicated-branches \
     -Wlogical-op \
