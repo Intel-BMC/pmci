@@ -11,7 +11,7 @@ set (CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set (
     CMAKE_CXX_FLAGS
-    "${CMAKE_CXX_FLAGS} -lstdc++fs \
+    "${CMAKE_CXX_FLAGS} \
     -Werror \
     -Wall \
     -Wextra \
