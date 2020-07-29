@@ -85,8 +85,7 @@ void parseConfig(mctp_server::BindingTypes bindingType,
 
     switch (bindingType)
     {
-        case mctp_server::BindingTypes::MctpOverSmbus:
-        {
+        case mctp_server::BindingTypes::MctpOverSmbus: {
             SMBusConfiguration smbusConfig;
             auto smbus = jsonConfig.at("smbus");
 
@@ -106,8 +105,7 @@ void parseConfig(mctp_server::BindingTypes bindingType,
             conf.emplace<SMBusConfiguration>(smbusConfig);
             break;
         }
-        case mctp_server::BindingTypes::MctpOverPcieVdm:
-        {
+        case mctp_server::BindingTypes::MctpOverPcieVdm: {
             PcieConfiguration pcieConfig;
             auto pcie = jsonConfig.at("pcie");
 
@@ -180,20 +178,17 @@ int main(int argc, char* argv[])
 
     switch (bindingType)
     {
-        case mctp_server::BindingTypes::MctpOverSmbus:
-        {
+        case mctp_server::BindingTypes::MctpOverSmbus: {
             ptr = std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
                                                  mctpdConfiuration, ioc);
             break;
         }
-        case mctp_server::BindingTypes::MctpOverPcieVdm:
-        {
+        case mctp_server::BindingTypes::MctpOverPcieVdm: {
             ptr = std::make_unique<PCIeBinding>(objectServer, mctpBaseObj,
                                                 mctpdConfiuration, ioc);
             break;
         }
-        default:
-        {
+        default: {
             break;
         }
     }

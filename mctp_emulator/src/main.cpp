@@ -156,17 +156,14 @@ int main()
     // Manager
     switch (mctpBindingsMap[binding])
     {
-        case binding::smbus:
-        {
+        case binding::smbus: {
             SMBusBinding SMBus(objectServer, mctpBaseObj);
             break;
         }
-        case binding::pcie:
-        {
+        case binding::pcie: {
             break;
         }
-        default:
-        {
+        default: {
             break;
         }
     }
