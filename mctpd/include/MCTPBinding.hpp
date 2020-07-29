@@ -184,8 +184,8 @@ class MctpBinding
                                    const mctp_eid_t destEid,
                                    const std::vector<uint8_t>& bindingPrivate,
                                    std::vector<uint8_t>& resp);
-    bool getFormattedReq(const unsigned int cmd, std::vector<uint8_t>& req,
-                         std::optional<std::vector<uint8_t>> reqParam);
+    template <int cmd, typename... Args>
+    bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam);
     void busOwnerRegisterEndpoint(const std::vector<uint8_t>& bindingPrivate);
     void registerMsgTypes(
         std::shared_ptr<sdbusplus::asio::dbus_interface>& msgTypeIntf,

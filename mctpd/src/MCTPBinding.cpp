@@ -480,94 +480,72 @@ static uint8_t getRqDgramInst(void)
     return rqDgramInst;
 }
 
-bool MctpBinding::getFormattedReq(const unsigned int cmd,
-                                  std::vector<uint8_t>& req,
-                                  std::optional<std::vector<uint8_t>> reqParam)
+template <int cmd, typename... Args>
+bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 {
-    switch (cmd)
+    if constexpr (cmd == MCTP_CTRL_CMD_GET_ENDPOINT_ID)
     {
-        case MCTP_CTRL_CMD_GET_ENDPOINT_ID: {
-            req.resize(sizeof(mctp_ctrl_cmd_get_eid));
-            mctp_ctrl_cmd_get_eid* getEidCmd =
-                reinterpret_cast<mctp_ctrl_cmd_get_eid*>(req.data());
+        req.resize(sizeof(mctp_ctrl_cmd_get_eid));
+        mctp_ctrl_cmd_get_eid* getEidCmd =
+            reinterpret_cast<mctp_ctrl_cmd_get_eid*>(req.data());
 
-            mctp_encode_ctrl_cmd_get_eid(getEidCmd, getRqDgramInst());
-            return true;
-        }
-        case MCTP_CTRL_CMD_SET_ENDPOINT_ID: {
-            req.resize(sizeof(mctp_ctrl_cmd_set_eid));
-            mctp_ctrl_cmd_set_eid* setEidCmd =
-                reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req.data());
+        mctp_encode_ctrl_cmd_get_eid(getEidCmd, getRqDgramInst());
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_SET_ENDPOINT_ID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_set_eid));
+        mctp_ctrl_cmd_set_eid* setEidCmd =
+            reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req.data());
 
-            size_t minParamLen = 2;
-            if (!reqParam.has_value() || reqParam.value().size() < minParamLen)
-            {
-                return false;
-            }
-            std::vector<uint8_t> params = reqParam.value();
-            mctp_ctrl_cmd_set_eid_op setEidOp =
-                static_cast<mctp_ctrl_cmd_set_eid_op>(params[0]);
-            uint8_t eid = params[1];
+        mctp_encode_ctrl_cmd_set_eid(setEidCmd, getRqDgramInst(),
+                                     std::forward<Args>(reqParam)...);
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_ENDPOINT_UUID)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_uuid));
+        mctp_ctrl_cmd_get_uuid* getUuid =
+            reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(req.data());
 
-            mctp_encode_ctrl_cmd_set_eid(setEidCmd, getRqDgramInst(), setEidOp,
-                                         eid);
-            return true;
-        }
-        case MCTP_CTRL_CMD_GET_ENDPOINT_UUID: {
-            req.resize(sizeof(mctp_ctrl_cmd_get_uuid));
-            mctp_ctrl_cmd_get_uuid* getUuid =
-                reinterpret_cast<mctp_ctrl_cmd_get_uuid*>(req.data());
+        mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_VERSION_SUPPORT)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
+        mctp_ctrl_cmd_get_mctp_ver_support* getVerSupport =
+            reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(req.data());
 
-            mctp_encode_ctrl_cmd_get_uuid(getUuid, getRqDgramInst());
-            return true;
-        }
-        case MCTP_CTRL_CMD_GET_VERSION_SUPPORT: {
-            req.resize(sizeof(mctp_ctrl_cmd_get_mctp_ver_support));
-            mctp_ctrl_cmd_get_mctp_ver_support* getVerSupport =
-                reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(
-                    req.data());
+        mctp_encode_ctrl_cmd_get_ver_support(getVerSupport, getRqDgramInst(),
+                                             std::forward<Args>(reqParam)...);
+        return true;
+    }
 
-            if (!reqParam.has_value() || reqParam.value().empty())
-            {
-                return false;
-            }
-            uint8_t msgTypeNo = reqParam.value().front();
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_msg_type_support));
+        mctp_ctrl_cmd_get_msg_type_support* getMsgType =
+            reinterpret_cast<mctp_ctrl_cmd_get_msg_type_support*>(req.data());
 
-            mctp_encode_ctrl_cmd_get_ver_support(getVerSupport,
-                                                 getRqDgramInst(), msgTypeNo);
-            return true;
-        }
+        mctp_encode_ctrl_cmd_get_msg_type_support(getMsgType, getRqDgramInst());
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_vdm_support));
+        mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
+            reinterpret_cast<mctp_ctrl_cmd_get_vdm_support*>(req.data());
 
-        case MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT: {
-            req.resize(sizeof(mctp_ctrl_cmd_get_msg_type_support));
-            mctp_ctrl_cmd_get_msg_type_support* getMsgType =
-                reinterpret_cast<mctp_ctrl_cmd_get_msg_type_support*>(
-                    req.data());
-
-            mctp_encode_ctrl_cmd_get_msg_type_support(getMsgType,
-                                                      getRqDgramInst());
-            return true;
-        }
-        case MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT: {
-            req.resize(sizeof(mctp_ctrl_cmd_get_vdm_support));
-            mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
-                reinterpret_cast<mctp_ctrl_cmd_get_vdm_support*>(req.data());
-
-            if (!reqParam.has_value() || reqParam.value().empty())
-            {
-                return false;
-            }
-            uint8_t vendorIdSetSelect = reqParam.value().front();
-
-            mctp_encode_ctrl_cmd_get_vdm_support(
-                getVdmSupport, getRqDgramInst(), vendorIdSetSelect);
-            return true;
-        }
-        default: {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Control command not defined");
-            return {};
-        }
+        mctp_encode_ctrl_cmd_get_vdm_support(getVdmSupport, getRqDgramInst(),
+                                             std::forward<Args>(reqParam)...);
+        return true;
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Control command not defined");
+        return false;
     }
 }
 
@@ -606,7 +584,7 @@ bool MctpBinding::getEidCtrlCmd(boost::asio::yield_context& yield,
 {
     std::vector<uint8_t> req = {};
 
-    if (!getFormattedReq(MCTP_CTRL_CMD_GET_ENDPOINT_ID, req, std::nullopt))
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_ENDPOINT_ID>(req))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get EID: Request formatting failed");
@@ -637,10 +615,9 @@ bool MctpBinding::setEidCtrlCmd(boost::asio::yield_context& yield,
                                 const mctp_ctrl_cmd_set_eid_op operation,
                                 mctp_eid_t eid, std::vector<uint8_t>& resp)
 {
-    std::vector<uint8_t> reqParam{static_cast<uint8_t>(operation), eid};
     std::vector<uint8_t> req = {};
 
-    if (!getFormattedReq(MCTP_CTRL_CMD_SET_ENDPOINT_ID, req, reqParam))
+    if (!getFormattedReq<MCTP_CTRL_CMD_SET_ENDPOINT_ID>(req, operation, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Set EID: Request formatting failed");
@@ -672,7 +649,7 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
 {
     std::vector<uint8_t> req = {};
 
-    if (!getFormattedReq(MCTP_CTRL_CMD_GET_ENDPOINT_UUID, req, std::nullopt))
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_ENDPOINT_UUID>(req))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get UUID: Request formatting failed");
@@ -706,8 +683,7 @@ bool MctpBinding::getMsgTypeSupportCtrlCmd(
     std::vector<uint8_t> req = {};
     std::vector<uint8_t> resp = {};
 
-    if (!getFormattedReq(MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT, req,
-                         std::nullopt))
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT>(req))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get Message Type Support: Request formatting failed");
@@ -773,9 +749,8 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
 {
     std::vector<uint8_t> req = {};
     std::vector<uint8_t> resp = {};
-    std::vector<uint8_t> reqParams{msgTypeNo};
 
-    if (!getFormattedReq(MCTP_CTRL_CMD_GET_VERSION_SUPPORT, req, reqParams))
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_VERSION_SUPPORT>(req, msgTypeNo))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get MCTP Version Support: Request formatting failed");
