@@ -35,6 +35,8 @@ struct SMBusConfiguration
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
+    unsigned int reqToRespTime;
+    uint8_t reqRetryCount;
 };
 
 struct PcieConfiguration
@@ -45,6 +47,8 @@ struct PcieConfiguration
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
     uint16_t bdf;
+    unsigned int reqToRespTime;
+    uint8_t reqRetryCount;
 };
 
 struct MsgTypes
@@ -156,6 +160,8 @@ class MctpBinding
 
   private:
     bool staticEid;
+    unsigned int ctrlTxRetryDelay;
+    uint8_t ctrlTxRetryCount;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};

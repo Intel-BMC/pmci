@@ -102,6 +102,10 @@ void parseConfig(mctp_server::BindingTypes bindingType,
                 smbus.at("ARPMasterSupport").get<bool>();
             smbusConfig.bmcSlaveAddr =
                 smbus.at("BMCSlaveAddress").get<uint8_t>();
+            smbusConfig.reqToRespTime =
+                smbus.at("ReqToRespTimeMs").get<unsigned int>();
+            smbusConfig.reqRetryCount =
+                smbus.at("ReqRetryCount").get<uint8_t>();
             conf.emplace<SMBusConfiguration>(smbusConfig);
             break;
         }
@@ -115,6 +119,9 @@ void parseConfig(mctp_server::BindingTypes bindingType,
             pcieConfig.mediumId = stringToMediumID.at(
                 pcie.at("PhysicalMediumID").get<std::string>());
             pcieConfig.bdf = pcie.at("bdf").get<uint16_t>();
+            pcieConfig.reqToRespTime =
+                pcie.at("ReqToRespTimeMs").get<unsigned int>();
+            pcieConfig.reqRetryCount = pcie.at("ReqRetryCount").get<uint8_t>();
 
             conf.emplace<PcieConfiguration>(pcieConfig);
             break;

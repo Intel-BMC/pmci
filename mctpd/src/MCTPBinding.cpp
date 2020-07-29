@@ -10,10 +10,7 @@
 
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
-// TODO: Change timing parameters as configurable
-constexpr int ctrlTxPollInterval = 5;
-constexpr int ctrlTxRetryDelay = 100;
-constexpr int ctrlTxRetryCount = 2;
+constexpr unsigned int ctrlTxPollInterval = 5;
 constexpr size_t minCmdRespSize = 4;
 constexpr int completionCodeIndex = 3;
 
@@ -23,8 +20,8 @@ bool ctrlTxTimerExpired = true;
 // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
 //  Callback>
 static std::vector<
-    std::tuple<PacketState, int, int, mctp_eid_t, std::vector<uint8_t>,
-               std::vector<uint8_t>,
+    std::tuple<PacketState, uint8_t, unsigned int, mctp_eid_t,
+               std::vector<uint8_t>, std::vector<uint8_t>,
                std::function<void(PacketState, std::vector<uint8_t>&)>>>
     ctrlTxQueue;
 
@@ -130,6 +127,8 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             bindingID = smbusConf->bindingType;
             bindingMediumID = smbusConf->mediumId;
             bindingModeType = smbusConf->mode;
+            ctrlTxRetryDelay = smbusConf->reqToRespTime;
+            ctrlTxRetryCount = smbusConf->reqRetryCount;
 
             // TODO: Add bus owner interface.
             // TODO: If we are not top most busowner, wait for top mostbus owner
@@ -146,6 +145,8 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             bindingID = pcieConf->bindingType;
             bindingMediumID = pcieConf->mediumId;
             bindingModeType = pcieConf->mode;
+            ctrlTxRetryDelay = pcieConf->reqToRespTime;
+            ctrlTxRetryCount = pcieConf->reqRetryCount;
         }
         else
         {
