@@ -175,7 +175,10 @@ void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
 
 SMBusBinding::~SMBusBinding()
 {
-    smbusSlaveSocket.release();
+    if (smbusSlaveSocket.native_handle() >= 0)
+    {
+        smbusSlaveSocket.release();
+    }
     if (inFd >= 0)
     {
         close(inFd);
