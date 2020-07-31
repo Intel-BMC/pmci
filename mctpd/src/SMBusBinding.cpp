@@ -162,7 +162,7 @@ void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
     try
     {
         initializeMctp();
-        SMBusInit(conf);
+        SMBusInit();
         io.post([this, &conf]() { initEndpointDiscovery(conf); });
     }
 
@@ -190,7 +190,7 @@ SMBusBinding::~SMBusBinding()
     mctp_smbus_free(smbus);
 }
 
-void SMBusBinding::SMBusInit(ConfigurationVariant& /*conf*/)
+void SMBusBinding::SMBusInit()
 {
     smbus = mctp_smbus_init();
     if (smbus == nullptr)

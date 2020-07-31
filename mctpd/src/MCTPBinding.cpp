@@ -74,8 +74,12 @@ static void handleCtrlResp(void* msg, const size_t len)
     }
 }
 
-void rxMessage(uint8_t srcEid, void* /*data*/, void* msg, size_t len,
-               void* /*binding_private*/)
+/*
+ * Declare unused parameters as "maybe_unused", since rxMessage is a callback
+ * passed to libmctp and we have to match its expected prototype.
+ */
+void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
+               size_t len, [[maybe_unused]] void* binding_private)
 {
     uint8_t* payload = reinterpret_cast<uint8_t*>(msg);
     uint8_t msgType = payload[0]; // Always the first byte

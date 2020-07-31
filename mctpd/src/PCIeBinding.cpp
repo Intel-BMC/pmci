@@ -40,7 +40,11 @@ PCIeBinding::PCIeBinding(
     }
 }
 
-void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
+/*
+ * conf can't be removed since we override virtual function that has the
+ * ConfigurationVariant& as argument
+ */
+void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
 {
     initializeMctp();
     pcie = mctp_binding_astpcie_init();

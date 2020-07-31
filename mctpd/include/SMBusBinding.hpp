@@ -19,7 +19,7 @@ class SMBusBinding : public MctpBinding
                                        std::vector<uint8_t>& pvtData) override;
 
   private:
-    void SMBusInit(ConfigurationVariant& conf);
+    void SMBusInit();
     void readResponse();
     void initEndpointDiscovery(ConfigurationVariant& conf);
     std::string bus;
