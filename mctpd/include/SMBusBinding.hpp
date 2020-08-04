@@ -29,5 +29,5 @@ class SMBusBinding : public MctpBinding
     int inFd{-1};  // in_fd for the smbus binding
     int outFd{-1}; // out_fd for the root bus
     std::vector<std::pair<int, int>> muxFds;
-    boost::asio::ip::tcp::socket smbusSlaveSocket;
+    boost::asio::posix::stream_descriptor smbusReceiverFd;
 };

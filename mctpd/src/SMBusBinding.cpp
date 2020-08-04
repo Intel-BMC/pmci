@@ -126,7 +126,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                            std::string& objPath, ConfigurationVariant& conf,
                            boost::asio::io_context& ioc) :
     MctpBinding(objServer, objPath, conf, ioc),
-    smbusSlaveSocket(ioc)
+    smbusReceiverFd(ioc)
 {
     std::shared_ptr<dbus_interface> smbusInterface =
         objServer->add_interface(objPath, smbus_server::interface);
@@ -175,9 +175,9 @@ void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
 
 SMBusBinding::~SMBusBinding()
 {
-    if (smbusSlaveSocket.native_handle() >= 0)
+    if (smbusReceiverFd.native_handle() >= 0)
     {
-        smbusSlaveSocket.release();
+        smbusReceiverFd.release();
     }
     if (inFd >= 0)
     {
@@ -300,14 +300,14 @@ void SMBusBinding::SMBusInit()
     mctp_smbus_set_out_fd(smbus, outFd);
     mctp_binding_set_slave_addr_callback(getSMBusOutputAddress);
 
-    smbusSlaveSocket.assign(boost::asio::ip::tcp::v4(), inFd);
+    smbusReceiverFd.assign(inFd);
     readResponse();
 }
 
 void SMBusBinding::readResponse()
 {
-    smbusSlaveSocket.async_wait(
-        boost::asio::ip::tcp::socket::wait_error, [this](auto& ec) {
+    smbusReceiverFd.async_wait(
+        boost::asio::posix::descriptor_base::wait_error, [this](auto& ec) {
             if (ec)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
