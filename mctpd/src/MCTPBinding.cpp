@@ -827,9 +827,8 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
     return true;
 }
 
-void MctpBinding::registerMsgTypes(
-    std::shared_ptr<sdbusplus::asio::dbus_interface>& msgTypeIntf,
-    const MsgTypes& messageType)
+void MctpBinding::registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
+                                   const MsgTypes& messageType)
 {
     msgTypeIntf->register_property("MctpControl", messageType.mctpControl);
     msgTypeIntf->register_property("PLDM", messageType.pldm);
@@ -847,7 +846,7 @@ void MctpBinding::populateEndpointProperties(
 {
 
     std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
-    std::shared_ptr<sdbusplus::asio::dbus_interface> endpointIntf;
+    std::shared_ptr<dbus_interface> endpointIntf;
     std::string mctpEpObj =
         mctpDevObj + std::to_string(epProperties.endpointEid);
 
@@ -862,14 +861,14 @@ void MctpBinding::populateEndpointProperties(
     endpointInterface.push_back(endpointIntf);
 
     // Message type interface
-    std::shared_ptr<sdbusplus::asio::dbus_interface> msgTypeIntf;
+    std::shared_ptr<dbus_interface> msgTypeIntf;
     msgTypeIntf =
         objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
     registerMsgTypes(msgTypeIntf, epProperties.endpointMsgTypes);
     msgTypeInterface.push_back(msgTypeIntf);
 
     // UUID interface
-    std::shared_ptr<sdbusplus::asio::dbus_interface> uuidIntf;
+    std::shared_ptr<dbus_interface> uuidIntf;
     uuidIntf = objectServer->add_interface(mctpEpObj,
                                            "xyz.openbmc_project.Common.UUID");
     uuidIntf->register_property("UUID", epProperties.uuid);

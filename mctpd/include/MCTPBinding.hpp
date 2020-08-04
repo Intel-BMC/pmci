@@ -167,11 +167,9 @@ class MctpBinding
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     std::shared_ptr<object_server>& objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
-    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
-        endpointInterface;
-    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
-        msgTypeInterface;
-    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> uuidInterface;
+    std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
+    std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
+    std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
     boost::asio::steady_timer ctrlTxTimer;
 
     void createUuid(void);
@@ -193,9 +191,8 @@ class MctpBinding
     template <int cmd, typename... Args>
     bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam);
     void busOwnerRegisterEndpoint(const std::vector<uint8_t>& bindingPrivate);
-    void registerMsgTypes(
-        std::shared_ptr<sdbusplus::asio::dbus_interface>& msgTypeIntf,
-        const MsgTypes& messageType);
+    void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
+                          const MsgTypes& messageType);
     void populateEndpointProperties(const EndpointProperties& epProperties);
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
