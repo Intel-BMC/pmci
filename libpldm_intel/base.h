@@ -65,7 +65,7 @@ typedef enum {
 	PLDM_ASYNC_REQUEST_NOTIFY, //!< Unacknowledged PLDM request messages
 } MessageType;
 
-#define PLDM_INSTANCE_MAX 31
+#define PLDM_INSTANCE_MAX 32
 #define PLDM_MAX_TYPES 64
 #define PLDM_MAX_CMDS_PER_TYPE 256
 

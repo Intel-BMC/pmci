@@ -38,13 +38,13 @@ TEST(PackPLDMMessage, BadPathTest)
 
     // Instance ID out of range
     hdr.msg_type = PLDM_REQUEST;
-    hdr.instance = 32;
+    hdr.instance = 33;
     rc = pack_pldm_header(&hdr, &msg);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
     // PLDM type out of range
     hdr.msg_type = PLDM_REQUEST;
-    hdr.instance = 31;
+    hdr.instance = 32;
     hdr.pldm_type = 64;
     rc = pack_pldm_header(&hdr, &msg);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_PLDM_TYPE);
