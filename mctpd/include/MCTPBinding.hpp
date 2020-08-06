@@ -145,6 +145,9 @@ class MctpBinding
         const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
         uint8_t msgTypeNo,
         MctpVersionSupportCtrlResp* mctpVersionSupportCtrlResp);
+    bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
+                                const std::vector<uint8_t>& bindingPrivate,
+                                const mctp_eid_t destEid);
     std::pair<bool, mctp_eid_t>
         registerEndpoint(boost::asio::yield_context& yield,
                          const std::vector<uint8_t>& bindingPrivate,

@@ -22,4 +22,7 @@ class PCIeBinding : public MctpBinding
     uint16_t bdf;
     pcie_binding::DiscoveryFlags discoveredFlag{};
     struct mctp_binding_astpcie* pcie = nullptr;
+    boost::asio::posix::stream_descriptor streamMonitor;
+    bool endpointDiscoveryFlow();
+    void readResponse();
 };

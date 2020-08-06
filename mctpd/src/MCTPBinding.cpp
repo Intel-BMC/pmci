@@ -554,6 +554,16 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
                                              std::forward<Args>(reqParam)...);
         return true;
     }
+    else if constexpr (cmd == MCTP_CTRL_CMD_DISCOVERY_NOTIFY)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_discovery_notify));
+        mctp_ctrl_cmd_discovery_notify* discoveryNotify =
+            reinterpret_cast<mctp_ctrl_cmd_discovery_notify*>(req.data());
+
+        mctp_encode_ctrl_cmd_discovery_notify(discoveryNotify,
+                                              getRqDgramInst());
+        return true;
+    }
     else
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -829,6 +839,40 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
     }
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Get MCTP Version Support success");
+    return true;
+}
+
+bool MctpBinding::discoveryNotifyCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid)
+{
+    std::vector<uint8_t> req = {};
+    std::vector<uint8_t> resp = {};
+
+    if (!getFormattedReq<MCTP_CTRL_CMD_DISCOVERY_NOTIFY>(req))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Discovery Notify: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Discovery Notify: Unable to get response");
+        return false;
+    }
+
+    if (!checkRespSizeAndCompletionCode<mctp_ctrl_resp_discovery_notify>(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Discovery Notify failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Discovery Notify success");
     return true;
 }
 
