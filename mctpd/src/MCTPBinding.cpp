@@ -189,7 +189,12 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                    std::vector<uint8_t> payload) {
                 std::vector<uint8_t> pvtData;
 
-                getBindingPrivateData(dstEid, pvtData);
+                if (!getBindingPrivateData(dstEid, pvtData))
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "Invalid destination EID");
+                    return -1;
+                }
 
                 return mctp_message_tx(mctp, dstEid, payload.data(),
                                        payload.size(), pvtData.data());
@@ -968,116 +973,141 @@ static std::string formatUUID(guid_t& uuid)
     return std::string(buf);
 }
 
-void MctpBinding::busOwnerRegisterEndpoint(
+std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
+    boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate)
 {
-    boost::asio::spawn(io, [bindingPrivate,
-                            this](boost::asio::yield_context yield) {
-        // Get EID
-        std::vector<uint8_t> getEidResp = {};
-        if (!(getEidCtrlCmd(yield, bindingPrivate, 0x00, getEidResp)))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Get EID failed");
-            return;
-        }
+    std::pair<bool, mctp_eid_t> returnStatus(false, 0xFF);
 
-        mctp_ctrl_resp_get_eid* getEidRespPtr =
-            reinterpret_cast<mctp_ctrl_resp_get_eid*>(getEidResp.data());
-        mctp_eid_t destEid = getEidRespPtr->eid;
+    // Send getMctpVersionSupport for MCTP Control commands to a NULL EID
 
-        if (getEidRespPtr->eid != 0x00)
-        {
-            updateEidStatus(destEid, true);
-        }
+    MctpVersionSupportCtrlResp getMctpControlVersion;
+    if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL,
+                                       MCTP_MESSAGE_TYPE_MCTP_CTRL,
+                                       &getMctpControlVersion)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get MCTP Control Version failed");
+        return returnStatus;
+    }
 
-        // Get UUID (Not mandatory to support)
-        std::vector<uint8_t> getUuidResp = {};
-        if (!(getUuidCtrlCmd(yield, bindingPrivate, destEid, getUuidResp)))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Get UUID failed");
-        }
+    // TODO: Validate MCTP Control message version supported
 
-        // TODO: Check the obtained UUID from the route table and verify whether
-        // it had an entry in the route table
-        // TODO: Routing table construction
-        // TODO: Assigne pool of EID if the endpoint is a bridge
-        // TODO: Wait for T-reclame to free an EID
-        // TODO: Take care of EIDs(Static EID) which are not owned by us
+    // Get EID
+    std::vector<uint8_t> getEidResp = {};
+    if (!(getEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getEidResp)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Get EID failed");
+        return returnStatus;
+    }
 
-        // Set EID
-        if (getEidRespPtr->eid == 0x00)
-        {
-            mctp_eid_t eid;
-            try
-            {
-                eid = getAvailableEidFromPool();
-            }
-            catch (const std::exception&)
-            {
-                return;
-            }
-            std::vector<uint8_t> setEidResp = {};
-            if (!(setEidCtrlCmd(yield, bindingPrivate, 0x00, set_eid, eid,
-                                setEidResp)))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Set EID failed");
-                updateEidStatus(eid, false);
-                return;
-            }
+    mctp_ctrl_resp_get_eid* getEidRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_get_eid*>(getEidResp.data());
+    mctp_eid_t destEid = getEidRespPtr->eid;
 
-            mctp_ctrl_resp_set_eid* setEidRespPtr =
-                reinterpret_cast<mctp_ctrl_resp_set_eid*>(setEidResp.data());
-            destEid = setEidRespPtr->eid_set;
+    if (getEidRespPtr->eid != MCTP_EID_NULL)
+    {
+        updateEidStatus(destEid, true);
+    }
 
-            // If EID in the resp is different from the one sent in request,
-            // we need to check if that EID exists in the pool and update its
-            // status as assigned.
-            updateEidStatus(destEid, true);
-        }
+    // Get UUID (Not mandatory to support)
+    std::vector<uint8_t> getUuidResp = {};
+    if (!(getUuidCtrlCmd(yield, bindingPrivate, destEid, getUuidResp)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get UUID failed");
+    }
 
-        // Get Message Type Support
-        MsgTypeSupportCtrlResp msgTypeSupportResp;
-        if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, destEid,
-                                       &msgTypeSupportResp)))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Get Message Type Support failed");
-            return;
-        }
+    // TODO: Check the obtained UUID from the route table and verify whether
+    // it had an entry in the route table
+    // TODO: Routing table construction
+    // TODO: Assigne pool of EID if the endpoint is a bridge
+    // TODO: Wait for T-reclame to free an EID
+    // TODO: Take care of EIDs(Static EID) which are not owned by us
+    // TODO: Set EID should use previously known EID if there was a UUID match
 
-        // TODO: Get Vendor ID command
-
-        // Expose interface as per the result
-        EndpointProperties epProperties;
-        epProperties.endpointEid = destEid;
-        mctp_ctrl_resp_get_uuid* getUuidRespPtr =
-            reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
-        epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
+    // Set EID
+    if (getEidRespPtr->eid == MCTP_EID_NULL)
+    {
+        mctp_eid_t eid;
         try
         {
-            epProperties.mode = getEndpointType(getEidRespPtr->eid_type);
+            eid = getAvailableEidFromPool();
         }
         catch (const std::exception&)
         {
-            return;
+            return returnStatus;
         }
-        // Network ID need to be assigned only if EP is requesting for the same.
-        // Keep Network ID as zero and update it later if a change happend.
-        epProperties.networkId = 0x00;
-        epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
-        populateEndpointProperties(epProperties);
-    });
+        std::vector<uint8_t> setEidResp = {};
+        if (!(setEidCtrlCmd(yield, bindingPrivate, 0x00, set_eid, eid,
+                            setEidResp)))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Set EID failed");
+            updateEidStatus(eid, false);
+            return returnStatus;
+        }
+
+        mctp_ctrl_resp_set_eid* setEidRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_set_eid*>(setEidResp.data());
+        destEid = setEidRespPtr->eid_set;
+
+        // If EID in the resp is different from the one sent in request,
+        // we need to check if that EID exists in the pool and update its
+        // status as assigned.
+        updateEidStatus(destEid, true);
+    }
+
+    // Get Message Type Support
+    MsgTypeSupportCtrlResp msgTypeSupportResp;
+    if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, destEid,
+                                   &msgTypeSupportResp)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support failed");
+        return returnStatus;
+    }
+
+    // TODO: Get Vendor ID command
+
+    // Expose interface as per the result
+    EndpointProperties epProperties;
+    epProperties.endpointEid = destEid;
+    mctp_ctrl_resp_get_uuid* getUuidRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
+    epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
+    try
+    {
+        epProperties.mode = getEndpointType(getEidRespPtr->eid_type);
+    }
+    catch (const std::exception&)
+    {
+        return returnStatus;
+    }
+    // Network ID need to be assigned only if EP is requesting for the same.
+    // Keep Network ID as zero and update it later if a change happend.
+    epProperties.networkId = 0x00;
+    epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+    populateEndpointProperties(epProperties);
+
+    return std::make_pair(true, destEid);
 }
 
-void MctpBinding::registerEndpoint(const std::vector<uint8_t>& bindingPrivate,
-                                   bool isBusOwner)
+/* This api provides option to register an endpoint using the binding
+ * private data. The callers of this api can parallelize multiple
+ * endpoint registrations by spawning coroutines and passing yield contexts.*/
+
+std::pair<bool, mctp_eid_t>
+    MctpBinding::registerEndpoint(boost::asio::yield_context& yield,
+                                  const std::vector<uint8_t>& bindingPrivate,
+                                  bool isBusOwner)
 {
+    std::pair returnStatus(false, 0xFF);
+
     if (isBusOwner)
     {
-        busOwnerRegisterEndpoint(bindingPrivate);
+        return busOwnerRegisterEndpoint(yield, bindingPrivate);
     }
     // TODO: Control command flow if we are not busowner
+    return returnStatus;
 }

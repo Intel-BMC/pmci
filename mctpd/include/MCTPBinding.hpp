@@ -116,6 +116,8 @@ class MctpBinding
     void initializeEidPool(const std::vector<mctp_eid_t>& eidPool);
 
   protected:
+    unsigned int ctrlTxRetryDelay;
+    uint8_t ctrlTxRetryCount;
     boost::asio::io_context& io;
     mctp_server::BindingModeTypes bindingModeType{};
     struct mctp* mctp = nullptr;
@@ -143,8 +145,10 @@ class MctpBinding
         const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
         uint8_t msgTypeNo,
         MctpVersionSupportCtrlResp* mctpVersionSupportCtrlResp);
-    void registerEndpoint(const std::vector<uint8_t>& bindingPrivate,
-                          bool isBusOwner);
+    std::pair<bool, mctp_eid_t>
+        registerEndpoint(boost::asio::yield_context& yield,
+                         const std::vector<uint8_t>& bindingPrivate,
+                         bool isBusOwner);
 
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,
@@ -160,8 +164,6 @@ class MctpBinding
 
   private:
     bool staticEid;
-    unsigned int ctrlTxRetryDelay;
-    uint8_t ctrlTxRetryCount;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
@@ -190,7 +192,9 @@ class MctpBinding
                                    std::vector<uint8_t>& resp);
     template <int cmd, typename... Args>
     bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam);
-    void busOwnerRegisterEndpoint(const std::vector<uint8_t>& bindingPrivate);
+    std::pair<bool, mctp_eid_t>
+        busOwnerRegisterEndpoint(boost::asio::yield_context& yield,
+                                 const std::vector<uint8_t>& bindingPrivate);
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
                           const MsgTypes& messageType);
     void populateEndpointProperties(const EndpointProperties& epProperties);

@@ -118,7 +118,7 @@ target_compile_definitions(test-mctpd PRIVATE "USE_MOCK")
 
 find_package (GTest REQUIRED CONFIG)
 target_link_libraries(test-mctpd GTest::gtest GTest::gmock sdbusplus -lmctp_intel systemd -lpthread
-                        -lphosphor_dbus -lboost_coroutine)
+                        -lphosphor_dbus i2c -lboost_coroutine)
 
 add_test (test-mctpd test-mctpd
           "--gtest_output=xml:test-mctpd.xml")

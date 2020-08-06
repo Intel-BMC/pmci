@@ -30,4 +30,9 @@ class SMBusBinding : public MctpBinding
     int outFd{-1}; // out_fd for the root bus
     std::vector<std::pair<int, int>> muxFds;
     boost::asio::posix::stream_descriptor smbusReceiverFd;
+    bool isMuxFd(const int fd);
+    std::vector<std::pair<mctp_eid_t, struct mctp_smbus_extra_params>>
+        smbusDeviceTable;
+    void scanAllPorts(void);
+    void scanPort(const int scanFd);
 };
