@@ -34,6 +34,7 @@ set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 # Add header and sources here
 set (SRC_FILES ${PROJECT_SOURCE_DIR}/base.c
         ${PROJECT_SOURCE_DIR}/fru.c
+        ${PROJECT_SOURCE_DIR}/firmware_update.c
         ${PROJECT_SOURCE_DIR}/pdr.c
         ${PROJECT_SOURCE_DIR}/platform.c
         ${PROJECT_SOURCE_DIR}/utils.c
@@ -42,6 +43,7 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/base.c
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/base.h
         ${PROJECT_SOURCE_DIR}/entity.h
         ${PROJECT_SOURCE_DIR}/fru.h
+        ${PROJECT_SOURCE_DIR}/firmware_update.h
         ${PROJECT_SOURCE_DIR}/pdr.h
         ${PROJECT_SOURCE_DIR}/platform.h
         ${PROJECT_SOURCE_DIR}/pldm_types.h
@@ -73,6 +75,7 @@ include (CTest)
 
 set (TEST_BASE tests/libpldm_base_test.cpp base.c)
 set (TEST_FRU tests/libpldm_fru_test.cpp fru.c base.c)
+set (TEST_FW_UPDATE tests/libpldm_fw_update_test.cpp firmware_update.c base.c)
 set (TEST_PDR tests/libpldm_pdr_test.cpp pdr.c)
 set (TEST_PLATFORM tests/libpldm_platform_test.cpp platform.c base.c)
 set (TEST_UTILS tests/libpldm_utils_test.cpp utils.c)
@@ -90,6 +93,11 @@ add_executable (libpldm_fru_test ${TEST_FRU})
 target_link_libraries(libpldm_fru_test ${GTEST_LIBRARIES} -lpthread)
 add_test (libpldm_fru_test libpldm_fru_test
           "--gtest_output=xml:libpldm_fru_test.xml")
+
+add_executable (libpldm_fw_update_test ${TEST_FW_UPDATE})
+target_link_libraries(libpldm_fw_update_test ${GTEST_LIBRARIES})
+add_test (libpldm_fw_update_test libpldm_fw_update_test
+          "--gtest_output=xml:libpldm_fw_update_test.xml")
 
 add_executable (libpldm_pdr_test ${TEST_PDR})
 target_link_libraries(libpldm_pdr_test ${GTEST_LIBRARIES} -lpthread)
