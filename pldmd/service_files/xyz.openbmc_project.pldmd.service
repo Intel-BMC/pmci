@@ -1,0 +1,12 @@
+[Unit]
+Description=PLDM daemon
+
+[Service]
+ExecStart=/usr/bin/pldmd
+Type=dbus
+BusName=xyz.openbmc_project.pldm
+SyslogIdentifier=pldmd
+
+[Install]
+WantedBy=multi-user.target
+
