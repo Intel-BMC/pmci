@@ -99,9 +99,9 @@ static auto
     msg.append(interface.c_str(), property.c_str());
     auto reply = bus.call(msg);
 
-    sdbusplus::message::variant<Property> v;
+    std::variant<Property> v;
     reply.read(v);
-    return sdbusplus::message::variant_ns::get<Property>(v);
+    return std::get<Property>(v);
 }
 
 static auto register_signal_handler(sdbusplus::bus::bus& bus,

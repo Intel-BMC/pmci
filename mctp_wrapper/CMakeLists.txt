@@ -51,7 +51,13 @@ add_executable(register examples/register.cpp mctpw.h)
 add_dependencies(register ${PROJECT_NAME})
 target_link_libraries(register mctpw)
 
-install (TARGETS ${PROJECT_NAME} DESTINATION /usr/local/lib)
+SET_TARGET_PROPERTIES (${PROJECT_NAME} PROPERTIES VERSION 1.0.0 SOVERSION 1 )
+SET_TARGET_PROPERTIES (${PROJECT_NAME} PROPERTIES PUBLIC_HEADER mctpw.h)
+
+INSTALL(TARGETS ${PROJECT_NAME}
+        LIBRARY DESTINATION /usr/lib
+        PUBLIC_HEADER DESTINATION /usr/include
+)
 
 find_package(Doxygen
              OPTIONAL_COMPONENTS dot mscgen dia)
@@ -65,6 +71,3 @@ doxygen_add_docs(
     ${PROJECT_SOURCE_DIR}
 )
 endif (${DOXYGEN_FOUND})
-
-
-
