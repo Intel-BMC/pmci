@@ -70,6 +70,86 @@ bool PCIeBinding::endpointDiscoveryFlow()
     return false;
 }
 
+/*
+ * This function modifies the private data of an existing request to create
+ * private data for the response.
+ */
+void PCIeBinding::preparePrivateDataResp(void* bindingPrivate)
+{
+    mctp_astpcie_pkt_private* pciePrivate;
+
+    pciePrivate = reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+    if (bindingPrivate == nullptr || pciePrivate->remote_id == 0x00)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Private data must be from an existing request.");
+        return;
+    }
+#ifdef MCTP_ASTPCIE_RESPONSE_WA
+    pciePrivate->flags_seq_tag &= static_cast<uint8_t>(~MCTP_HDR_FLAG_TO);
+#endif
+    /*
+     * We have to respond with PCIE_ROUTE_TO_RC to PCIE_BROADCAST_FROM_RC
+     * request. See DSP0238 1.0.1 6.4.
+     */
+    if (pciePrivate->routing == PCIE_BROADCAST_FROM_RC)
+    {
+        pciePrivate->routing = PCIE_ROUTE_TO_RC;
+    }
+    /*
+     * In other cases we should use PCIE_ROUTE_BY_ID.
+     */
+    else
+    {
+        pciePrivate->routing = PCIE_ROUTE_BY_ID;
+    }
+}
+
+bool PCIeBinding::handlePrepareForEndpointDiscovery(
+    mctp_eid_t, void* bindingPrivate,
+    struct mctp_ctrl_resp_prepare_discovery* response)
+{
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
+    {
+        return false;
+    }
+    discoveredFlag = pcie_binding::DiscoveryFlags::Undiscovered;
+    preparePrivateDataResp(bindingPrivate);
+    response->completion_code = MCTP_CTRL_CC_SUCCESS;
+    return true;
+}
+
+bool PCIeBinding::handleEndpointDiscovery(
+    mctp_eid_t, void* bindingPrivate,
+    struct mctp_ctrl_resp_endpoint_discovery* response)
+{
+    if (discoveredFlag == pcie_binding::DiscoveryFlags::Discovered)
+    {
+        return false;
+    }
+    preparePrivateDataResp(bindingPrivate);
+    response->completion_code = MCTP_CTRL_CC_SUCCESS;
+    return true;
+}
+
+bool PCIeBinding::handleSetEndpointId(mctp_eid_t, void* bindingPrivate,
+                                      struct mctp_ctrl_resp_set_eid* response)
+{
+    preparePrivateDataResp(bindingPrivate);
+    if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
+    {
+        discoveredFlag = pcie_binding::DiscoveryFlags::Discovered;
+    }
+    return true;
+}
+
+bool PCIeBinding::handleGetEndpointId(mctp_eid_t, void* bindingPrivate,
+                                      struct mctp_ctrl_resp_get_eid*)
+{
+    preparePrivateDataResp(bindingPrivate);
+    return true;
+}
+
 void PCIeBinding::readResponse()
 {
     streamMonitor.async_wait(
@@ -118,7 +198,8 @@ void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
         throw std::system_error(
             std::make_error_code(static_cast<std::errc>(-status)));
     }
-    mctp_set_rx_all(mctp, rxMessage, this);
+    mctp_set_rx_all(mctp, rxMessage, nullptr);
+    mctp_set_rx_ctrl(mctp, handleMCTPControlRequests, nullptr);
     mctp_binding_set_tx_enabled(binding, true);
 
     int driverFd = mctp_astpcie_get_fd(pcie);

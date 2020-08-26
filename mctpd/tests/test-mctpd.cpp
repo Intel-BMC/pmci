@@ -1,3 +1,4 @@
+#include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
 
 using ::testing::_;
@@ -7,6 +8,7 @@ using ::testing::Return;
 using ::testing::StrEq;
 
 std::shared_ptr<sdbusplus::asio::connection> conn;
+BindingVariant bindingPtr;
 
 class MctpdBaseTest : public ::testing::Test
 {
@@ -131,9 +133,12 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     /*Invoke constructor */
     boost::asio::io_context ioc;
-    SMBusBinding smbusBinding =
-        SMBusBinding(objectServerMock, mctpBaseObj, testConfiuration, ioc);
-    smbusBinding.initializeBinding(testConfiuration);
+
+    bindingPtr = std::make_unique<SMBusBinding>(objectServerMock, mctpBaseObj,
+                                                testConfiuration, ioc);
+    std::visit(
+        [this](auto& b) { b->initializeBinding(this->testConfiuration); },
+        bindingPtr);
 }
 
 int main(int argc, char** argv)

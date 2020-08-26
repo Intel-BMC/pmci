@@ -24,6 +24,9 @@ using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
 using mctp_msg_types =
     sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
 
+class SMBusBinding;
+class PCIeBinding;
+
 struct SMBusConfiguration
 {
     mctp_server::MctpPhysicalMediumIdentifiers mediumId;
@@ -98,8 +101,17 @@ using ConfigurationVariant =
 
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
 
+using BindingVariant =
+    std::variant<std::unique_ptr<SMBusBinding>, std::unique_ptr<PCIeBinding>>;
+
+extern BindingVariant bindingPtr;
+
 void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
                size_t /*len*/, void* /*msg_binding_private*/);
+
+void handleMCTPControlRequests(uint8_t /*srcEid*/, void* /*data*/,
+                               void* /*msg*/, size_t /*len*/,
+                               void* /*bindingPrivate*/);
 
 class MctpBinding
 {
@@ -112,6 +124,9 @@ class MctpBinding
     virtual void initializeBinding(ConfigurationVariant& conf) = 0;
     void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
+    void handleCtrlReq(uint8_t destEid, void* bindingPrivate, void* req,
+                       size_t len);
+
   protected:
     unsigned int ctrlTxRetryDelay;
     uint8_t ctrlTxRetryCount;
@@ -122,6 +137,17 @@ class MctpBinding
     void initializeMctp(void);
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
+    virtual bool handlePrepareForEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate,
+        struct mctp_ctrl_resp_prepare_discovery* response);
+    virtual bool handleEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate,
+        struct mctp_ctrl_resp_endpoint_discovery* response);
+    virtual bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                     struct mctp_ctrl_resp_set_eid* response);
+    virtual bool
+        handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                            struct mctp_ctrl_resp_get_eid* response) = 0;
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
                        const std::vector<uint8_t>& bindingPrivate,
                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);

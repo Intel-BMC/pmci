@@ -1,5 +1,8 @@
 #include "MCTPBinding.hpp"
 
+#include "PCIeBinding.hpp"
+#include "SMBusBinding.hpp"
+
 #include <systemd/sd-id128.h>
 
 #include <phosphor-logging/log.hpp>
@@ -104,6 +107,26 @@ void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
             "MCTP Control packet response received!!");
         handleCtrlResp(msg, len);
     }
+}
+
+void handleMCTPControlRequests(uint8_t srcEid, void* /*data*/, void* msg,
+                               size_t len, void* bindingPrivate)
+{
+    /*
+     * We only check the msg pointer, private data may be unused by some
+     * bindings.
+     */
+    if (msg == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "MCTP Control Message is not initialized.");
+        return;
+    }
+    std::visit(
+        [&srcEid, &bindingPrivate, &msg, &len](auto& binding) {
+            binding->handleCtrlReq(srcEid, bindingPrivate, msg, len);
+        },
+        bindingPtr);
 }
 
 bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
@@ -256,7 +279,6 @@ void MctpBinding::initializeMctp(void)
         throw std::system_error(
             std::make_error_code(std::errc::not_enough_memory));
     }
-    mctp_set_rx_all(mctp, rxMessage, nullptr);
 }
 
 void MctpBinding::initializeEidPool(const std::set<mctp_eid_t>& pool)
@@ -406,6 +428,114 @@ void MctpBinding::processCtrlTxQueue(void)
             processCtrlTxQueue();
         }
     });
+}
+
+void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
+                                void* req, [[maybe_unused]] size_t len)
+{
+    if (req == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "MCTP Control Request is not initialized.");
+        return;
+    }
+    bool sendResponse = false;
+    mctp_ctrl_msg_hdr* reqHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(req);
+    std::vector<uint8_t> resp = {};
+    switch (reqHeader->command_code)
+    {
+        case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY: {
+            resp.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
+            struct mctp_ctrl_resp_prepare_discovery* response =
+                reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(
+                    resp.data());
+            sendResponse = handlePrepareForEndpointDiscovery(
+                destEid, bindingPrivate, response);
+            break;
+        }
+        case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY: {
+            resp.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
+            struct mctp_ctrl_resp_endpoint_discovery* response =
+                reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(
+                    resp.data());
+            sendResponse =
+                handleEndpointDiscovery(destEid, bindingPrivate, response);
+            break;
+        }
+        case MCTP_CTRL_CMD_GET_ENDPOINT_ID: {
+            resp.resize(sizeof(mctp_ctrl_resp_get_eid));
+            struct mctp_ctrl_resp_get_eid* response =
+                reinterpret_cast<mctp_ctrl_resp_get_eid*>(resp.data());
+            bool busownerMode =
+                bindingModeType == mctp_server::BindingModeTypes::BusOwner
+                    ? true
+                    : false;
+            mctp_ctrl_cmd_get_endpoint_id(mctp, destEid, busownerMode,
+                                          response);
+            sendResponse =
+                handleGetEndpointId(destEid, bindingPrivate, response);
+            break;
+        }
+        case MCTP_CTRL_CMD_SET_ENDPOINT_ID: {
+            if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
+            {
+                break;
+            }
+            resp.resize(sizeof(mctp_ctrl_resp_set_eid));
+            struct mctp_ctrl_resp_set_eid* response =
+                reinterpret_cast<mctp_ctrl_resp_set_eid*>(resp.data());
+            struct mctp_ctrl_cmd_set_eid* request =
+                reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req);
+            mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, request, response);
+            if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
+            {
+                ownEid = response->eid_set;
+            }
+            sendResponse =
+                handleSetEndpointId(destEid, bindingPrivate, response);
+            break;
+        }
+        default: {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Message not supported");
+        }
+    }
+
+    if (sendResponse)
+    {
+        mctp_ctrl_msg_hdr* respHeader =
+            reinterpret_cast<mctp_ctrl_msg_hdr*>(resp.data());
+        memcpy(respHeader, reqHeader, sizeof(struct mctp_ctrl_msg_hdr));
+        respHeader->rq_dgram_inst &=
+            static_cast<uint8_t>(~MCTP_CTRL_HDR_FLAG_REQUEST);
+        mctp_message_tx(mctp, destEid, resp.data(), resp.size(),
+                        bindingPrivate);
+    }
+    return;
+}
+
+bool MctpBinding::handlePrepareForEndpointDiscovery(
+    mctp_eid_t, void*, struct mctp_ctrl_resp_prepare_discovery*)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Message not supported");
+    return false;
+}
+
+bool MctpBinding::handleEndpointDiscovery(
+    mctp_eid_t, void*, struct mctp_ctrl_resp_endpoint_discovery*)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Message not supported");
+    return false;
+}
+
+bool MctpBinding::handleSetEndpointId(mctp_eid_t, void*,
+                                      struct mctp_ctrl_resp_set_eid*)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Message not supported");
+    return false;
 }
 
 void MctpBinding::pushToCtrlTxQueue(

@@ -18,6 +18,20 @@ class PCIeBinding : public MctpBinding
     virtual ~PCIeBinding();
     virtual void initializeBinding(ConfigurationVariant& conf) override;
 
+  protected:
+    virtual bool handlePrepareForEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate,
+        struct mctp_ctrl_resp_prepare_discovery* response) override;
+    virtual bool handleEndpointDiscovery(
+        mctp_eid_t destEid, void* bindingPrivate,
+        struct mctp_ctrl_resp_endpoint_discovery* response) override;
+    virtual bool
+        handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                            struct mctp_ctrl_resp_set_eid* response) override;
+    virtual bool
+        handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                            struct mctp_ctrl_resp_get_eid* response) override;
+
   private:
     uint16_t bdf;
     pcie_binding::DiscoveryFlags discoveredFlag{};
@@ -25,4 +39,5 @@ class PCIeBinding : public MctpBinding
     boost::asio::posix::stream_descriptor streamMonitor;
     bool endpointDiscoveryFlow();
     void readResponse();
+    void preparePrivateDataResp(void* bindingPrivate);
 };

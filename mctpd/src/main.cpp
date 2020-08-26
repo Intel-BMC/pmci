@@ -28,6 +28,8 @@ static std::string configPath = "/usr/share/mctp/mctp_config.json";
 
 std::shared_ptr<sdbusplus::asio::connection> conn;
 
+BindingVariant bindingPtr;
+
 static const std::unordered_map<std::string, mctp_server::BindingModeTypes>
     stringToBindingModeMap = {
         {"busowner", mctp_server::BindingModeTypes::BusOwner},
@@ -407,9 +409,8 @@ int main(int argc, char* argv[])
     }
 
     std::string mctpBaseObj = "/xyz/openbmc_project/mctp";
-    using BindingVariant = std::variant<std::unique_ptr<SMBusBinding>,
-                                        std::unique_ptr<PCIeBinding>>;
-    auto ptr = std::visit(
+
+    bindingPtr = std::visit(
         overload{[&mctpdConfiguration, &objectServer, &mctpBaseObj,
                   &ioc](SMBusConfiguration&) -> BindingVariant {
                      return std::make_unique<SMBusBinding>(
@@ -426,7 +427,7 @@ int main(int argc, char* argv[])
     {
         std::visit([&mctpdConfiguration](
                        auto& b) { b->initializeBinding(*mctpdConfiguration); },
-                   ptr);
+                   bindingPtr);
     }
     catch (const std::exception& e)
     {
