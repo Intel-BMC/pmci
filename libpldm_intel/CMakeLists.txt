@@ -95,7 +95,7 @@ add_test (libpldm_fru_test libpldm_fru_test
           "--gtest_output=xml:libpldm_fru_test.xml")
 
 add_executable (libpldm_fw_update_test ${TEST_FW_UPDATE})
-target_link_libraries(libpldm_fw_update_test ${GTEST_LIBRARIES})
+target_link_libraries(libpldm_fw_update_test ${GTEST_LIBRARIES} -lpthread)
 add_test (libpldm_fw_update_test libpldm_fw_update_test
           "--gtest_output=xml:libpldm_fw_update_test.xml")
 
