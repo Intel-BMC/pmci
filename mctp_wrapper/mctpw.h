@@ -39,30 +39,30 @@ typedef uint8_t mctpw_eid_t;
 
 typedef enum
 {
-    mctp_over_smbus = 0x01,
-    mctp_over_pcie_vdm = 0x02,
-    mctp_over_usb = 0x03,
-    mctp_over_kcs = 0x04,
-    mctp_over_serial = 0x05,
-    vendor_defined = 0xFF,
+    MCTP_OVER_SMBUS = 0x01,
+    MCTP_OVER_PCIE_VDM = 0x02,
+    MCTP_OVER_USB = 0x03,
+    MCTP_OVER_KCS = 0x04,
+    MCTP_OVER_SERIAL = 0x05,
+    VENDOR_DEFINED = 0xFF,
 } mctpw_binding_type_t;
 
 typedef enum
 {
     /** @brief Platform Level Data Model over MCTP */
-    pldm = 0x01,
+    PLDM = 0x01,
     /** @brief NC-SI over MCTP */
-    ncsi = 0x02,
+    NCSI = 0x02,
     /** @brief Ethernet over MCTP */
-    ethernet = 0x03,
+    ETHERNET = 0x03,
     /** @brief NVM Express Management Messages over MCTP */
-    nvme_mgmt_msg = 0x04,
+    NVME_MGMT_MSG = 0x04,
     /** @brief Security Protocol and Data Model over MCTP */
-    spdm = 0x05,
+    SPDM = 0x05,
     /** @brief Vendor Defined PCI */
-    vdpci = 0x7E,
+    VDPCI = 0x7E,
     /** @brief Vendor Defined IANA */
-    vdiana = 0x7F,
+    VDIANA = 0x7F,
 } mctpw_message_type_t;
 
 typedef struct

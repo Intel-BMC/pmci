@@ -66,12 +66,12 @@ class mctpw_exception : public std::exception
 
 static const std::unordered_map<mctpw_binding_type_t, const std::string>
     bindingToInterface = {
-        {mctp_over_smbus, "xyz.openbmc_project.MCTP.Binding.SMBus"},
-        {mctp_over_pcie_vdm, "xyz.openbmc_project.MCTP.Binding.PCIe"},
-        {mctp_over_usb, ""},
-        {mctp_over_kcs, ""},
-        {mctp_over_serial, ""},
-        {vendor_defined, ""}};
+        {MCTP_OVER_SMBUS, "xyz.openbmc_project.MCTP.Binding.SMBus"},
+        {MCTP_OVER_PCIE_VDM, "xyz.openbmc_project.MCTP.Binding.PCIe"},
+        {MCTP_OVER_USB, ""},
+        {MCTP_OVER_KCS, ""},
+        {MCTP_OVER_SERIAL, ""},
+        {VENDOR_DEFINED, ""}};
 
 struct clientContext
 {
@@ -173,7 +173,7 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
         for (auto& i : services)
         {
             int bus = -1;
-            if (binding_type == mctp_over_smbus)
+            if (binding_type == MCTP_OVER_SMBUS)
             {
                 std::string pv = read_property_value<std::string>(
                     *mctpwBus, i.first, "/xyz/openbmc_project/mctp",
@@ -195,7 +195,7 @@ int mctpw_find_bus_by_binding_type(mctpw_binding_type_t binding_type,
                     }
                 }
             }
-            else if (binding_type == mctp_over_pcie_vdm)
+            else if (binding_type == MCTP_OVER_PCIE_VDM)
             {
                 uint16_t pv = read_property_value<uint16_t>(
                     *mctpwBus, i.first, "/xyz/openbmc_project/mctp",
@@ -546,10 +546,10 @@ int mctpw_get_matching_endpoint_list(void* client_context, mctpw_eid_t* eids,
 
     static const std::unordered_map<mctpw_message_type_t, const std::string>
         msgTypeToPropertyName = {
-            {pldm, "PLDM"},         {ncsi, "NCSI"},
-            {ethernet, "Ethernet"}, {nvme_mgmt_msg, "NVMeMgmtMsg"},
-            {spdm, "SPDM "},        {vdpci, "VDPCI"},
-            {vdiana, "VDIANA"}};
+            {PLDM, "PLDM"},         {NCSI, "NCSI"},
+            {ETHERNET, "Ethernet"}, {NVME_MGMT_MSG, "NVMeMgmtMsg"},
+            {SPDM, "SPDM "},        {VDPCI, "VDPCI"},
+            {VDIANA, "VDIANA"}};
 
     if (!client_context || !num || !eids || *num == 0)
     {

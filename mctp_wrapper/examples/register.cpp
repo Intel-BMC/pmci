@@ -59,10 +59,10 @@ int main(void)
 
     signal(SIGINT, signal_handler);
 
-    /* find first mctp_over_smbus binding */
+    /* find first MCTP_OVER_SMBUS binding */
     for (bus = 0; bus < 10; bus++)
     {
-        if (mctpw_find_bus_by_binding_type(mctp_over_smbus, bus,
+        if (mctpw_find_bus_by_binding_type(MCTP_OVER_SMBUS, bus,
                                            &bus_handler) == 0)
         {
             found = true;
@@ -75,7 +75,7 @@ int main(void)
     }
 
     std::cout << "Register client on bus " << bus << std::endl;
-    if ((ret = mctpw_register_client(bus_handler, vdpci, 0x8086, true, 1,
+    if ((ret = mctpw_register_client(bus_handler, VDPCI, 0x8086, true, 1,
                                      0xFFFF, network_reconfiguration_callback,
                                      nullptr, &context)) < 0)
     {
