@@ -62,7 +62,7 @@ set (
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 
 target_link_libraries (${PROJECT_NAME} i2c sdbusplus -lsystemd -lboost_system
-                       -lmctp_intel -lpthread -lstdc++fs -lphosphor_dbus)
+                       -lmctp_intel -lpthread -lstdc++fs -lphosphor_dbus -lboost_coroutine)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
 install (FILES ${SERVICE_FILES} DESTINATION /lib/systemd/system/)

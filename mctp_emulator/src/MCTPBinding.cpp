@@ -6,9 +6,11 @@
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus.hpp>
+#include <xyz/openbmc_project/Common/error.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
 
 #include "libmctp-msgtypes.h"
@@ -139,12 +141,75 @@ static std::unordered_map<uint16_t, std::string> vendorMap = {
     {0x8086, "Intel"},
 };
 
-void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
+static void createAsyncDelay(boost::asio::yield_context& yield,
+                             const uint16_t timeout)
+{
+    boost::asio::steady_timer timer(bus->get_io_context());
+    boost::system::error_code ec;
+
+    timer.expires_after(std::chrono::milliseconds(timeout));
+    timer.async_wait(yield[ec]);
+}
+
+static bool handleAtomicResponseTimeout(boost::asio::yield_context& yield,
+                                        const int processingDelay,
+                                        const uint16_t timeout)
+{
+    uint16_t uProcessingDelay = static_cast<uint16_t>(processingDelay);
+
+    if (uProcessingDelay < timeout && processingDelay > 0)
+    {
+        createAsyncDelay(yield, uProcessingDelay);
+        return true;
+    }
+
+    else
+    {
+        createAsyncDelay(yield, timeout);
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "mctp-emulator: No response");
+        return false;
+    }
+}
+
+static void createResponseSignal(int processingDelay, const uint8_t srcEid,
+                                 const uint8_t msgType, const bool tagOwner,
+                                 const uint8_t msgTag,
+                                 std::vector<uint8_t>& response)
+{
+    if (processingDelay < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "mctp-emulator: No response, Infinite delay");
+        return;
+    }
+
+    else if (processingDelay == 0)
+    {
+        sendMessageReceivedSignal(msgType, srcEid, msgTag, tagOwner, response);
+    }
+
+    else
+    {
+        respQueue.push_back(std::make_pair(
+            processingDelay,
+            std::make_tuple(msgType, srcEid, msgTag, tagOwner, response)));
+        if (timerExpired)
+        {
+            processResponse();
+        }
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "mctp-emulator: Response added to process queue");
+    }
+}
+
+std::optional<std::pair<int, std::vector<uint8_t>>>
+    processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
 {
     uint8_t msgType;
-    uint8_t srcEid = dstEid;
-    uint8_t msgTag = 0;    // Hardcode Message Tag until a usecase arrives
-    bool tagOwner = false; // This is false for responders
+
+    // TODO: Handle payloads if and only if there is a destination EID match
+    dstEid = dstEid;
     std::string messageType;
 
     msgType = payload.at(0);
@@ -153,7 +218,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
     if (!jsonFile.good())
     {
         std::cerr << "unable to open " << reqRespDataFile << "\n";
-        return;
+        return std::nullopt;
     }
 
     json reqResp = json::parse(jsonFile, nullptr, false);
@@ -168,7 +233,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
     {
         std::cerr << "message: " << e.what() << '\n'
                   << "exception id: " << e.id << std::endl;
-        return;
+        return std::nullopt;
     }
 
     std::vector<uint8_t> reqHeader;
@@ -179,7 +244,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "mctp-emulator: Invalid VDPCI message: Insufficient bytes in "
                 "Payload");
-            return;
+            return std::nullopt;
         }
 
         const auto* vdpciMessage =
@@ -190,7 +255,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "mctp-emulator: Invalid VDPCI message: Unknown Vendor ID");
-            return;
+            return std::nullopt;
         }
 
         const auto& vendorString = vendorIter->second;
@@ -199,7 +264,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "mctp-emulator: Invalid VDPCI message: Unexpected value in "
                 "reserved byte");
-            return;
+            return std::nullopt;
         }
         try
         {
@@ -211,7 +276,7 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
         {
             std::cerr << "message: " << e.what() << '\n'
                       << "exception id: " << e.id << std::endl;
-            return;
+            return std::nullopt;
         }
         reqHeader.insert(reqHeader.end(), payload.begin(),
                          payload.begin() + sizeof(mctp_vdpci_intel_hdr));
@@ -226,18 +291,10 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "mctp-emulator: Parsing commands..");
 
-        int processingDelayMilliSec = 0;
         std::vector<uint8_t> req = {};
-        std::vector<uint8_t> response = {};
         try
         {
-            if (iter.contains("processing-delay"))
-            {
-                processingDelayMilliSec = iter["processing-delay"];
-            }
             req.assign(std::begin(iter["request"]), std::end(iter["request"]));
-            response.assign(std::begin(iter["response"]),
-                            std::end(iter["response"]));
         }
         catch (json::exception& e)
         {
@@ -249,43 +306,33 @@ void processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
         req.insert(req.begin(), reqHeader.begin(), reqHeader.end());
         if (req == payload)
         {
+            int processingDelayMilliSec = 0;
+            std::vector<uint8_t> response = {};
             phosphor::logging::log<phosphor::logging::level::INFO>(
                 "mctp-emulator: Request Matched");
-
-            if (processingDelayMilliSec == 0)
+            try
             {
-                sendMessageReceivedSignal(msgType, srcEid, msgTag, tagOwner,
-                                          response);
-            }
-            // Negative processing delay is considered as no response
-            else if (processingDelayMilliSec == -1)
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "mctp-emulator: No response, Infinite delay");
-            }
-            else if (processingDelayMilliSec > 0)
-            {
-                respQueue.push_back(
-                    std::make_pair(processingDelayMilliSec,
-                                   std::make_tuple(msgType, srcEid, msgTag,
-                                                   tagOwner, response)));
-                if (timerExpired)
+                if (iter.contains("processing-delay"))
                 {
-                    processResponse();
+                    processingDelayMilliSec = iter["processing-delay"];
                 }
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "mctp-emulator: Response added to process queue");
+                response.assign(std::begin(iter["response"]),
+                                std::end(iter["response"]));
             }
-            else
+
+            catch (json::exception& e)
             {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "mctp-emulator: Invalid processing delay");
+                std::cerr << "message: " << e.what() << '\n'
+                          << "exception id: " << e.id << std::endl;
+                continue;
             }
-            return;
+
+            return std::make_pair(processingDelayMilliSec, response);
         }
     }
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "mctp-emulator: No matching request found");
+    return std::nullopt;
 }
 
 MctpBinding::MctpBinding(
@@ -307,21 +354,64 @@ MctpBinding::MctpBinding(
 
     mctpInterface->register_method(
         "SendMctpMessagePayload",
-        [](uint8_t DstEid, uint8_t MsgTag, bool TagOwner,
+        [](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
            std::vector<uint8_t> payload) {
-            uint8_t rc = 0;
-
-            // Dummy entries to get around unused-variable compiler errors
-            DstEid = DstEid;
-            MsgTag = MsgTag;
-            TagOwner = TagOwner;
+            int rc = -1;
 
             phosphor::logging::log<phosphor::logging::level::INFO>(
                 "mctp-emulator: Received Payload");
 
-            processMctpCommand(DstEid, payload);
+            auto responsePair = processMctpCommand(dstEid, payload);
+
+            if (responsePair.has_value())
+            {
+                rc = 0;
+
+                int processingDelay = std::get<0>(*responsePair);
+                std::vector<uint8_t> response = std::get<1>(*responsePair);
+
+                createResponseSignal(processingDelay, dstEid, payload.at(0),
+                                     !tagOwner, msgTag, response);
+            }
 
             return rc;
+        });
+
+    mctpInterface->register_method(
+        "SendReceiveMctpMessagePayload",
+        [](boost::asio::yield_context yield, uint8_t dstEid,
+           std::vector<uint8_t> payload, uint16_t timeout) {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "mctp-emulator: Received Payload");
+
+            auto responsePair = processMctpCommand(dstEid, payload);
+
+            if (responsePair.has_value())
+            {
+                int processingDelay = std::get<0>(*responsePair);
+                std::vector<uint8_t> response = std::get<1>(*responsePair);
+
+                if (handleAtomicResponseTimeout(yield, processingDelay,
+                                                timeout))
+                {
+                    return response;
+                }
+                else
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "mctp-emulator: Unable to respond within timeout");
+                    throw sdbusplus::xyz::openbmc_project::Common::Error::
+                        Timeout();
+                }
+            }
+
+            else
+            {
+                createAsyncDelay(yield, timeout);
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "mctp-emulator: Error in request");
+                throw sdbusplus::xyz::openbmc_project::Common::Error::Timeout();
+            }
         });
 
     mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,
