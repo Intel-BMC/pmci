@@ -213,7 +213,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         this->bus = std::get<SMBusConfiguration>(conf).bus;
         this->bmcSlaveAddr = std::get<SMBusConfiguration>(conf).bmcSlaveAddr;
         registerProperty(smbusInterface, "ArpMasterSupport", arpMasterSupport);
-        registerProperty(smbusInterface, "BusNumber", bus);
+        registerProperty(smbusInterface, "BusPath", bus);
         registerProperty(smbusInterface, "BmcSlaveAddress", bmcSlaveAddr);
         if (smbusInterface->initialize() == false)
         {

@@ -113,7 +113,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     EXPECT_CALL(
         *objectServerMock->dbusIfMock,
-        register_property(StrEq("BusNumber"), An<const std::string&>(),
+        register_property(StrEq("BusPath"), An<const std::string&>(),
                           Eq(sdbusplus::asio::PropertyPermission::readOnly)))
         .Times(1)
         .WillRepeatedly(Return(true));
