@@ -26,6 +26,20 @@ std::shared_ptr<sdbusplus::asio::connection> conn;
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
 
+namespace pldm
+{
+
+uint8_t createInstanceId(pldm_tid_t tid)
+{
+    static std::unordered_map<pldm_tid_t, uint8_t> instanceMap;
+
+    auto& instanceId = instanceMap[tid];
+
+    instanceId = (instanceId + 1) & PLDM_INSTANCE_ID_MASK;
+    return instanceId;
+}
+} // namespace pldm
+
 int main(void)
 {
     boost::asio::io_context ioc;

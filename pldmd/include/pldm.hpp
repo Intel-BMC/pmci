@@ -20,6 +20,17 @@
 
 namespace pldm
 {
+
+/** @brief Creates new Instance ID for PLDM messages
+ *
+ * Generated instance ID will be unique for each TID
+ *
+ * @param tid - TID of the PLDM device
+ *
+ * @return PLDM Instance ID
+ */
+uint8_t createInstanceId(pldm_tid_t tid);
+
 namespace platform
 {
 
