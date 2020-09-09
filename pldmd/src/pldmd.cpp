@@ -14,6 +14,9 @@
 // limitations under the License.
 */
 
+#include "pldm.hpp"
+
+#include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 
 #include "mctpw.h"
@@ -39,6 +42,17 @@ int main(void)
         std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
 
     // TODO: List Endpoints that support registered PLDM message type
+
+    // TODO: Assign TID and find supported PLDM type and execute corresponding
+    // methods
+    // Dummy init method invocation
+    pldm_tid_t dummyTid = 1;
+    if (PLDM_SUCCESS == pldm::platform::platformInit(dummyTid))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "PLDM platform init success",
+            phosphor::logging::entry("TID=%d", dummyTid));
+    }
 
     ioc.run();
 

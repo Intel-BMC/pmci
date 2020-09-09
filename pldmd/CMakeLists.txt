@@ -39,14 +39,18 @@ set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 # Add header and sources here
 set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
+               ${PROJECT_SOURCE_DIR}/src/platform.cpp
 )
 
-set (
-    SERVICE_FILES
-    ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.pldmd.service
+set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/pldm.hpp
 )
 
-add_executable(${PROJECT_NAME} ${SRC_FILES})
+include_directories (${PROJECT_SOURCE_DIR}/include)
+
+set (SERVICE_FILES
+     ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.pldmd.service)
+
+add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 
 target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
                         -lpthread -lstdc++fs -lphosphor_dbus -lmctpw -lpldm_intel)
