@@ -58,6 +58,8 @@ typedef enum {
 typedef uint8_t pldm_tid_t;
 typedef uint8_t pldm_type_t;
 
+#define PLDM_TID_MAX 0xFF
+#define PLDM_INSTANCE_ID_MASK 0x1F
 #define PLDM_INSTANCE_MAX 32
 #define PLDM_MAX_TYPES 64
 #define PLDM_MAX_CMDS_PER_TYPE 256
