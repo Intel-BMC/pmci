@@ -25,6 +25,148 @@ static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
 
 namespace pldm
 {
+// Mapper will have 1:1 mapping between TID and EID
+using Mapper = std::unordered_map<
+    pldm_tid_t, /*TID as key*/
+    mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
+static Mapper tidMapper;
+
+std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
+{
+    for (auto& eidMap : tidMapper)
+    {
+        if (eidMap.second == eid)
+        {
+            return eidMap.second;
+        }
+    }
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        "EID not found in the mapper");
+    return std::nullopt;
+}
+
+void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid)
+{
+    tidMapper[tid] = eid;
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Mapper: TID " + std::to_string(static_cast<int>(tid)) +
+         " mapped to EID " + std::to_string(static_cast<int>(eid)))
+            .c_str());
+}
+
+std::optional<pldm_tid_t> getFreeTid()
+{
+    static pldm_tid_t tid = 0x00;
+    if (tid < PLDM_TID_MAX)
+    {
+        tid += 1;
+        return tid;
+    }
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "No free TID available");
+    return std::nullopt;
+}
+
+std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid)
+{
+    auto mapperPtr = tidMapper.find(tid);
+    if (mapperPtr != tidMapper.end())
+    {
+        return mapperPtr->second;
+    }
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        "TID not found in the mapper");
+    return std::nullopt;
+}
+
+std::optional<uint8_t> getInstanceId(std::vector<uint8_t>& message)
+{
+    if (message.empty())
+    {
+        return std::nullopt;
+    }
+    return message[0] & PLDM_INSTANCE_ID_MASK;
+}
+
+bool sendReceivePldmMessage(boost::asio::yield_context yield,
+                            const pldm_tid_t tid, const uint16_t timeout,
+                            std::vector<uint8_t> pldmReq,
+                            std::vector<uint8_t>& pldmResp,
+                            std::optional<mctpw_eid_t> eid)
+{
+    mctpw_eid_t dstEid;
+
+    // Input EID takes precedence over TID
+    // Usecase: TID reassignment
+    if (eid)
+    {
+        dstEid = eid.value();
+    }
+    else
+    {
+        if (auto eidPtr = getEidFromMapper(tid))
+        {
+            dstEid = *eidPtr;
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "PLDM message send failed. Invalid TID/EID");
+            return false;
+        }
+    }
+
+    // Insert MCTP Message Type to start of the payload
+    pldmReq.insert(pldmReq.begin(), PLDM);
+
+    // TODO: Use mctp-wrapper provided api to send/receive PLDM message
+    boost::system::error_code ec;
+    auto bus = getSdBus();
+    pldmResp = bus->yield_method_call<std::vector<uint8_t>>(
+        yield, ec, "xyz.openbmc_project.mctp-emulator",
+        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
+        "SendReceiveMctpMessagePayload", dstEid, pldmReq, timeout);
+    if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM message send/receive failed");
+        return false;
+    }
+
+    if (pldmResp.empty())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Empty response received");
+        return false;
+    }
+
+    // Verify the response received is of type PLDM
+    if (pldmResp.at(0) == PLDM)
+    {
+        pldmResp.erase(pldmResp.begin());
+        pldmReq.erase(pldmReq.begin());
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Response received is not of message type PLDM");
+        return false;
+    }
+
+    if (auto reqInstanceId = getInstanceId(pldmReq))
+    {
+        if (auto respInstanceId = getInstanceId(pldmResp))
+        {
+            if (*reqInstanceId == *respInstanceId)
+            {
+                return true;
+            }
+        }
+    }
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Instance ID check failed");
+    return false;
+}
 
 uint8_t createInstanceId(pldm_tid_t tid)
 {
@@ -64,17 +206,22 @@ int main(void)
 
     // TODO: List Endpoints that support registered PLDM message type
 
-    // TODO: Assign TID and find supported PLDM type and execute corresponding
-    // methods
-    // Dummy init method invocation
-    pldm_tid_t dummyTid = 1;
-    if (PLDM_SUCCESS == pldm::platform::platformInit(dummyTid))
+    // Using dummy EID till the discovery is implemented
+    mctpw_eid_t dummyEid = 1;
+    if (auto tid = pldm::getFreeTid())
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "PLDM platform init success",
-            phosphor::logging::entry("TID=%d", dummyTid));
-    }
+        // TODO: Add TID to mapper only if setTID/getTID success
+        pldm::addToMapper(*tid, dummyEid);
 
+        // TODO: Assign TID and find supported PLDM type and execute
+        // corresponding methods Dummy init method invocation
+        if (pldm::platform::platformInit(*tid))
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "PLDM platform init success",
+                phosphor::logging::entry("TID=%d", *tid));
+        }
+    }
     ioc->run();
 
     return 0;
