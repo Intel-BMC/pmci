@@ -19,17 +19,17 @@
 
 namespace pldm
 {
-namespace platform
+namespace base
 {
 
-bool platformInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
+bool baseInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
 {
     // TODO: Perform the actual init operations needed
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Running Platform Monitoring and Control initialisation",
+        "Running Base initialisation",
         phosphor::logging::entry("TID=0x%X", tid));
 
     return true;
 }
-} // namespace platform
+} // namespace base
 } // namespace pldm

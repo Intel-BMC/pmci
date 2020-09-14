@@ -41,6 +41,9 @@ set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/platform.cpp
                ${PROJECT_SOURCE_DIR}/src/sdbus-asio.cpp
+               ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
+               ${PROJECT_SOURCE_DIR}/src/fru.cpp
+               ${PROJECT_SOURCE_DIR}/src/base.cpp
 )
 
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/pldm.hpp

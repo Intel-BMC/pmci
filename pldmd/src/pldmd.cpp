@@ -18,8 +18,6 @@
 
 #include <phosphor-logging/log.hpp>
 
-#include "mctpw.h"
-
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
 
@@ -86,6 +84,16 @@ std::optional<uint8_t> getInstanceId(std::vector<uint8_t>& message)
         return std::nullopt;
     }
     return message[0] & PLDM_INSTANCE_ID_MASK;
+}
+
+std::optional<uint8_t> getPldmMessageType(std::vector<uint8_t>& message)
+{
+    constexpr int msgTypeIndex = 1;
+    if (message.size() < 2)
+    {
+        return std::nullopt;
+    }
+    return message[msgTypeIndex] & PLDM_MSG_TYPE_MASK;
 }
 
 bool sendReceivePldmMessage(boost::asio::yield_context yield,
@@ -168,6 +176,102 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
     return false;
 }
 
+bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
+                     const bool tagOwner, std::vector<uint8_t> payload)
+{
+    mctpw_eid_t dstEid;
+    if (auto eidPtr = getEidFromMapper(tid))
+    {
+        dstEid = *eidPtr;
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM message send failed. Invalid TID");
+        return false;
+    }
+
+    // Insert MCTP Message Type to start of the payload
+    payload.insert(payload.begin(), PLDM);
+
+    // TODO: Use mctp-wrapper provided api to send PLDM message
+    auto bus = getSdBus();
+    bus->async_method_call(
+        [tid](const boost::system::error_code ec) {
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error sending PLDM message",
+                    phosphor::logging::entry("TID=%d", tid));
+                return;
+            }
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "PLDM message send Success",
+                phosphor::logging::entry("TID=%d", tid));
+        },
+        "xyz.openbmc_project.mctp-emulator", "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP.Base", "SendMctpMessagePayload", dstEid,
+        msgTag, tagOwner, payload);
+    return true;
+}
+
+auto msgRecvCallback = [](sdbusplus::message::message& message) {
+    uint8_t messageType;
+    mctpw_eid_t srcEid;
+    uint8_t msgTag;
+    bool tagOwner;
+    std::vector<uint8_t> payload;
+
+    message.read(messageType, srcEid, msgTag, tagOwner, payload);
+
+    // Verify the response received is of type PLDM
+    if (messageType == PLDM && !payload.empty() && payload.at(0) == PLDM)
+    {
+
+        // Discard the packet if no matching TID is found
+        // Why: We do not have to process packets from uninitialised Termini
+        if (auto tid = getTidFromMapper(srcEid))
+        {
+
+            payload.erase(payload.begin());
+            if (auto pldmMsgType = getPldmMessageType(payload))
+            {
+                switch (*pldmMsgType)
+                {
+                    case PLDM_FWU:
+                        pldm::fwu::pldmMsgRecvCallback(*tid, msgTag, tagOwner,
+                                                       payload);
+                        break;
+                        // No use case for other PLDM message types
+                    default:
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            "Unsupported PLDM message received",
+                            phosphor::logging::entry("TID=%d", *tid),
+                            phosphor::logging::entry("EID=%d", srcEid),
+                            phosphor::logging::entry("MSG_TYPE=%d",
+                                                     *pldmMsgType));
+                        break;
+                }
+            }
+        }
+    }
+};
+
+std::unique_ptr<sdbusplus::bus::match::match> pldmMsgRecvMatch;
+void pldmMsgRecvCallbackInit()
+{
+    // TODO: Use mctp-wrapper provided api to receive PLDM message signals
+    const std::string filterMsgRecvdSignal =
+        sdbusplus::bus::match::rules::type::signal() +
+        sdbusplus::bus::match::rules::member("MessageReceivedSignal") +
+        sdbusplus::bus::match::rules::interface(
+            "xyz.openbmc_project.MCTP.Base");
+
+    auto bus = getSdBus();
+    pldmMsgRecvMatch = std::make_unique<sdbusplus::bus::match::match>(
+        *bus, filterMsgRecvdSignal, msgRecvCallback);
+}
+
 uint8_t createInstanceId(pldm_tid_t tid)
 {
     static std::unordered_map<pldm_tid_t, uint8_t> instanceMap;
@@ -204,6 +308,9 @@ int main(void)
     auto objManager =
         std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
 
+    // Register for PLDM message signals
+    pldm::pldmMsgRecvCallbackInit();
+
     // TODO: List Endpoints that support registered PLDM message type
 
     // Using dummy EID till the discovery is implemented
@@ -214,13 +321,18 @@ int main(void)
         pldm::addToMapper(*tid, dummyEid);
 
         // TODO: Assign TID and find supported PLDM type and execute
-        // corresponding methods Dummy init method invocation
-        if (pldm::platform::platformInit(*tid))
-        {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                "PLDM platform init success",
-                phosphor::logging::entry("TID=%d", *tid));
-        }
+        // corresponding init methods
+
+        // Create yield context for each new TID and pass to the Init methods
+        boost::asio::spawn(*ioc, [&tid](boost::asio::yield_context yield) {
+            // Dummy init method invocation
+            if (pldm::platform::platformInit(yield, *tid))
+            {
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "PLDM platform init success",
+                    phosphor::logging::entry("TID=%d", *tid));
+            }
+        });
     }
     ioc->run();
 

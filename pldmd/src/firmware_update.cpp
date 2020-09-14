@@ -19,17 +19,29 @@
 
 namespace pldm
 {
-namespace platform
+namespace fwu
 {
 
-bool platformInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
+void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
+                         const bool /*tagOwner*/,
+                         std::vector<uint8_t>& /*message*/)
 {
     // TODO: Perform the actual init operations needed
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Running Platform Monitoring and Control initialisation",
+        "PLDM Firmware update message received",
+        phosphor::logging::entry("EID=0x%X", tid));
+
+    return;
+}
+
+bool fwuInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
+{
+    // TODO: Perform the actual init operations needed
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Running Firmware Update initialisation",
         phosphor::logging::entry("TID=0x%X", tid));
 
     return true;
 }
-} // namespace platform
+} // namespace fwu
 } // namespace pldm

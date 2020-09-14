@@ -83,27 +83,52 @@ void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid);
 std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid);
 std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid);
 
+/** @brief Send PLDM message
+ *
+ * Sends PLDM messages to a PLDM device.
+ * Can be used for
+ * 1) Broadcast packets
+ * 2) PLDM Responses
+ * Even if the sender is expecting a response for the message,
+ * it can be received through pldmMsgRecvCallback()
+ *
+ * @param tid - TID of the PLDM device
+ * @param msgTag - MCTP message tag
+ * @param tagOwner - MCTP tag owner bit
+ * @param payload - PLDM message payload
+ *
+ * @return Status of the operation
+ */
+bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
+                     const bool tagOwner, std::vector<uint8_t> payload);
+
+namespace base
+{
+
+bool baseInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+
+} // namespace base
+
 namespace platform
 {
 
-bool platformInit(const pldm_tid_t tid);
-void pldmMsgRecvCallback(const pldm_tid_t tid, std::vector<uint8_t>& message);
+bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid);
 
 } // namespace platform
 
 namespace fru
 {
 
-bool fruInit(const pldm_tid_t tid);
-void pldmMsgRecvCallback(const pldm_tid_t tid, std::vector<uint8_t>& message);
+bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid);
 
 } // namespace fru
 
 namespace fwu
 {
 
-bool fwuInit(const pldm_tid_t tid);
-void pldmMsgRecvCallback(const pldm_tid_t tid, std::vector<uint8_t>& message);
+bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t msgTag,
+                         const bool tagOwner, std::vector<uint8_t>& message);
 
 } // namespace fwu
 
