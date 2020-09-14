@@ -316,7 +316,8 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                 {
                     processingDelayMilliSec = iter["processing-delay"];
                 }
-                response.assign(std::begin(iter["response"]),
+                response.assign(reqHeader.begin(), reqHeader.end());
+                response.insert(response.end(), std::begin(iter["response"]),
                                 std::end(iter["response"]));
             }
 
