@@ -14,9 +14,17 @@
  * limitations under the License.
  */
 
+#include <boost/asio.hpp>
+#include <memory>
+#include <sdbusplus/asio/connection.hpp>
+#include <sdbusplus/asio/object_server.hpp>
 #include <vector>
 
 #include "base.h"
+
+std::shared_ptr<boost::asio::io_context> getIoContext();
+std::shared_ptr<sdbusplus::asio::connection> getSdBus();
+std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
 
 namespace pldm
 {

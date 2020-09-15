@@ -17,11 +17,8 @@
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
-#include <sdbusplus/asio/object_server.hpp>
 
 #include "mctpw.h"
-
-std::shared_ptr<sdbusplus::asio::connection> conn;
 
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
@@ -40,17 +37,27 @@ uint8_t createInstanceId(pldm_tid_t tid)
 }
 } // namespace pldm
 
+// These are expected to be used only here, so declare them here
+extern void setIoContext(const std::shared_ptr<boost::asio::io_context>& newIo);
+extern void
+    setSdBus(const std::shared_ptr<sdbusplus::asio::connection>& newBus);
+extern void setObjServer(
+    const std::shared_ptr<sdbusplus::asio::object_server>& newServer);
+
 int main(void)
 {
-    boost::asio::io_context ioc;
-    boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
+    auto ioc = std::make_shared<boost::asio::io_context>();
+    setIoContext(ioc);
+    boost::asio::signal_set signals(*ioc, SIGINT, SIGTERM);
     signals.async_wait(
-        [&ioc](const boost::system::error_code&, const int&) { ioc.stop(); });
+        [&ioc](const boost::system::error_code&, const int&) { ioc->stop(); });
 
-    conn = std::make_shared<sdbusplus::asio::connection>(ioc);
+    auto conn = std::make_shared<sdbusplus::asio::connection>(*ioc);
 
     auto objectServer = std::make_shared<sdbusplus::asio::object_server>(conn);
     conn->request_name(pldmService);
+    setSdBus(conn);
+    setObjServer(objectServer);
 
     auto objManager =
         std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
@@ -68,7 +75,7 @@ int main(void)
             phosphor::logging::entry("TID=%d", dummyTid));
     }
 
-    ioc.run();
+    ioc->run();
 
     return 0;
 }
