@@ -489,6 +489,7 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, request, response);
             if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
             {
+                busOwnerEid = destEid;
                 ownEid = response->eid_set;
             }
             sendResponse =
@@ -692,6 +693,16 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
 
         mctp_encode_ctrl_cmd_discovery_notify(discoveryNotify,
                                               getRqDgramInst());
+        return true;
+    }
+    else if constexpr (cmd == MCTP_CTRL_CMD_GET_ROUTING_TABLE_ENTRIES)
+    {
+        req.resize(sizeof(mctp_ctrl_cmd_get_routing_table));
+        mctp_ctrl_cmd_get_routing_table* getRoutingTable =
+            reinterpret_cast<mctp_ctrl_cmd_get_routing_table*>(req.data());
+
+        mctp_encode_ctrl_cmd_get_routing_table(
+            getRoutingTable, getRqDgramInst(), std::forward<Args>(reqParam)...);
         return true;
     }
     else
@@ -1003,6 +1014,49 @@ bool MctpBinding::discoveryNotifyCtrlCmd(
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Discovery Notify success");
+    return true;
+}
+
+bool MctpBinding::getRoutingTableCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+    uint8_t entryHandle, std::vector<uint8_t>& resp)
+{
+    std::vector<uint8_t> req = {};
+
+    if (!getFormattedReq<MCTP_CTRL_CMD_GET_ROUTING_TABLE_ENTRIES>(req,
+                                                                  entryHandle))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table Entry: Request formatting failed");
+        return false;
+    }
+
+    if (PacketState::receivedResponse !=
+        sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table Entry: Unable to get response");
+        return false;
+    }
+
+    if (!checkMinRespSize(resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid response length");
+        return false;
+    }
+
+    uint8_t* respPtr = resp.data();
+    if (*(respPtr + sizeof(mctp_ctrl_msg_hdr)) != MCTP_CTRL_CC_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table Entry failed");
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Get Routing Table Entry success");
     return true;
 }
 

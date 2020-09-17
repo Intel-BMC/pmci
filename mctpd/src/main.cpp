@@ -214,6 +214,7 @@ static std::optional<PcieConfiguration>
     uint64_t bdf;
     uint64_t reqToRespTimeMs;
     uint64_t reqRetryCount;
+    uint64_t getRoutingInterval;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -242,6 +243,15 @@ static std::optional<PcieConfiguration>
         return std::nullopt;
     }
 
+    const auto mode = stringToBindingModeMap.at(role);
+    if (mode != mctp_server::BindingModeTypes::BusOwner &&
+        !getField(map, "GetRoutingInterval", getRoutingInterval))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Role is not BusOwner but Get Routing update interval is missing");
+        return std::nullopt;
+    }
+
     PcieConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = stringToBindingModeMap.at(role);
@@ -249,6 +259,10 @@ static std::optional<PcieConfiguration>
     config.bdf = static_cast<uint16_t>(bdf);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
+    if (mode != mctp_server::BindingModeTypes::BusOwner)
+    {
+        config.getRoutingInterval = static_cast<uint8_t>(getRoutingInterval);
+    }
 
     return config;
 }

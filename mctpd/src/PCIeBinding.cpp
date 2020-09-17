@@ -6,7 +6,9 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
                          std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
     MctpBinding(objServer, objPath, conf, ioc),
-    streamMonitor(ioc)
+    streamMonitor(ioc),
+    getRoutingInterval(std::get<PcieConfiguration>(conf).getRoutingInterval),
+    getRoutingTableTimer(ioc, getRoutingInterval)
 {
     std::shared_ptr<dbus_interface> pcieInterface =
         objServer->add_interface(objPath, pcie_binding::interface);
@@ -29,6 +31,11 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
         {
             throw std::system_error(
                 std::make_error_code(std::errc::function_not_supported));
+        }
+        if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+        {
+            getRoutingTableTimer.async_wait(
+                std::bind(&PCIeBinding::updateRoutingTable, this));
         }
     }
     catch (std::exception& e)
@@ -68,6 +75,80 @@ bool PCIeBinding::endpointDiscoveryFlow()
         return true;
     });
     return false;
+}
+
+void PCIeBinding::updateRoutingTable()
+{
+    struct mctp_astpcie_pkt_private pktPrv;
+
+    getRoutingTableTimer.expires_from_now(getRoutingInterval);
+    getRoutingTableTimer.async_wait(
+        std::bind(&PCIeBinding::updateRoutingTable, this));
+
+    if (discoveredFlag != pcie_binding::DiscoveryFlags::Discovered)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table failed, undiscovered");
+        return;
+    }
+    pktPrv.routing = PCIE_ROUTE_BY_ID;
+    pktPrv.remote_id = busOwnerBdf;
+#ifdef MCTP_ASTPCIE_RESPONSE_WA
+    pktPrv.flags_seq_tag = 0;
+    pktPrv.flags_seq_tag |= MCTP_HDR_FLAG_TO;
+#endif
+    uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+    std::vector<uint8_t> prvData = std::vector<uint8_t>(
+        pktPrvPtr, pktPrvPtr + sizeof(mctp_astpcie_pkt_private));
+
+    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+        std::vector<uint8_t> getRoutingTableEntryResp = {};
+        std::vector<std::tuple<uint8_t, uint16_t, uint8_t>> routingTableTmp;
+        uint8_t entryHandle = 0x00;
+
+        while (entryHandle != 0xff)
+        {
+            if (!getRoutingTableCtrlCmd(yield, prvData, MCTP_EID_NULL,
+                                        entryHandle, getRoutingTableEntryResp))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Get Routing Table failed");
+                return;
+            }
+            struct mctp_ctrl_resp_get_routing_table* routingTableHdr =
+                reinterpret_cast<struct mctp_ctrl_resp_get_routing_table*>(
+                    getRoutingTableEntryResp.data());
+            size_t entryOffset = sizeof(mctp_ctrl_resp_get_routing_table);
+
+            for (uint8_t i = 0; i < routingTableHdr->number_of_entries; i++)
+            {
+                struct get_routing_table_entry* routingTableEntry =
+                    reinterpret_cast<struct get_routing_table_entry*>(
+                        getRoutingTableEntryResp.data() + entryOffset);
+
+                entryOffset += sizeof(get_routing_table_entry);
+                if (routingTableEntry->phys_transport_binding_id !=
+                    MCTP_BINDING_PCIE)
+                {
+                    entryOffset += routingTableEntry->phys_address_size;
+                    continue;
+                }
+                uint16_t endpointBdfRaw =
+                    getRoutingTableEntryResp[entryOffset] +
+                    uint16_t(getRoutingTableEntryResp[entryOffset + 1] << 8);
+                uint16_t endpointBdf = be16toh(endpointBdfRaw);
+                for (uint8_t j = 0; j < routingTableEntry->eid_range_size; j++)
+                {
+                    routingTableTmp.push_back(std::make_tuple(
+                        routingTableEntry->starting_eid + j, endpointBdf,
+                        routingTableEntry->entry_type));
+                }
+                entryOffset += routingTableEntry->phys_address_size;
+            }
+            entryHandle = routingTableHdr->next_entry_handle;
+        }
+        routingTable = routingTableTmp;
+    });
 }
 
 /*
@@ -135,9 +216,14 @@ bool PCIeBinding::handleEndpointDiscovery(
 bool PCIeBinding::handleSetEndpointId(mctp_eid_t, void* bindingPrivate,
                                       struct mctp_ctrl_resp_set_eid* response)
 {
+    mctp_astpcie_pkt_private* pciePrivate;
+
     preparePrivateDataResp(bindingPrivate);
     if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
+        pciePrivate =
+            reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+        busOwnerBdf = pciePrivate->remote_id;
         discoveredFlag = pcie_binding::DiscoveryFlags::Discovered;
     }
     return true;

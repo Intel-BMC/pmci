@@ -34,10 +34,17 @@ class PCIeBinding : public MctpBinding
 
   private:
     uint16_t bdf;
+    uint16_t busOwnerBdf;
     pcie_binding::DiscoveryFlags discoveredFlag{};
     struct mctp_binding_astpcie* pcie = nullptr;
     boost::asio::posix::stream_descriptor streamMonitor;
+    boost::posix_time::seconds getRoutingInterval;
+    boost::asio::deadline_timer getRoutingTableTimer;
+    std::vector<
+        std::tuple<uint8_t /*eid*/, uint16_t /*bdf*/, uint8_t /*entryType*/>>
+        routingTable;
     bool endpointDiscoveryFlow();
+    void updateRoutingTable();
     void readResponse();
     void preparePrivateDataResp(void* bindingPrivate);
 };

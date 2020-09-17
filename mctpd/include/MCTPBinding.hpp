@@ -48,6 +48,7 @@ struct PcieConfiguration
     uint16_t bdf;
     unsigned int reqToRespTime;
     uint8_t reqRetryCount;
+    uint8_t getRoutingInterval;
 };
 
 struct MsgTypes
@@ -134,6 +135,7 @@ class MctpBinding
     mctp_server::BindingModeTypes bindingModeType{};
     struct mctp* mctp = nullptr;
     uint8_t ownEid;
+    uint8_t busOwnerEid;
     void initializeMctp(void);
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
@@ -171,6 +173,10 @@ class MctpBinding
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,
                                 const mctp_eid_t destEid);
+    bool getRoutingTableCtrlCmd(boost::asio::yield_context& yield,
+                                const std::vector<uint8_t>& bindingPrivate,
+                                const mctp_eid_t destEid, uint8_t entryHandle,
+                                std::vector<uint8_t>& resp);
     std::pair<bool, mctp_eid_t>
         registerEndpoint(boost::asio::yield_context& yield,
                          const std::vector<uint8_t>& bindingPrivate,
