@@ -11,8 +11,9 @@ int encode_query_device_identifiers_req(const uint8_t instance_id,
 	}
 
 	struct pldm_header_info header = {0};
-	header.instance = instance_id;
 	header.msg_type = PLDM_REQUEST;
+	header.instance = instance_id;
+	header.pldm_type = PLDM_FWU;
 	header.command = PLDM_QUERY_DEVICE_IDENTIFIERS;
 	pack_pldm_header(&header, &(msg->hdr));
 
@@ -27,7 +28,8 @@ int decode_query_device_identifiers_resp(const struct pldm_msg *msg,
 					 uint8_t *descriptor_data)
 {
 	if (msg == NULL || completion_code == NULL ||
-	    device_identifiers_len == NULL || descriptor_data == NULL) {
+	    device_identifiers_len == NULL || descriptor_count == NULL ||
+	    descriptor_data == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 

@@ -6,7 +6,7 @@
 
 constexpr auto hdrSize = sizeof(pldm_msg_hdr);
 
-TEST(QueryDeviceIdentifiers, testGoodEncodeResponse)
+TEST(QueryDeviceIdentifiers, testGoodEncodeRequest)
 {
     uint8_t instanceId = 0x01;
     struct pldm_msg msg;
@@ -14,6 +14,8 @@ TEST(QueryDeviceIdentifiers, testGoodEncodeResponse)
     auto rc = encode_query_device_identifiers_req(instanceId, &msg);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg.hdr.instance_id, instanceId);
+    EXPECT_EQ(msg.hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg.hdr.command, PLDM_QUERY_DEVICE_IDENTIFIERS);
 }
 
 TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
