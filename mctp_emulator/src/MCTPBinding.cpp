@@ -22,8 +22,15 @@ using mctp_base = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
 
 std::string reqRespDataFile = "/usr/share/mctp-emulator/req_resp.json";
 
+static std::string uuid;
+std::string uuidCommonIntf = "xyz.openbmc_project.Common.UUID";
+constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(29, 1f, 30, a7, 33, dd, 4c, 25,
+                                                8e, 89, 24, 05, b1, 67, be, 87);
+
+std::shared_ptr<sdbusplus::asio::dbus_interface> endpointIntf;
 std::shared_ptr<sdbusplus::asio::dbus_interface> mctpInterface;
 std::string mctpIntf = "xyz.openbmc_project.MCTP.Base";
+std::string mctpUuidF = "xyz.openbmc_project.Common.UUID";
 bool timerExpired = true;
 
 static std::unique_ptr<boost::asio::steady_timer> delayTimer;
@@ -32,6 +39,26 @@ static std::vector<std::pair<
     respQueue;
 
 constexpr int retryTimeMilliSec = 10;
+
+void MctpBinding::getSystemAppUuid(void)
+{
+    sd_id128_t id;
+    char tempStr[33];
+    std::array<uint8_t, 4> separatorOffset = {8, 13, 18, 23};
+
+    if (sd_id128_get_machine_app_specific(mctpdAppId, &id))
+    {
+        throw std::system_error(
+            std::make_error_code(std::errc::address_not_available));
+    }
+
+    uuid = sd_id128_to_string(id, tempStr);
+
+    for (auto& offset : separatorOffset)
+    {
+        uuid.insert(offset, "-");
+    }
+}
 
 static void sendMessageReceivedSignal(uint8_t msgType, uint8_t srcEid,
                                       uint8_t msgTag, bool tagOwner,
@@ -346,7 +373,6 @@ MctpBinding::MctpBinding(
     uint8_t bindingType = 2;
     uint8_t bindingMedium = 3;
     bool staticEidSupport = false;
-    std::string uuid("MCTPDBG_EMULATOR");
     std::string bindingMode("xyz.openbmc_project.MCTP.BusOwner");
     delayTimer =
         std::make_unique<boost::asio::steady_timer>(bus->get_io_context());
@@ -434,4 +460,10 @@ MctpBinding::MctpBinding(
     mctpInterface->register_property("BindingMode", bindingMode);
 
     mctpInterface->initialize();
+
+    getSystemAppUuid();
+    endpointIntf = objServer->add_interface(objPath, uuidCommonIntf.c_str());
+    endpointIntf->register_property("UUID", uuid);
+
+    endpointIntf->initialize();
 }

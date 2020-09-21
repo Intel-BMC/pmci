@@ -25,4 +25,5 @@ class MctpBinding
 
   private:
     uint8_t eid;
+    void getSystemAppUuid(void);
 };

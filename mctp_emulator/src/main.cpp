@@ -17,7 +17,7 @@ std::map<std::string, binding> mctpBindingsMap = {{"smbus", binding::smbus},
                                                   {"pcie", binding::pcie}};
 
 std::shared_ptr<sdbusplus::asio::connection> bus;
-
+std::string uuidIntf = "xyz.openbmc_project.Common.UUID";
 std::string endpointDataFile = "/usr/share/mctp-emulator/endpoints.json";
 std::string pciVdMsgIntf = "xyz.openbmc_project.MCTP.PCIVendorDefined";
 std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
@@ -25,6 +25,7 @@ std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> msgTypeInterface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
     vendorDefMsgInterface;
+std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> uuidInterface;
 
 using json = nlohmann::json;
 using mctp_base = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
@@ -114,6 +115,7 @@ void initEndPointDevices(
         std::shared_ptr<sdbusplus::asio::dbus_interface> msgTypeIntf;
         std::shared_ptr<sdbusplus::asio::dbus_interface> vendorDefMsgIntf;
         std::string mctpEpObj = mctpDevObj + std::to_string(eid);
+        std::shared_ptr<sdbusplus::asio::dbus_interface> uuidEndPointIntf;
 
         auto enpointObjManager =
             std::make_shared<sdbusplus::server::manager::manager>(
@@ -121,8 +123,6 @@ void initEndPointDevices(
 
         endpointIntf =
             objectServer->add_interface(mctpEpObj, mctp_endpoint::interface);
-        endpointIntf->register_property(
-            "Uuid", std::vector<uint8_t>(uuid.begin(), uuid.end()));
         endpointIntf->register_property(
             "Mode", mctp_base::convertBindingModeTypesToString(mode));
         endpointIntf->register_property("NetworkId", networkId);
@@ -151,6 +151,11 @@ void initEndPointDevices(
             vendorDefMsgIntf->initialize();
             vendorDefMsgInterface.push_back(vendorDefMsgIntf);
         }
+
+        uuidEndPointIntf = objectServer->add_interface(mctpEpObj, uuidIntf);
+        uuidEndPointIntf->register_property("UUID", uuid);
+        uuidEndPointIntf->initialize();
+        uuidInterface.push_back(uuidEndPointIntf);
     }
 }
 
