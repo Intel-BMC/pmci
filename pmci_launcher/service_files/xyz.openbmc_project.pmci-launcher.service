@@ -1,0 +1,12 @@
+[Unit]
+Description=PMCI Launcher
+StartLimitBurst=5
+
+[Service]
+ExecStart=/usr/bin/pmci_launcher
+SyslogIdentifier=pmci_launcher
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
