@@ -1,5 +1,8 @@
 [Unit]
 Description=MCTP Daemon
+After=xyz.openbmc_project.EntityManager.service
+Wants=xyz.openbmc_project.EntityManager.service
+StartLimitBurst=5
 
 [Service]
 ExecStart=/usr/bin/mctpd -b %i

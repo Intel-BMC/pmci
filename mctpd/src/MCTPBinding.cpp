@@ -115,7 +115,7 @@ bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
 }
 
 MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
-                         std::string& objPath, ConfigurationVariant& conf,
+                         const std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
     io(ioc),
     objectServer(objServer), ctrlTxTimer(io)
@@ -128,7 +128,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                 std::get_if<SMBusConfiguration>(&conf))
         {
             ownEid = smbusConf->defaultEid;
-            bindingID = smbusConf->bindingType;
+            bindingID = mctp_server::BindingTypes::MctpOverSmbus;
             bindingMediumID = smbusConf->mediumId;
             bindingModeType = smbusConf->mode;
             ctrlTxRetryDelay = smbusConf->reqToRespTime;
@@ -146,7 +146,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                      std::get_if<PcieConfiguration>(&conf))
         {
             ownEid = pcieConf->defaultEid;
-            bindingID = pcieConf->bindingType;
+            bindingID = mctp_server::BindingTypes::MctpOverPcieVdm;
             bindingMediumID = pcieConf->mediumId;
             bindingModeType = pcieConf->mode;
             ctrlTxRetryDelay = pcieConf->reqToRespTime;
@@ -259,7 +259,7 @@ void MctpBinding::initializeMctp(void)
     mctp_set_rx_all(mctp, rxMessage, nullptr);
 }
 
-void MctpBinding::initializeEidPool(const std::vector<mctp_eid_t>& pool)
+void MctpBinding::initializeEidPool(const std::set<mctp_eid_t>& pool)
 {
     for (auto const& epId : pool)
     {

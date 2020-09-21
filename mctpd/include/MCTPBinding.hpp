@@ -25,13 +25,10 @@ using mctp_msg_types =
 
 struct SMBusConfiguration
 {
-    const mctp_server::BindingTypes bindingType =
-        mctp_server::BindingTypes::MctpOverSmbus;
     mctp_server::MctpPhysicalMediumIdentifiers mediumId;
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
-    // TODO: Use std::set for EID pool to avoid duplicates
-    std::vector<uint8_t> eidPool;
+    std::set<uint8_t> eidPool;
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
@@ -41,8 +38,6 @@ struct SMBusConfiguration
 
 struct PcieConfiguration
 {
-    const mctp_server::BindingTypes bindingType =
-        mctp_server::BindingTypes::MctpOverPcieVdm;
     mctp_server::MctpPhysicalMediumIdentifiers mediumId;
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
@@ -108,12 +103,13 @@ void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
 class MctpBinding
 {
   public:
-    MctpBinding(std::shared_ptr<object_server>& objServer, std::string& objPath,
-                ConfigurationVariant& conf, boost::asio::io_context& ioc);
+    MctpBinding(std::shared_ptr<object_server>& objServer,
+                const std::string& objPath, ConfigurationVariant& conf,
+                boost::asio::io_context& ioc);
     MctpBinding() = delete;
     virtual ~MctpBinding();
     virtual void initializeBinding(ConfigurationVariant& conf) = 0;
-    void initializeEidPool(const std::vector<mctp_eid_t>& eidPool);
+    void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
   protected:
     unsigned int ctrlTxRetryDelay;

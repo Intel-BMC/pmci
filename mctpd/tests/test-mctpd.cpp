@@ -24,7 +24,7 @@ class MctpdBaseTest : public ::testing::Test
     void MakeSmbusConfiguration(
         mctp_server::MctpPhysicalMediumIdentifiers mediumId,
         mctp_server::BindingModeTypes mode, uint8_t defaultEid,
-        std::vector<uint8_t> eidPool, std::string busName)
+        std::set<uint8_t> eidPool, std::string busName)
     {
         SMBusConfiguration smbusConfig;
 
