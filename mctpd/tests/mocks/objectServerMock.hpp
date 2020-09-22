@@ -65,6 +65,14 @@ class dbus_interface_mock
         return register_method(name);
     }
 
+    std::string get_object_path(void)
+    {
+        std::string object_path;
+
+        // todo:add implementation for unit test
+        return object_path;
+    }
+
     void returnByDefault(const bool expectedReturn)
     {
         using ::testing::_;
@@ -107,7 +115,7 @@ class object_server_mock
                                                        const std::string& name)
     {
         return dbusIfMock;
-    };
+    }
 
     bool remove_interface(__attribute__((unused))
                           std::shared_ptr<dbus_interface_mock>& iface)

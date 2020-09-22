@@ -68,10 +68,28 @@ bool PCIeBinding::endpointDiscoveryFlow()
     return false;
 }
 
+mctp_server::BindingModeTypes
+    PCIeBinding::getBindingMode(const routingTableEntry_t& routingEntry)
+{
+    if (std::get<1>(routingEntry) == busOwnerBdf)
+    {
+        return mctp_server::BindingModeTypes::BusOwner;
+    }
+    switch (std::get<2>(routingEntry))
+    {
+        case MCTP_ROUTING_ENTRY_BRIDGE_AND_ENDPOINTS:
+        case MCTP_ROUTING_ENTRY_BRIDGE:
+            return mctp_server::BindingModeTypes::Bridge;
+        case MCTP_ROUTING_ENTRY_ENDPOINT:
+        case MCTP_ROUTING_ENTRY_ENDPOINTS:
+        default:
+            return mctp_server::BindingModeTypes::Endpoint;
+    }
+}
+
 void PCIeBinding::updateRoutingTable()
 {
     struct mctp_astpcie_pkt_private pktPrv;
-
     getRoutingTableTimer.expires_from_now(getRoutingInterval);
     getRoutingTableTimer.async_wait(
         std::bind(&PCIeBinding::updateRoutingTable, this));
@@ -90,7 +108,7 @@ void PCIeBinding::updateRoutingTable()
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         std::vector<uint8_t> getRoutingTableEntryResp = {};
-        std::vector<std::tuple<uint8_t, uint16_t, uint8_t>> routingTableTmp;
+        std::vector<routingTableEntry_t> routingTableTmp;
         uint8_t entryHandle = 0x00;
 
         while (entryHandle != 0xff)
@@ -137,8 +155,48 @@ void PCIeBinding::updateRoutingTable()
             }
             entryHandle = routingTableHdr->next_entry_handle;
         }
-        routingTable = routingTableTmp;
+
+        if (routingTableTmp != routingTable)
+        {
+            processRoutingTableChanges(routingTableTmp, yield, prvData);
+            routingTable = routingTableTmp;
+        }
     });
+}
+
+/* Function takes new routing table, detect changes and creates or removes
+ * device interfaces on dbus.
+ */
+void PCIeBinding::processRoutingTableChanges(
+    const std::vector<routingTableEntry_t>& newTable,
+    boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData)
+{
+    /* find removed endpoints, in case entry is not present
+     * in the newly read routing table remove dbus interface
+     * for this device
+     */
+    for (auto& routingEntry : routingTable)
+    {
+        if (find(newTable.begin(), newTable.end(), routingEntry) ==
+            newTable.end())
+        {
+            unregisterEndpoint(std::get<0>(routingEntry));
+        }
+    }
+
+    /* find new endpoints, in case entry is in the newly read
+     * routing table but not present in the routing table stored as
+     * the class member, register new dbus device interface
+     */
+    for (auto& routingEntry : newTable)
+    {
+        if (find(routingTable.begin(), routingTable.end(), routingEntry) ==
+            routingTable.end())
+        {
+            registerEndpoint(yield, prvData, false, std::get<0>(routingEntry),
+                             getBindingMode(routingEntry));
+        }
+    }
 }
 
 /*
@@ -148,7 +206,6 @@ void PCIeBinding::updateRoutingTable()
 void PCIeBinding::preparePrivateDataResp(void* bindingPrivate)
 {
     mctp_astpcie_pkt_private* pciePrivate;
-
     pciePrivate = reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (bindingPrivate == nullptr || pciePrivate->remote_id == 0x00)
     {

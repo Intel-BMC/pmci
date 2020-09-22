@@ -43,6 +43,8 @@ class PCIeBinding : public MctpBinding
                                 std::vector<uint8_t>& response) override;
 
   private:
+    using routingTableEntry_t =
+        std::tuple<uint8_t /*eid*/, uint16_t /*bdf*/, uint8_t /*entryType*/>;
     uint16_t bdf;
     uint16_t busOwnerBdf;
     pcie_binding::DiscoveryFlags discoveredFlag{};
@@ -50,13 +52,16 @@ class PCIeBinding : public MctpBinding
     boost::asio::posix::stream_descriptor streamMonitor;
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
-    std::vector<
-        std::tuple<uint8_t /*eid*/, uint16_t /*bdf*/, uint8_t /*entryType*/>>
-        routingTable;
+    std::vector<routingTableEntry_t> routingTable;
     bool endpointDiscoveryFlow();
     void updateRoutingTable();
+    void processRoutingTableChanges(
+        const std::vector<routingTableEntry_t>& newTable,
+        boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
     void readResponse();
     void preparePrivateDataResp(void* bindingPrivate);
     bool getBindingPrivateData(uint8_t dstEid,
                                std::vector<uint8_t>& pvtData) override;
+    mctp_server::BindingModeTypes
+        getBindingMode(const routingTableEntry_t& routingEntry);
 };

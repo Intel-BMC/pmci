@@ -176,10 +176,13 @@ class MctpBinding
                                 const std::vector<uint8_t>& bindingPrivate,
                                 const mctp_eid_t destEid, uint8_t entryHandle,
                                 std::vector<uint8_t>& resp);
-    std::pair<bool, mctp_eid_t>
+    std::optional<mctp_eid_t>
         registerEndpoint(boost::asio::yield_context& yield,
                          const std::vector<uint8_t>& bindingPrivate,
-                         bool isBusOwner);
+                         bool isBusOwner, mctp_eid_t eid = 0xFF,
+                         mctp_server::BindingModeTypes bindingMode =
+                             mctp_server::BindingModeTypes::Endpoint);
+    void unregisterEndpoint(mctp_eid_t eid);
 
     // MCTP Callbacks
     void handleCtrlResp(void* msg, const size_t len);
@@ -243,7 +246,7 @@ class MctpBinding
                                    std::vector<uint8_t>& resp);
     template <int cmd, typename... Args>
     bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam);
-    std::pair<bool, mctp_eid_t>
+    std::optional<mctp_eid_t>
         busOwnerRegisterEndpoint(boost::asio::yield_context& yield,
                                  const std::vector<uint8_t>& bindingPrivate);
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
@@ -252,4 +255,7 @@ class MctpBinding
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
     std::vector<uint8_t> getBindingMsgTypes();
+    void removeInterface(
+        std::string& interfacePath,
+        std::vector<std::shared_ptr<dbus_interface>>& interfaces);
 };

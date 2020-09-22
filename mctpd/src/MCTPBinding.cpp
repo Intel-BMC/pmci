@@ -1274,12 +1274,10 @@ static std::string formatUUID(guid_t& uuid)
     return std::string(buf);
 }
 
-std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
+std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate)
 {
-    std::pair<bool, mctp_eid_t> returnStatus(false, 0xFF);
-
     // Send getMctpVersionSupport for MCTP Control commands to a NULL EID
 
     MctpVersionSupportCtrlResp getMctpControlVersion;
@@ -1289,7 +1287,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get MCTP Control Version failed");
-        return returnStatus;
+        return std::nullopt;
     }
 
     // TODO: Validate MCTP Control message version supported
@@ -1299,7 +1297,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     if (!(getEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getEidResp)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>("Get EID failed");
-        return returnStatus;
+        return std::nullopt;
     }
 
     mctp_ctrl_resp_get_eid* getEidRespPtr =
@@ -1337,7 +1335,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         }
         catch (const std::exception&)
         {
-            return returnStatus;
+            return std::nullopt;
         }
         std::vector<uint8_t> setEidResp = {};
         if (!(setEidCtrlCmd(yield, bindingPrivate, 0x00, set_eid, eid,
@@ -1346,7 +1344,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Set EID failed");
             updateEidStatus(eid, false);
-            return returnStatus;
+            return std::nullopt;
         }
 
         mctp_ctrl_resp_set_eid* setEidRespPtr =
@@ -1366,7 +1364,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get Message Type Support failed");
-        return returnStatus;
+        return std::nullopt;
     }
 
     // TODO: Get Vendor ID command
@@ -1383,7 +1381,7 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     }
     catch (const std::exception&)
     {
-        return returnStatus;
+        return std::nullopt;
     }
     // Network ID need to be assigned only if EP is requesting for the same.
     // Keep Network ID as zero and update it later if a change happend.
@@ -1391,24 +1389,82 @@ std::pair<bool, mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
     populateEndpointProperties(epProperties);
 
-    return std::make_pair(true, destEid);
+    return destEid;
 }
 
 /* This api provides option to register an endpoint using the binding
  * private data. The callers of this api can parallelize multiple
  * endpoint registrations by spawning coroutines and passing yield contexts.*/
 
-std::pair<bool, mctp_eid_t>
+std::optional<mctp_eid_t>
     MctpBinding::registerEndpoint(boost::asio::yield_context& yield,
                                   const std::vector<uint8_t>& bindingPrivate,
-                                  bool isBusOwner)
+                                  bool isBusOwner, mctp_eid_t eid,
+                                  mctp_server::BindingModeTypes bindingMode)
 {
-    std::pair returnStatus(false, 0xFF);
-
     if (isBusOwner)
     {
         return busOwnerRegisterEndpoint(yield, bindingPrivate);
     }
-    // TODO: Control command flow if we are not busowner
-    return returnStatus;
+
+    MsgTypeSupportCtrlResp msgTypeSupportResp;
+    if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, eid,
+                                   &msgTypeSupportResp)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Message Type Support failed");
+        return std::nullopt;
+    }
+
+    EndpointProperties epProperties;
+    std::vector<uint8_t> getUuidResp;
+
+    if (!(getUuidCtrlCmd(yield, bindingPrivate, eid, getUuidResp)))
+    {
+        /* In case EP doesn't support Get UUID set to all 0 */
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get UUID failed");
+        epProperties.uuid = "00000000-0000-0000-0000-000000000000";
+    }
+    else
+    {
+        mctp_ctrl_resp_get_uuid* getUuidRespPtr =
+            reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
+        epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
+    }
+
+    epProperties.endpointEid = eid;
+    epProperties.mode = bindingMode;
+    // TODO:get Network ID, now set it to 0
+    epProperties.networkId = 0x00;
+    epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+    populateEndpointProperties(epProperties);
+    return eid;
+}
+
+void MctpBinding::removeInterface(
+    std::string& interfacePath,
+    std::vector<std::shared_ptr<dbus_interface>>& interfaces)
+{
+    for (auto dbusInterface = interfaces.begin();
+         dbusInterface != interfaces.end(); dbusInterface++)
+    {
+        if ((*dbusInterface)->get_object_path() == interfacePath)
+        {
+            std::shared_ptr<dbus_interface> tmpIf = *dbusInterface;
+            interfaces.erase(dbusInterface);
+            objectServer->remove_interface(tmpIf);
+            break;
+        }
+    }
+}
+
+void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
+{
+    std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
+    std::string mctpEpObj = mctpDevObj + std::to_string(eid);
+
+    removeInterface(mctpEpObj, endpointInterface);
+    removeInterface(mctpEpObj, msgTypeInterface);
+    removeInterface(mctpEpObj, uuidInterface);
 }

@@ -473,11 +473,10 @@ void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
                                                 ptr + sizeof(smbusBindingPvt));
 
             auto rc = registerEndpoint(yield, bindingPvtVect, isBusOwner);
-
-            if (rc.first)
+            if (rc)
             {
                 smbusDeviceTable.push_back(
-                    std::make_pair(rc.second, smbusBindingPvt));
+                    std::make_pair(rc.value(), smbusBindingPvt));
             }
         }
     });
