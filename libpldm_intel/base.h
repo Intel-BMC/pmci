@@ -58,6 +58,7 @@ typedef enum {
 typedef uint8_t pldm_tid_t;
 typedef uint8_t pldm_type_t;
 
+#define PLDM_RQ_D_MASK 0xC0
 #define PLDM_MSG_TYPE_MASK 0x3F
 #define PLDM_TID_MAX 0xFF
 #define PLDM_INSTANCE_ID_MASK 0x1F
