@@ -96,37 +96,26 @@ std::optional<uint8_t> getPldmMessageType(std::vector<uint8_t>& message)
     return message[msgTypeIndex] & PLDM_MSG_TYPE_MASK;
 }
 
-bool sendReceivePldmMessage(boost::asio::yield_context yield,
-                            const pldm_tid_t tid, const uint16_t timeout,
-                            std::vector<uint8_t> pldmReq,
-                            std::vector<uint8_t>& pldmResp,
-                            std::optional<mctpw_eid_t> eid)
+// Returns type of message(response,request, Reserved or Unacknowledged PLDM
+// request messages)
+std::optional<MessageType> getPldmPacketType(std::vector<uint8_t>& message)
 {
-    mctpw_eid_t dstEid;
-
-    // Input EID takes precedence over TID
-    // Usecase: TID reassignment
-    if (eid)
+    constexpr int rqD = 0;
+    if (message.size() < 1)
     {
-        dstEid = eid.value();
-    }
-    else
-    {
-        if (auto eidPtr = getEidFromMapper(tid))
-        {
-            dstEid = *eidPtr;
-        }
-        else
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "PLDM message send failed. Invalid TID/EID");
-            return false;
-        }
+        return std::nullopt;
     }
 
-    // Insert MCTP Message Type to start of the payload
-    pldmReq.insert(pldmReq.begin(), PLDM);
+    uint8_t rqDValue = (message[rqD] & PLDM_RQ_D_MASK) >> PLDM_RQ_D_SHIFT;
+    return static_cast<MessageType>(rqDValue);
+}
 
+static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
+                                      const mctpw_eid_t dstEid,
+                                      const uint16_t timeout,
+                                      std::vector<uint8_t>& pldmReq,
+                                      std::vector<uint8_t>& pldmResp)
+{
     // TODO: Use mctp-wrapper provided api to send/receive PLDM message
     boost::system::error_code ec;
     auto bus = getSdBus();
@@ -136,43 +125,132 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
         "SendReceiveMctpMessagePayload", dstEid, pldmReq, timeout);
     if (ec)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
             "PLDM message send/receive failed");
         return false;
     }
+    return true;
+}
 
-    if (pldmResp.empty())
+bool sendReceivePldmMessage(boost::asio::yield_context yield,
+                            const pldm_tid_t tid, const uint16_t timeout,
+                            size_t retryCount, std::vector<uint8_t> pldmReq,
+                            std::vector<uint8_t>& pldmResp,
+                            std::optional<mctpw_eid_t> eid)
+{
+    // Retry the request if
+    //  1) No response
+    //  2) payload.size() < 4
+    //  3) If response bit is not set in PLDM header
+    //  4) Invalid message type
+    //  5) Invalid instance id
+
+    // Upper cap of retryCount = 5
+    constexpr size_t maxRetryCount = 5;
+    if (retryCount > maxRetryCount)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Empty response received");
-        return false;
+        retryCount = maxRetryCount;
     }
 
-    // Verify the response received is of type PLDM
-    if (pldmResp.at(0) == PLDM)
+    for (size_t retry = 0; retry < retryCount; retry++)
     {
-        pldmResp.erase(pldmResp.begin());
-        pldmReq.erase(pldmReq.begin());
-    }
-    else
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Response received is not of message type PLDM");
-        return false;
-    }
+        mctpw_eid_t dstEid;
 
-    if (auto reqInstanceId = getInstanceId(pldmReq))
-    {
-        if (auto respInstanceId = getInstanceId(pldmResp))
+        // Input EID takes precedence over TID
+        // Usecase: TID reassignment
+        if (eid)
         {
-            if (*reqInstanceId == *respInstanceId)
+            dstEid = eid.value();
+        }
+        else
+        {
+            // A PLDM device removal can cause an update to TID mapper. In such
+            // case the retry should be aborted immediately.
+            if (auto eidPtr = getEidFromMapper(tid))
             {
-                return true;
+                dstEid = *eidPtr;
             }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "PLDM message send failed. Invalid TID/EID");
+                return false;
+            }
+        }
+
+        // Insert MCTP Message Type to start of the payload
+        if (retry == 0)
+        {
+            pldmReq.insert(pldmReq.begin(), PLDM);
+        }
+
+        // Clear the resp vector each time before a retry
+        pldmResp.clear();
+        if (doSendReceievePldmMessage(yield, dstEid, timeout, pldmReq,
+                                      pldmResp))
+        {
+            constexpr size_t minPldmMsgSize = 4;
+            if (pldmResp.size() < minPldmMsgSize)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Invalid response length");
+                continue;
+            }
+
+            // Verify the message received is a response
+            if (auto msgTypePtr = getPldmPacketType(pldmResp))
+            {
+                if (*msgTypePtr != PLDM_RESPONSE)
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        "PLDM message received is not response");
+                    continue;
+                }
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Unable to get message type");
+                continue;
+            }
+
+            // Verify the response received is of type PLDM
+            constexpr int mctpMsgType = 0;
+            if (pldmResp.at(mctpMsgType) == PLDM)
+            {
+                // Remove the MCTP message type and IC bit from req and resp
+                // payload.
+                // Why: Upper layer handlers(PLDM message type handlers)
+                // are not intrested in MCTP message type information and
+                // integrity check fields.
+                pldmResp.erase(pldmResp.begin());
+                pldmReq.erase(pldmReq.begin());
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Response received is not of message type PLDM");
+                continue;
+            }
+
+            // Verify request and response instance ID matches
+            if (auto reqInstanceId = getInstanceId(pldmReq))
+            {
+                if (auto respInstanceId = getInstanceId(pldmResp))
+                {
+                    if (*reqInstanceId == *respInstanceId)
+                    {
+                        return true;
+                    }
+                }
+            }
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "Instance ID check failed");
+            continue;
         }
     }
     phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Instance ID check failed");
+        "Retry count exceeded. No response");
     return false;
 }
 

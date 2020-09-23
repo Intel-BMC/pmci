@@ -73,7 +73,7 @@ std::optional<uint8_t> getInstanceId(std::vector<uint8_t>& message);
  */
 bool sendReceivePldmMessage(boost::asio::yield_context yield,
                             const pldm_tid_t tid, const uint16_t timeout,
-                            std::vector<uint8_t> pldmReq,
+                            size_t retryCount, std::vector<uint8_t> pldmReq,
                             std::vector<uint8_t>& pldmResp,
                             std::optional<mctpw_eid_t> eid = std::nullopt);
 
