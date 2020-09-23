@@ -8,6 +8,7 @@
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 #include <sdbusplus/bus.hpp>
+#include <sstream>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
 #include <xyz/openbmc_project/MCTP/Endpoint/server.hpp>
 #include <xyz/openbmc_project/MCTP/SupportedMessageTypes/server.hpp>
@@ -18,9 +19,12 @@ std::map<std::string, binding> mctpBindingsMap = {{"smbus", binding::smbus},
 std::shared_ptr<sdbusplus::asio::connection> bus;
 
 std::string endpointDataFile = "/usr/share/mctp-emulator/endpoints.json";
+std::string pciVdMsgIntf = "xyz.openbmc_project.MCTP.PCIVendorDefined";
 std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> msgTypeInterface;
+std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
+    vendorDefMsgInterface;
 
 using json = nlohmann::json;
 using mctp_base = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
@@ -56,7 +60,8 @@ void initEndPointDevices(
     bool spdm;
     bool vdpci;
     bool vdiana;
-
+    std::string vendorID = "0x8086";
+    std::vector<uint16_t> msgTypeProperty;
     try
     {
         endpoints = json::parse(jsonFile, nullptr, false);
@@ -86,6 +91,12 @@ void initEndPointDevices(
             spdm = msgType["SPDM"];
             vdpci = msgType["VDPCI"];
             vdiana = msgType["VDIANA"];
+            if (vdpci == true)
+            {
+                json vdpcimt = iter["VDPCIMT"];
+                msgTypeProperty =
+                    vdpcimt.at("CapabilitySets").get<std::vector<uint16_t>>();
+            }
         }
         catch (json::exception& e)
         {
@@ -101,6 +112,7 @@ void initEndPointDevices(
 
         std::shared_ptr<sdbusplus::asio::dbus_interface> endpointIntf;
         std::shared_ptr<sdbusplus::asio::dbus_interface> msgTypeIntf;
+        std::shared_ptr<sdbusplus::asio::dbus_interface> vendorDefMsgIntf;
         std::string mctpEpObj = mctpDevObj + std::to_string(eid);
 
         auto enpointObjManager =
@@ -129,6 +141,16 @@ void initEndPointDevices(
         msgTypeIntf->register_property("VDIANA", vdiana);
         msgTypeIntf->initialize();
         msgTypeInterface.push_back(msgTypeIntf);
+        if (vdpci == true)
+        {
+            vendorDefMsgIntf =
+                objectServer->add_interface(mctpEpObj, pciVdMsgIntf);
+            vendorDefMsgIntf->register_property("VendorID", vendorID);
+            vendorDefMsgIntf->register_property("MessageTypeProperty",
+                                                msgTypeProperty);
+            vendorDefMsgIntf->initialize();
+            vendorDefMsgInterface.push_back(vendorDefMsgIntf);
+        }
     }
 }
 

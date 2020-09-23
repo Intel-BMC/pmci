@@ -14,6 +14,9 @@
                 "VDIANA": false,
                 "VDPCI": true
             },
+	    "VDPCIMT":{
+                "CapabilitySets": [8,9]
+            },
             "Uuid": "endpointuuid0001"
         },
         {
@@ -30,6 +33,9 @@
                 "VDIANA": false,
                 "VDPCI": true
             },
+	    "VDPCIMT":{
+                "CapabilitySets": [3,4]
+            },
             "Uuid": "endpointuuid0002"
         },
         {
@@ -45,6 +51,9 @@
                 "SPDM": true,
                 "VDIANA": false,
                 "VDPCI": true
+            },
+	    "VDPCIMT":{
+                "CapabilitySets": [2,9]
             },
             "Uuid": "endpointuuid0003"
         }
