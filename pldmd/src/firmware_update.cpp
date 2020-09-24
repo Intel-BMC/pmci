@@ -16,11 +16,13 @@
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
+#include <xyz/openbmc_project/PLDM/FWU/FWUBase/server.hpp>
 
 namespace pldm
 {
 namespace fwu
 {
+using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 
 void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
                          const bool /*tagOwner*/,
@@ -34,12 +36,28 @@ void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
     return;
 }
 
-bool fwuInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
+static bool fwuBaseInitialized = false;
+
+static void initializeFWUBase()
 {
-    // TODO: Perform the actual init operations needed
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Running Firmware Update initialisation",
-        phosphor::logging::entry("TID=0x%X", tid));
+    std::string objPath = "/xyz/openbmc_project/pldm/fwu";
+    auto objServer = getObjServer();
+    auto fwuBaseIface = objServer->add_interface(objPath, FWUBase::interface);
+    fwuBaseIface->register_method(
+        "StartFWUpdate", []([[maybe_unused]] std::string filePath) {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "StartFWUpdate is called");
+        });
+    fwuBaseIface->initialize();
+    fwuBaseInitialized = true;
+}
+
+bool fwuInit(boost::asio::yield_context /*yield*/, const pldm_tid_t /*tid*/)
+{
+    if (!fwuBaseInitialized)
+    {
+        initializeFWUBase();
+    }
 
     return true;
 }
