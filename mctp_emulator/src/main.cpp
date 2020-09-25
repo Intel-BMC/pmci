@@ -2,6 +2,9 @@
 #include "SMBusBinding.hpp"
 
 #include <CLI/CLI.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <fstream>
 #include <iostream>
 #include <nlohmann/json.hpp>

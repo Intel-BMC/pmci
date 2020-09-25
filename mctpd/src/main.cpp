@@ -4,6 +4,7 @@
 
 #include <CLI/CLI.hpp>
 #include <boost/algorithm/string.hpp>
+#include <boost/asio/signal_set.hpp>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <phosphor-logging/log.hpp>

@@ -3,6 +3,7 @@
 #include <libmctp-cmds.h>
 #include <libmctp.h>
 
+#include <boost/asio/steady_timer.hpp>
 #include <iostream>
 #include <sdbusplus/asio/object_server.hpp>
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
