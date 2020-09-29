@@ -16,6 +16,11 @@
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
+#include <string>
+#include <xyz/openbmc_project/Inventory/Source/PLDM/FRU/server.hpp>
+
+using FRU =
+    sdbusplus::xyz::openbmc_project::Inventory::Source::PLDM::server::FRU;
 
 namespace pldm
 {
@@ -24,10 +29,23 @@ namespace fru
 
 bool fruInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
 {
-    // TODO: Perform the actual init operations needed
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running FRU initialisation",
         phosphor::logging::entry("TID=0x%X", tid));
+
+    std::string fruObjPath =
+        "/xyz/openbmc_project/pldm/fru/" + std::to_string(tid);
+    auto objServer = getObjServer();
+    auto fruIface = objServer->add_interface(fruObjPath, FRU::interface);
+    fruIface->register_method(
+        "SetFRU", []([[maybe_unused]] const pldm_tid_t tidVal,
+                     [[maybe_unused]] const std::vector<uint8_t>& data) {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "SetFRURecordTable is called");
+        });
+    fruIface->initialize();
+
+    // TODO: Perform the actual init operations needed
 
     return true;
 }
