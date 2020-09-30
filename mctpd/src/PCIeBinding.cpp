@@ -345,6 +345,31 @@ void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
     }
 }
 
+bool PCIeBinding::getBindingPrivateData(uint8_t dstEid,
+                                        std::vector<uint8_t>& pvtData)
+{
+    mctp_astpcie_pkt_private pktPrv = {};
+
+    pktPrv.routing = PCIE_ROUTE_BY_ID;
+    auto it = find_if(routingTable.begin(), routingTable.end(),
+                      [&dstEid](const auto& entry) {
+                          const auto& [eid, endpointBdf, entryType] = entry;
+                          return eid == dstEid;
+                      });
+    if (it == routingTable.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Eid not found in routing table");
+        return false;
+    }
+    const auto& [eid, endpointBdf, entryType] = *it;
+    pktPrv.remote_id = endpointBdf;
+    uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+    pvtData = std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
+
+    return true;
+}
+
 PCIeBinding::~PCIeBinding()
 {
     if (streamMonitor.native_handle() >= 0)

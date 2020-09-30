@@ -49,4 +49,6 @@ class PCIeBinding : public MctpBinding
     void updateRoutingTable();
     void readResponse();
     void preparePrivateDataResp(void* bindingPrivate);
+    bool getBindingPrivateData(uint8_t dstEid,
+                               std::vector<uint8_t>& pvtData) override;
 };
