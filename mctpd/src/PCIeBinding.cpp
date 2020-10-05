@@ -92,6 +92,7 @@ void PCIeBinding::readResponse()
  */
 void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
 {
+    int status = 0;
     initializeMctp();
     pcie = mctp_astpcie_init();
     if (pcie == nullptr)
@@ -109,8 +110,15 @@ void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
         throw std::system_error(
             std::make_error_code(std::errc::not_enough_memory));
     }
-    mctp_register_bus(mctp, binding, ownEid);
-    mctp_set_rx_all(mctp, rxMessage, nullptr);
+    status = mctp_register_bus_dynamic_eid(mctp, binding);
+    if (status < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Bus registration of binding failed");
+        throw std::system_error(
+            std::make_error_code(static_cast<std::errc>(-status)));
+    }
+    mctp_set_rx_all(mctp, rxMessage, this);
     mctp_binding_set_tx_enabled(binding, true);
 
     int driverFd = mctp_astpcie_get_fd(pcie);
