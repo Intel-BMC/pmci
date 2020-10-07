@@ -8,14 +8,18 @@ constexpr auto hdrSize = sizeof(pldm_msg_hdr);
 
 TEST(QueryDeviceIdentifiers, testGoodEncodeRequest)
 {
-    uint8_t instanceId = 0x01;
-    struct pldm_msg msg;
+    std::array<uint8_t, sizeof(pldm_msg_hdr)> requestMsg{};
+    auto requestPtr = reinterpret_cast<pldm_msg*>(requestMsg.data());
 
-    auto rc = encode_query_device_identifiers_req(instanceId, &msg);
+    uint8_t instanceId = 0x01;
+
+    auto rc = encode_query_device_identifiers_req(
+        instanceId, requestPtr, PLDM_QUERY_DEVICE_IDENTIFIERS_REQ_BYTES);
     EXPECT_EQ(rc, PLDM_SUCCESS);
-    EXPECT_EQ(msg.hdr.instance_id, instanceId);
-    EXPECT_EQ(msg.hdr.type, PLDM_FWU);
-    EXPECT_EQ(msg.hdr.command, PLDM_QUERY_DEVICE_IDENTIFIERS);
+    EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
+    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(requestPtr->hdr.command, PLDM_QUERY_DEVICE_IDENTIFIERS);
 }
 
 TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
@@ -25,7 +29,10 @@ TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
     uint8_t descriptorCount = 0;
     // descriptorDataLen is not fixed here taking it as 6
     constexpr uint8_t descriptorDataLen = 6;
-    std::array<uint8_t, descriptorDataLen> descriptor_data;
+    std::array<uint8_t, descriptorDataLen> descriptorData;
+    struct variable_field outDescriptorData;
+    outDescriptorData.length = descriptorData.size();
+    outDescriptorData.ptr = descriptorData.data();
 
     std::array<uint8_t, hdrSize + sizeof(struct query_device_identifiers_resp) +
                             descriptorDataLen>
@@ -33,6 +40,7 @@ TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
     struct query_device_identifiers_resp* inResp =
         reinterpret_cast<struct query_device_identifiers_resp*>(
             responseMsg.data() + hdrSize);
+
     inResp->completion_code = PLDM_SUCCESS;
     inResp->device_identifiers_len = descriptorDataLen;
     inResp->descriptor_count = 1;
@@ -46,14 +54,14 @@ TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
 
     auto rc = decode_query_device_identifiers_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
-        &deviceIdentifiersLen, &descriptorCount, descriptor_data.data());
+        &deviceIdentifiersLen, &descriptorCount, &outDescriptorData);
 
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(completionCode, PLDM_SUCCESS);
     EXPECT_EQ(deviceIdentifiersLen, inResp->device_identifiers_len);
     EXPECT_EQ(descriptorCount, inResp->descriptor_count);
     EXPECT_EQ(true,
-              std::equal(descriptor_data.begin(), descriptor_data.end(),
+              std::equal(descriptorData.begin(), descriptorData.end() - 1,
                          responseMsg.data() + hdrSize +
                              sizeof(struct query_device_identifiers_resp)));
 }
