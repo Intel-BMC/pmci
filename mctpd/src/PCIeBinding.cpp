@@ -171,51 +171,71 @@ void PCIeBinding::preparePrivateDataResp(void* bindingPrivate)
 }
 
 bool PCIeBinding::handlePrepareForEndpointDiscovery(
-    mctp_eid_t, void* bindingPrivate,
-    struct mctp_ctrl_resp_prepare_discovery* response)
+    mctp_eid_t, void* bindingPrivate, std::vector<uint8_t>&,
+    std::vector<uint8_t>& response)
 {
     if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
     {
         return false;
     }
+    response.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
+    struct mctp_ctrl_resp_prepare_discovery* resp =
+        reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
+
     discoveredFlag = pcie_binding::DiscoveryFlags::Undiscovered;
+    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     preparePrivateDataResp(bindingPrivate);
-    response->completion_code = MCTP_CTRL_CC_SUCCESS;
     return true;
 }
 
-bool PCIeBinding::handleEndpointDiscovery(
-    mctp_eid_t, void* bindingPrivate,
-    struct mctp_ctrl_resp_endpoint_discovery* response)
+bool PCIeBinding::handleEndpointDiscovery(mctp_eid_t, void* bindingPrivate,
+                                          std::vector<uint8_t>&,
+                                          std::vector<uint8_t>& response)
 {
     if (discoveredFlag == pcie_binding::DiscoveryFlags::Discovered)
     {
         return false;
     }
+    response.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
+    struct mctp_ctrl_resp_endpoint_discovery* resp =
+        reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(response.data());
+
+    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     preparePrivateDataResp(bindingPrivate);
-    response->completion_code = MCTP_CTRL_CC_SUCCESS;
     return true;
 }
 
-bool PCIeBinding::handleSetEndpointId(mctp_eid_t, void* bindingPrivate,
-                                      struct mctp_ctrl_resp_set_eid* response)
+bool PCIeBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                      std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
 {
-    mctp_astpcie_pkt_private* pciePrivate;
+    if (!MctpBinding::handleGetEndpointId(destEid, bindingPrivate, request,
+                                          response))
+    {
+        return false;
+    }
 
     preparePrivateDataResp(bindingPrivate);
-    if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
+    return true;
+}
+
+bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                      std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    if (!MctpBinding::handleSetEndpointId(destEid, bindingPrivate, request,
+                                          response))
     {
-        pciePrivate =
-            reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
-        busOwnerBdf = pciePrivate->remote_id;
+        return false;
+    }
+    response.resize(sizeof(mctp_ctrl_resp_set_eid));
+    struct mctp_ctrl_resp_set_eid* resp =
+        reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+
+    if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
+    {
         discoveredFlag = pcie_binding::DiscoveryFlags::Discovered;
     }
-    return true;
-}
-
-bool PCIeBinding::handleGetEndpointId(mctp_eid_t, void* bindingPrivate,
-                                      struct mctp_ctrl_resp_get_eid*)
-{
     preparePrivateDataResp(bindingPrivate);
     return true;
 }

@@ -20,17 +20,18 @@ class PCIeBinding : public MctpBinding
 
   protected:
     virtual bool handlePrepareForEndpointDiscovery(
-        mctp_eid_t destEid, void* bindingPrivate,
-        struct mctp_ctrl_resp_prepare_discovery* response) override;
-    virtual bool handleEndpointDiscovery(
-        mctp_eid_t destEid, void* bindingPrivate,
-        struct mctp_ctrl_resp_endpoint_discovery* response) override;
+        mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
+        std::vector<uint8_t>& response) override;
     virtual bool
-        handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                            struct mctp_ctrl_resp_set_eid* response) override;
-    virtual bool
-        handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                            struct mctp_ctrl_resp_get_eid* response) override;
+        handleEndpointDiscovery(mctp_eid_t destEid, void* bindingPrivate,
+                                std::vector<uint8_t>& request,
+                                std::vector<uint8_t>& response) override;
+    virtual bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response) override;
+    virtual bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response) override;
 
   private:
     uint16_t bdf;

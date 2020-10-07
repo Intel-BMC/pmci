@@ -126,7 +126,7 @@ class MctpBinding
     virtual void initializeBinding(ConfigurationVariant& conf) = 0;
     void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
-    void handleCtrlReq(uint8_t destEid, void* bindingPrivate, void* req,
+    void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
                        size_t len, uint8_t msgTag);
 
   protected:
@@ -141,16 +141,18 @@ class MctpBinding
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
     virtual bool handlePrepareForEndpointDiscovery(
-        mctp_eid_t destEid, void* bindingPrivate,
-        struct mctp_ctrl_resp_prepare_discovery* response);
-    virtual bool handleEndpointDiscovery(
-        mctp_eid_t destEid, void* bindingPrivate,
-        struct mctp_ctrl_resp_endpoint_discovery* response);
+        mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
+        std::vector<uint8_t>& response);
+    virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
+                                         void* bindingPrivate,
+                                         std::vector<uint8_t>& request,
+                                         std::vector<uint8_t>& response);
     virtual bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                                     struct mctp_ctrl_resp_set_eid* response);
-    virtual bool
-        handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                            struct mctp_ctrl_resp_get_eid* response) = 0;
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response);
+    virtual bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response);
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
                        const std::vector<uint8_t>& bindingPrivate,
                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);

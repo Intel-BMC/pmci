@@ -482,12 +482,21 @@ void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
     });
 }
 
+// TODO: This method is a placeholder and has not been tested
 bool SMBusBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                                       struct mctp_ctrl_resp_get_eid*)
+                                       std::vector<uint8_t>& request,
+                                       std::vector<uint8_t>& response)
 {
+    if (!MctpBinding::handleGetEndpointId(destEid, bindingPrivate, request,
+                                          response))
+    {
+        return false;
+    }
+
     auto const ptr = reinterpret_cast<uint8_t*>(bindingPrivate);
     std::vector<uint8_t> bindingPvtVect(ptr,
                                         ptr + sizeof(mctp_smbus_extra_params));
     getBindingPrivateData(destEid, bindingPvtVect);
+    std::copy(bindingPvtVect.begin(), bindingPvtVect.end(), ptr);
     return true;
 }

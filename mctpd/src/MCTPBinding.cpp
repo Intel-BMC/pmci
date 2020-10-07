@@ -441,8 +441,7 @@ void MctpBinding::processCtrlTxQueue(void)
 }
 
 void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
-                                void* req, [[maybe_unused]] size_t len,
-                                uint8_t msgTag)
+                                const void* req, size_t len, uint8_t msgTag)
 {
     if (req == nullptr)
     {
@@ -450,61 +449,34 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
             "MCTP Control Request is not initialized.");
         return;
     }
+
+    std::vector<uint8_t> response = {};
     bool sendResponse = false;
-    mctp_ctrl_msg_hdr* reqHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(req);
-    std::vector<uint8_t> resp = {};
+    const uint8_t* reqPtr = reinterpret_cast<const uint8_t*>(req);
+    std::vector<uint8_t> request(reqPtr, reqPtr + len);
+    mctp_ctrl_msg_hdr* reqHeader =
+        reinterpret_cast<mctp_ctrl_msg_hdr*>(request.data());
+
     switch (reqHeader->command_code)
     {
         case MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY: {
-            resp.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
-            struct mctp_ctrl_resp_prepare_discovery* response =
-                reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(
-                    resp.data());
             sendResponse = handlePrepareForEndpointDiscovery(
-                destEid, bindingPrivate, response);
+                destEid, bindingPrivate, request, response);
             break;
         }
         case MCTP_CTRL_CMD_ENDPOINT_DISCOVERY: {
-            resp.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
-            struct mctp_ctrl_resp_endpoint_discovery* response =
-                reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(
-                    resp.data());
-            sendResponse =
-                handleEndpointDiscovery(destEid, bindingPrivate, response);
+            sendResponse = handleEndpointDiscovery(destEid, bindingPrivate,
+                                                   request, response);
             break;
         }
         case MCTP_CTRL_CMD_GET_ENDPOINT_ID: {
-            resp.resize(sizeof(mctp_ctrl_resp_get_eid));
-            struct mctp_ctrl_resp_get_eid* response =
-                reinterpret_cast<mctp_ctrl_resp_get_eid*>(resp.data());
-            bool busownerMode =
-                bindingModeType == mctp_server::BindingModeTypes::BusOwner
-                    ? true
-                    : false;
-            mctp_ctrl_cmd_get_endpoint_id(mctp, destEid, busownerMode,
-                                          response);
             sendResponse =
-                handleGetEndpointId(destEid, bindingPrivate, response);
+                handleGetEndpointId(destEid, bindingPrivate, request, response);
             break;
         }
         case MCTP_CTRL_CMD_SET_ENDPOINT_ID: {
-            if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
-            {
-                break;
-            }
-            resp.resize(sizeof(mctp_ctrl_resp_set_eid));
-            struct mctp_ctrl_resp_set_eid* response =
-                reinterpret_cast<mctp_ctrl_resp_set_eid*>(resp.data());
-            struct mctp_ctrl_cmd_set_eid* request =
-                reinterpret_cast<mctp_ctrl_cmd_set_eid*>(req);
-            mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, request, response);
-            if (response->completion_code == MCTP_CTRL_CC_SUCCESS)
-            {
-                busOwnerEid = destEid;
-                ownEid = response->eid_set;
-            }
             sendResponse =
-                handleSetEndpointId(destEid, bindingPrivate, response);
+                handleSetEndpointId(destEid, bindingPrivate, request, response);
             break;
         }
         default: {
@@ -516,38 +488,69 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
     if (sendResponse)
     {
         mctp_ctrl_msg_hdr* respHeader =
-            reinterpret_cast<mctp_ctrl_msg_hdr*>(resp.data());
+            reinterpret_cast<mctp_ctrl_msg_hdr*>(response.data());
         memcpy(respHeader, reqHeader, sizeof(struct mctp_ctrl_msg_hdr));
         respHeader->rq_dgram_inst &=
             static_cast<uint8_t>(~MCTP_CTRL_HDR_FLAG_REQUEST);
-        mctp_message_tx(mctp, destEid, resp.data(), resp.size(), false, msgTag,
-                        bindingPrivate);
+        mctp_message_tx(mctp, destEid, response.data(), response.size(), false,
+                        msgTag, bindingPrivate);
     }
     return;
 }
 
-bool MctpBinding::handlePrepareForEndpointDiscovery(
-    mctp_eid_t, void*, struct mctp_ctrl_resp_prepare_discovery*)
+bool MctpBinding::handlePrepareForEndpointDiscovery(mctp_eid_t, void*,
+                                                    std::vector<uint8_t>&,
+                                                    std::vector<uint8_t>&)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Message not supported");
     return false;
 }
 
-bool MctpBinding::handleEndpointDiscovery(
-    mctp_eid_t, void*, struct mctp_ctrl_resp_endpoint_discovery*)
+bool MctpBinding::handleEndpointDiscovery(mctp_eid_t, void*,
+                                          std::vector<uint8_t>&,
+                                          std::vector<uint8_t>&)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(
         "Message not supported");
     return false;
 }
 
-bool MctpBinding::handleSetEndpointId(mctp_eid_t, void*,
-                                      struct mctp_ctrl_resp_set_eid*)
+bool MctpBinding::handleGetEndpointId(mctp_eid_t destEid, void*,
+                                      std::vector<uint8_t>&,
+                                      std::vector<uint8_t>& response)
 {
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "Message not supported");
-    return false;
+    response.resize(sizeof(mctp_ctrl_resp_get_eid));
+    struct mctp_ctrl_resp_get_eid* resp =
+        reinterpret_cast<mctp_ctrl_resp_get_eid*>(response.data());
+
+    bool busownerMode =
+        bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
+                                                                   : false;
+    mctp_ctrl_cmd_get_endpoint_id(mctp, destEid, busownerMode, resp);
+    return true;
+}
+
+bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
+                                      std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
+    {
+        return false;
+    }
+    response.resize(sizeof(mctp_ctrl_resp_set_eid));
+    struct mctp_ctrl_resp_set_eid* resp =
+        reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    struct mctp_ctrl_cmd_set_eid* req =
+        reinterpret_cast<mctp_ctrl_cmd_set_eid*>(request.data());
+
+    mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
+    if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
+    {
+        ownEid = resp->eid_set;
+    }
+    return true;
 }
 
 void MctpBinding::pushToCtrlTxQueue(
