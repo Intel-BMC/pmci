@@ -310,6 +310,22 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
         reqHeader.insert(reqHeader.end(), payload.begin(),
                          payload.begin() + sizeof(mctp_vdpci_intel_hdr));
     }
+    else if (messageType == "PLDM")
+    {
+        // MCTPMsgType | rqDInstanceID | PLDMType | PLDMCmd
+        constexpr size_t minPldmReqSize = 4;
+        if (payload.size() < minPldmReqSize)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "mctp-emulator: Invalid PLDM message: Insufficient bytes in "
+                "Payload");
+            return std::nullopt;
+        }
+        uint8_t rqDInstanceID = payload.at(1);
+
+        reqHeader.push_back(msgType);
+        reqHeader.push_back(rqDInstanceID);
+    }
     else
     {
         reqHeader.push_back(msgType);
@@ -345,7 +361,17 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                 {
                     processingDelayMilliSec = iter["processing-delay"];
                 }
-                response.assign(reqHeader.begin(), reqHeader.end());
+
+                // Fill the response header as per the MCTP message type
+                // Note:- PLDM requests and responses in the JSON file should
+                // starts from second byte of PLDM message header(HdrVer |
+                // PLDMType)
+                if (messageType == "PLDM")
+                {
+                    constexpr uint8_t makeResp = 0x7F;
+                    response.assign(reqHeader.begin(), reqHeader.end());
+                    response.at(1) = response.at(1) & makeResp;
+                }
                 response.insert(response.end(), std::begin(iter["response"]),
                                 std::end(iter["response"]));
             }
