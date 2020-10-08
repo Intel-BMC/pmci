@@ -24,6 +24,13 @@ namespace fs = std::filesystem;
 
 std::set<std::pair<int, uint8_t>> deviceMap;
 
+static void throwRunTimeError(const std::string& err)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(err.c_str());
+
+    throw std::runtime_error(err);
+}
+
 void SMBusBinding::scanPort(const int scanFd)
 {
     constexpr uint8_t startAddr = 0x03;
@@ -270,20 +277,20 @@ void SMBusBinding::SMBusInit()
     smbus = mctp_smbus_init();
     if (smbus == nullptr)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in mctp sbus init");
-        return;
+        throwRunTimeError("Error in mctp sbus init");
     }
 
-    mctp_smbus_register_bus(smbus, mctp, ownEid);
+    if (mctp_smbus_register_bus(smbus, mctp, ownEid) != 0)
+    {
+        throwRunTimeError("Error in SMBus binding registration");
+    }
+
     mctp_set_rx_all(mctp, rxMessage, nullptr);
 
     std::string rootPort;
     if (!getBusNumFromPath(bus, rootPort))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in opening smbus rootport");
-        return;
+        throwRunTimeError("Error in opening smbus rootport");
     }
     std::string inputDevice =
         "/sys/bus/i2c/devices/" + rootPort + "-1008/slave-mqueue";
@@ -304,9 +311,7 @@ void SMBusBinding::SMBusInit()
         inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
         if (inFd < 0)
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Error in opening smbus binding in_bus");
-            return;
+            throwRunTimeError("Error in opening smbus binding in_bus");
         }
     }
 
@@ -315,9 +320,7 @@ void SMBusBinding::SMBusInit()
 
     if (outFd < 0)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in opening smbus binding out bus");
-        return;
+        throwRunTimeError("Error in opening smbus binding out bus");
     }
 
     auto devDir = fs::path("/dev/");
@@ -327,9 +330,7 @@ void SMBusBinding::SMBusInit()
     // Search for mux ports
     if (!findFiles(devDir, matchString, i2cBuses))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "unable to find i2c devices");
-        return;
+        throwRunTimeError("unable to find i2c devices");
     }
 
     for (auto i2cPath : i2cBuses)
