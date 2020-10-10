@@ -773,6 +773,72 @@ TEST(GetFruRecordByOption, testBadDecodeResponse)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 }
 
+TEST(SetFruRecordTable, testGoodEncodeRequest)
+{
+    struct variable_field fruRecordTableData;
+    std::vector<uint8_t> fruRecordTableDataVec = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    fruRecordTableData.ptr = fruRecordTableDataVec.data();
+    fruRecordTableData.length = fruRecordTableDataVec.size();
+
+    std::vector<uint8_t> requestMsg(sizeof(pldm_msg_hdr) +
+                                    sizeof(pldm_set_fru_record_table_req) +
+                                    fruRecordTableDataVec.size());
+
+    auto requestPtr = reinterpret_cast<pldm_msg*>(requestMsg.data());
+    auto request =
+        reinterpret_cast<pldm_set_fru_record_table_req*>(requestPtr->payload);
+
+    // Random value for data transfer handle and transfer flag
+    uint32_t dataTransferHandle = 32;
+    uint8_t transferFlag = PLDM_START_AND_END;
+
+    // Invoke encode set FRU record table request api
+    auto rc = encode_set_fru_record_table_req(
+        0, dataTransferHandle, transferFlag, &fruRecordTableData, requestPtr,
+        requestMsg.size() - sizeof(pldm_msg_hdr));
+
+    ASSERT_EQ(rc, PLDM_SUCCESS);
+    ASSERT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
+    ASSERT_EQ(requestPtr->hdr.instance_id, 0u);
+    ASSERT_EQ(requestPtr->hdr.type, PLDM_FRU);
+    ASSERT_EQ(requestPtr->hdr.command, PLDM_SET_FRU_RECORD_TABLE);
+    ASSERT_EQ(le32toh(dataTransferHandle), request->data_transfer_handle);
+    ASSERT_EQ(transferFlag, request->transfer_flag);
+    ASSERT_EQ(0, memcmp(fruRecordTableDataVec.data(),
+                        requestPtr->payload +
+                            sizeof(struct pldm_set_fru_record_table_req),
+                        fruRecordTableDataVec.size()));
+}
+
+TEST(SetFruRecordTable, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint32_t nextDataTransferHandle = 0x16;
+
+    std::vector<uint8_t> responseMsg(
+        sizeof(pldm_msg_hdr) + sizeof(struct pldm_set_fru_record_table_resp));
+
+    auto responsePtr = reinterpret_cast<pldm_msg*>(responseMsg.data());
+    size_t payloadLength = responseMsg.size() - sizeof(pldm_msg_hdr);
+    auto response =
+        reinterpret_cast<pldm_set_fru_record_table_resp*>(responsePtr->payload);
+
+    response->completion_code = completionCode;
+    response->next_data_transfer_handle = htole32(nextDataTransferHandle);
+
+    uint8_t retCompletionCode = PLDM_ERROR;
+    uint32_t retNextDataTransferHandle = 0;
+
+    // Invoke decode set FRU record table response api
+    auto rc = decode_set_fru_record_table_resp(responsePtr, payloadLength,
+                                               &retCompletionCode,
+                                               &retNextDataTransferHandle);
+
+    ASSERT_EQ(rc, PLDM_SUCCESS);
+    ASSERT_EQ(completionCode, retCompletionCode);
+    ASSERT_EQ(nextDataTransferHandle, retNextDataTransferHandle);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

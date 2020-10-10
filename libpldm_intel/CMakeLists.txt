@@ -49,7 +49,6 @@ set (HEADER_FILES ${PROJECT_SOURCE_DIR}/base.h
         ${PROJECT_SOURCE_DIR}/pldm_types.h
         ${PROJECT_SOURCE_DIR}/state_set.h
         ${PROJECT_SOURCE_DIR}/utils.h
-        ${PROJECT_SOURCE_DIR}/utils.h
 )
 
 if (BUILD_STANDALONE)
