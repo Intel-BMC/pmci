@@ -3,7 +3,7 @@ cmake_minimum_required (VERSION 3.5 FATAL_ERROR)
 # Set project name here
 project (mctpw CXX)
 
-option (BUILD_STANDALONE "Use outside of YOCTO depedencies system" OFF)
+option (YOCTO_DEPENDENCIES "Use YOCTO depedencies system" OFF)
 
 set (BUILD_SHARED_LIBRARIES ON)
 set (CMAKE_CXX_STANDARD 17)
@@ -38,6 +38,27 @@ set (
 
 set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
+if (NOT YOCTO_DEPENDENCIES)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion \ ")
+    set (CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/libs/googletest/
+         ${CMAKE_BINARY_DIR}/libs/boost/ ${CMAKE_PREFIX_PATH})
+
+    configure_file (CMakeLists.txt.in 3rdparty/CMakeLists.txt)
+    execute_process (COMMAND ${CMAKE_COMMAND} -G "${CMAKE_GENERATOR}" .
+                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
+    execute_process (COMMAND ${CMAKE_COMMAND} --build .
+                     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/3rdparty)
+
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/sdbusplus/include)
+    link_directories (${CMAKE_BINARY_DIR}/libs/sdbusplus/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/src/phosphor-logging)
+    link_directories (${CMAKE_BINARY_DIR}/src/phosphor-logging/.libs)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/libmctp/include)
+    link_directories (${CMAKE_BINARY_DIR}/libs/libmctp/lib)
+    include_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/include)
+    link_directories (SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/lib)
+endif ()
+
 find_package (Boost 1.71 REQUIRED)
 include_directories (SYSTEM ${BOOST_SRC_DIR})
 
@@ -45,7 +66,7 @@ include_directories (${PROJECT_SOURCE_DIR})
 
 add_library (${PROJECT_NAME} SHARED mctpw.cpp)
 target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_coroutine
-                        -lpthread -lstdc++fs -lphosphor_dbus -lmctp_intel)
+                        -lpthread -lstdc++fs -lmctp_intel)
 
 add_executable(register examples/register.cpp mctpw.h)
 add_dependencies(register ${PROJECT_NAME})
