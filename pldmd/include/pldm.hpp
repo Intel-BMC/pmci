@@ -30,6 +30,14 @@ std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
 
 namespace pldm
 {
+/** @brief pldm_empty_request
+ *
+ * structure representing PLDM empty request.
+ */
+struct PLDMEmptyRequest
+{
+    struct pldm_msg_hdr header;
+} __attribute__((packed));
 
 /** @brief Creates new Instance ID for PLDM messages
  *
