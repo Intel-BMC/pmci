@@ -15,6 +15,8 @@
  */
 #include "pldm.hpp"
 
+#include <phosphor-logging/log.hpp>
+
 #include "fru.h"
 
 namespace pldm
@@ -24,6 +26,21 @@ namespace fru
 
 static constexpr uint16_t timeout = 100;
 static constexpr size_t retryCount = 3;
+
+static inline const std::map<uint8_t, const char*> fruEncodingType{
+    {PLDM_FRU_ENCODING_UNSPECIFIED, "Unspecified"},
+    {PLDM_FRU_ENCODING_ASCII, "ASCII"},
+    {PLDM_FRU_ENCODING_UTF8, "UTF8"},
+    {PLDM_FRU_ENCODING_UTF16, "UTF16"},
+    {PLDM_FRU_ENCODING_UTF16LE, "UTF16LE"},
+    {PLDM_FRU_ENCODING_UTF16BE, "UTF16BE"}};
+
+static inline const std::map<uint8_t, const char*> fruRecordTypes{
+    {PLDM_FRU_RECORD_TYPE_GENERAL, "General"},
+    {PLDM_FRU_RECORD_TYPE_OEM, "OEM"}};
+
+static bool addFRUObjectToDbus(const std::string& fruObjPath,
+                               const pldm_tid_t tid);
 
 class PLDMFRUCmd
 {
@@ -47,7 +64,115 @@ class PLDMFRUCmd
      */
     int getFRURecordTableMetadataCmd();
 
+    /** @brief run GetFRURecordTable command
+     *
+     * @return PLDM_SUCCESS on success and corresponding error completion code
+     * on failure
+     */
+    int getFRURecordTableCmd();
+
     boost::asio::yield_context yield;
+    pldm_tid_t tid;
+};
+
+class PLDMFRUTable
+{
+  public:
+    PLDMFRUTable() = delete;
+    PLDMFRUTable(const std::vector<uint8_t> tableVal, const pldm_tid_t tidVal);
+    ~PLDMFRUTable();
+
+    bool parseTable();
+
+  private:
+    using FRUFieldParser =
+        std::function<std::string(const uint8_t* value, uint8_t length)>;
+
+    using FieldType = uint8_t;
+    using RecordType = uint8_t;
+    using FieldName = std::string;
+    using FRUFieldTypes =
+        std::map<FieldType, std::pair<FieldName, FRUFieldParser>>;
+
+    bool isTableEnd(const uint8_t* pTable);
+
+    std::string typeToString(std::map<uint8_t, const char*> typeMap,
+                             uint8_t type)
+    {
+        auto typeString = std::to_string(type);
+        auto typeFound = typeMap.find(type);
+        if (typeFound != typeMap.end())
+        {
+            return typeString + "(" + typeFound->second + ")";
+        }
+        return typeString;
+    }
+
+    static std::string fruFieldParserString(const uint8_t* value,
+                                            uint8_t length)
+    {
+        std::string strVal(reinterpret_cast<const char*>(value), length);
+        // non printable characters cause sdbusplus exceptions, so better to
+        // handle it by replacing with space
+        std::replace_if(
+            strVal.begin(), strVal.end(),
+            [](const char& c) { return !isprint(c); }, ' ');
+        return strVal;
+    }
+
+    static std::string fruFieldParserTimestamp(const uint8_t*, uint8_t)
+    {
+        // TODO: Actual Timestamp Calculation
+        return std::string("");
+    }
+
+    static std::string fruFieldParserU32(const uint8_t* value, uint8_t length)
+    {
+        if (length == 4)
+        {
+            uint32_t v;
+            std::memcpy(&v, value, length);
+            return std::to_string(le32toh(*reinterpret_cast<uint32_t*>(v)));
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Vendor IANA should be of length 4");
+            return std::string("");
+        }
+    }
+
+    static inline const FRUFieldTypes fruGeneralFieldTypes = {
+        {PLDM_FRU_FIELD_TYPE_CHASSIS, {"ChassisType", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_MODEL, {"Model", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_PN, {"PN", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_SN, {"SN", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_MANUFAC, {"Manufacturer", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_MANUFAC_DATE,
+         {"ManufacturerDate", fruFieldParserTimestamp}},
+        {PLDM_FRU_FIELD_TYPE_VENDOR, {"Vendor", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_NAME, {"Name", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_SKU, {"SKU", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_VERSION, {"Version", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_ASSET_TAG, {"AssetTag", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_DESC, {"Description", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_EC_LVL, {"ECLevel", fruFieldParserString}},
+        {PLDM_FRU_FIELD_TYPE_IANA, {"IANA", fruFieldParserU32}},
+    };
+
+    static inline const FRUFieldTypes fruOEMFieldTypes = {
+        {1, {"Vendor IANA", fruFieldParserU32}},
+
+    };
+
+    static inline const std::map<RecordType, FRUFieldTypes> fruFieldTypes{
+        {PLDM_FRU_RECORD_TYPE_GENERAL, fruGeneralFieldTypes},
+        {PLDM_FRU_RECORD_TYPE_OEM, fruOEMFieldTypes}};
+
+    bool parseFRUField(uint8_t recordType, uint8_t type, uint8_t length,
+                       const uint8_t* value);
+
+    const std::vector<uint8_t> table;
     pldm_tid_t tid;
 };
 
