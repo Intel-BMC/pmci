@@ -263,3 +263,74 @@ int decode_get_firmware_parameters_resp(
 
 	return PLDM_SUCCESS;
 }
+
+/*RequestUpdate Encode Request API */
+int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
+			      const size_t payload_length,
+			      struct request_update_req *data,
+			      struct variable_field *comp_img_set_ver_str)
+{
+	if (msg == NULL || data == NULL || comp_img_set_ver_str == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	struct pldm_header_info header = {0};
+	header.instance = instance_id;
+	header.msg_type = PLDM_REQUEST;
+	header.pldm_type = PLDM_FWU;
+	header.command = PLDM_REQUEST_UPDATE;
+	pack_pldm_header(&header, &(msg->hdr));
+
+	int rc = pack_pldm_header(&header, &(msg->hdr));
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+
+	if (payload_length < sizeof(struct request_update_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	memcpy(msg->payload, data, sizeof(struct request_update_req));
+
+	if (payload_length <
+	    sizeof(struct request_update_req) + comp_img_set_ver_str->length) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	if (comp_img_set_ver_str->ptr == NULL) {
+		return PLDM_ERROR;
+	}
+	memcpy(msg->payload + sizeof(struct request_update_req),
+	       comp_img_set_ver_str->ptr, comp_img_set_ver_str->length);
+
+	return PLDM_SUCCESS;
+}
+
+/*RequestUpdate decode Response API */
+int decode_request_update_resp(const struct pldm_msg *msg,
+			       const size_t payload_length,
+			       uint8_t *completion_code,
+			       uint16_t *fd_meta_data_len, uint8_t *fd_pkg_data)
+{
+	if (msg == NULL || completion_code == NULL ||
+	    fd_meta_data_len == NULL || fd_pkg_data == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*completion_code = msg->payload[0];
+	if (PLDM_SUCCESS != *completion_code) {
+		return *completion_code;
+	}
+	size_t resp_len = sizeof(struct request_update_resp);
+
+	if (payload_length != resp_len) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	struct request_update_resp *response =
+	    (struct request_update_resp *)msg->payload;
+	*fd_meta_data_len = htole16(response->fd_meta_data_len);
+
+	*fd_pkg_data = response->fd_pkg_data;
+
+	return PLDM_SUCCESS;
+}
