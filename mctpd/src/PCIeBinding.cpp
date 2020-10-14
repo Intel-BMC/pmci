@@ -271,6 +271,21 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
     return true;
 }
 
+bool PCIeBinding::handleGetVersionSupport(mctp_eid_t destEid,
+                                          void* bindingPrivate,
+                                          std::vector<uint8_t>& request,
+                                          std::vector<uint8_t>& response)
+{
+    if (!MctpBinding::handleGetVersionSupport(destEid, bindingPrivate, request,
+                                              response))
+    {
+        return false;
+    }
+
+    preparePrivateDataResp(bindingPrivate);
+    return true;
+}
+
 void PCIeBinding::readResponse()
 {
     streamMonitor.async_wait(

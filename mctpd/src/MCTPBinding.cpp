@@ -17,6 +17,10 @@ constexpr unsigned int ctrlTxPollInterval = 5;
 constexpr size_t minCmdRespSize = 4;
 constexpr int completionCodeIndex = 3;
 
+const std::unordered_map<uint8_t, version_entry> versionNumbers = {
+    {MCTP_MESSAGE_TYPE_MCTP_CTRL, {0xF1, 0xF3, 0xF1, 0}},
+    {MCTP_GET_VERSION_SUPPORT_BASE_INFO, {0xF1, 0xF3, 0xF1, 0}}};
+
 static uint8_t getInstanceId(const uint8_t msg)
 {
     return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
@@ -467,6 +471,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                 handleSetEndpointId(destEid, bindingPrivate, request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_VERSION_SUPPORT: {
+            sendResponse = handleGetVersionSupport(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -539,6 +548,37 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
         busOwnerEid = destEid;
         ownEid = resp->eid_set;
     }
+    return true;
+}
+
+bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
+                                          std::vector<uint8_t>& request,
+                                          std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_ctrl_resp_get_mctp_ver_support));
+    mctp_ctrl_cmd_get_mctp_ver_support* req =
+        reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(request.data());
+    mctp_ctrl_resp_get_mctp_ver_support* resp =
+        reinterpret_cast<mctp_ctrl_resp_get_mctp_ver_support*>(response.data());
+
+    std::vector<version_entry> versions = {};
+
+    if (versionNumbers.find(req->msg_type_number) == versionNumbers.end())
+    {
+        resp->completion_code =
+            MCTP_CTRL_CC_GET_MCTP_VER_SUPPORT_UNSUPPORTED_TYPE;
+    }
+    else
+    {
+        versions.push_back(versionNumbers.at(req->msg_type_number));
+        resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+    }
+    resp->number_of_entries = static_cast<uint8_t>(versions.size());
+    response.resize(sizeof(mctp_ctrl_resp_get_mctp_ver_support) +
+                    versions.size() * sizeof(version_entry));
+    std::copy_n(reinterpret_cast<uint8_t*>(versions.data()),
+                versions.size() * sizeof(version_entry),
+                response.data() + sizeof(mctp_ctrl_resp_get_mctp_ver_support));
     return true;
 }
 

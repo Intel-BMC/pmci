@@ -33,6 +33,10 @@ class PCIeBinding : public MctpBinding
     virtual bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response) override;
+    virtual bool
+        handleGetVersionSupport(mctp_eid_t destEid, void* bindingPrivate,
+                                std::vector<uint8_t>& request,
+                                std::vector<uint8_t>& response) override;
 
   private:
     uint16_t bdf;
