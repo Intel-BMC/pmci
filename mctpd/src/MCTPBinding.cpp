@@ -82,12 +82,11 @@ static void handleCtrlResp(void* msg, const size_t len)
  * passed to libmctp and we have to match its expected prototype.
  */
 void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
-               size_t len, [[maybe_unused]] void* binding_private)
+               size_t len, bool tagOwner, uint8_t msgTag,
+               [[maybe_unused]] void* binding_private)
 {
     uint8_t* payload = reinterpret_cast<uint8_t*>(msg);
     uint8_t msgType = payload[0]; // Always the first byte
-    uint8_t msgTag = 0;           // Currently libmctp doesn't expose msgTag
-    bool tagOwner = false;
     std::vector<uint8_t> response;
 
     response.assign(payload, payload + len);
@@ -101,7 +100,9 @@ void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
         msgSignal.signal_send();
     }
 
-    if (mctp_is_mctp_ctrl_msg(msg, len) && !mctp_ctrl_msg_is_req(msg, len))
+    // TODO: Take into account the msgTags too when we verify control messages.
+    if (mctp_is_mctp_ctrl_msg(msg, len) && !mctp_ctrl_msg_is_req(msg, len) &&
+        !tagOwner)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "MCTP Control packet response received!!");
@@ -109,8 +110,9 @@ void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
     }
 }
 
-void handleMCTPControlRequests(uint8_t srcEid, void* /*data*/, void* msg,
-                               size_t len, void* bindingPrivate)
+void handleMCTPControlRequests(uint8_t srcEid, [[maybe_unused]] void* data,
+                               void* msg, size_t len, bool tagOwner,
+                               uint8_t msgTag, void* bindingPrivate)
 {
     /*
      * We only check the msg pointer, private data may be unused by some
@@ -122,9 +124,15 @@ void handleMCTPControlRequests(uint8_t srcEid, void* /*data*/, void* msg,
             "MCTP Control Message is not initialized.");
         return;
     }
+    if (!tagOwner)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "MCTP Control Message expects that tagOwner is set");
+        return;
+    }
     std::visit(
-        [&srcEid, &bindingPrivate, &msg, &len](auto& binding) {
-            binding->handleCtrlReq(srcEid, bindingPrivate, msg, len);
+        [srcEid, bindingPrivate, msg, len, msgTag](auto& binding) {
+            binding->handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
         },
         bindingPtr);
 }
@@ -207,8 +215,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
          */
         mctpInterface->register_method(
             "SendMctpMessagePayload",
-            [this](uint8_t dstEid, [[maybe_unused]] uint8_t msgTag,
-                   [[maybe_unused]] bool tagOwner,
+            [this](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
                    std::vector<uint8_t> payload) {
                 std::vector<uint8_t> pvtData;
 
@@ -220,7 +227,8 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                 }
 
                 return mctp_message_tx(mctp, dstEid, payload.data(),
-                                       payload.size(), pvtData.data());
+                                       payload.size(), tagOwner, msgTag,
+                                       pvtData.data());
             });
 
         mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,
@@ -339,9 +347,10 @@ mctp_eid_t MctpBinding::getAvailableEidFromPool(void)
 }
 
 bool MctpBinding::sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
+                                  bool tagOwner, uint8_t msgTag,
                                   std::vector<uint8_t> bindingPrivate)
 {
-    if (mctp_message_tx(mctp, destEid, req.data(), req.size(),
+    if (mctp_message_tx(mctp, destEid, req.data(), req.size(), tagOwner, msgTag,
                         bindingPrivate.data()) < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -390,7 +399,8 @@ void MctpBinding::processCtrlTxQueue(void)
                         if (retryCount > 0 &&
                             maxRespDelay <= retryCount * ctrlTxRetryDelay)
                         {
-                            if (sendMctpMessage(destEid, req, bindingPrivate))
+                            if (sendMctpMessage(destEid, req, true, 0,
+                                                bindingPrivate))
                             {
                                 phosphor::logging::log<
                                     phosphor::logging::level::INFO>(
@@ -431,7 +441,8 @@ void MctpBinding::processCtrlTxQueue(void)
 }
 
 void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
-                                void* req, [[maybe_unused]] size_t len)
+                                void* req, [[maybe_unused]] size_t len,
+                                uint8_t msgTag)
 {
     if (req == nullptr)
     {
@@ -509,7 +520,7 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
         memcpy(respHeader, reqHeader, sizeof(struct mctp_ctrl_msg_hdr));
         respHeader->rq_dgram_inst &=
             static_cast<uint8_t>(~MCTP_CTRL_HDR_FLAG_REQUEST);
-        mctp_message_tx(mctp, destEid, resp.data(), resp.size(),
+        mctp_message_tx(mctp, destEid, resp.data(), resp.size(), false, msgTag,
                         bindingPrivate);
     }
     return;
@@ -548,7 +559,7 @@ void MctpBinding::pushToCtrlTxQueue(
         state, ctrlTxRetryCount, ((ctrlTxRetryCount + 1) * ctrlTxRetryDelay),
         destEid, bindingPrivate, req, callback));
 
-    if (sendMctpMessage(destEid, req, bindingPrivate))
+    if (sendMctpMessage(destEid, req, true, 0, bindingPrivate))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Packet transmited");

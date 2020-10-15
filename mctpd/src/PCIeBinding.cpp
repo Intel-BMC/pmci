@@ -52,15 +52,6 @@ bool PCIeBinding::endpointDiscoveryFlow()
     struct mctp_astpcie_pkt_private pktPrv;
     pktPrv.routing = PCIE_ROUTE_TO_RC;
     pktPrv.remote_id = bdf;
-    /*
-     * The workaround is temporarily needed for the current libmctp-intel
-     * to determine whether the message is a request or a response.
-     * Any other flag except for TO is set in libmctp.
-     */
-#ifdef MCTP_ASTPCIE_RESPONSE_WA
-    pktPrv.flags_seq_tag = 0;
-    pktPrv.flags_seq_tag |= MCTP_HDR_FLAG_TO;
-#endif
     uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
     std::vector<uint8_t> prvData =
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof pktPrv);
@@ -93,10 +84,6 @@ void PCIeBinding::updateRoutingTable()
     }
     pktPrv.routing = PCIE_ROUTE_BY_ID;
     pktPrv.remote_id = busOwnerBdf;
-#ifdef MCTP_ASTPCIE_RESPONSE_WA
-    pktPrv.flags_seq_tag = 0;
-    pktPrv.flags_seq_tag |= MCTP_HDR_FLAG_TO;
-#endif
     uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
     std::vector<uint8_t> prvData = std::vector<uint8_t>(
         pktPrvPtr, pktPrvPtr + sizeof(mctp_astpcie_pkt_private));
@@ -166,9 +153,6 @@ void PCIeBinding::preparePrivateDataResp(void* bindingPrivate)
             "Private data must be from an existing request.");
         return;
     }
-#ifdef MCTP_ASTPCIE_RESPONSE_WA
-    pciePrivate->flags_seq_tag &= static_cast<uint8_t>(~MCTP_HDR_FLAG_TO);
-#endif
     /*
      * We have to respond with PCIE_ROUTE_TO_RC to PCIE_BROADCAST_FROM_RC
      * request. See DSP0238 1.0.1 6.4.

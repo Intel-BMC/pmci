@@ -108,11 +108,12 @@ using BindingVariant =
 extern BindingVariant bindingPtr;
 
 void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
-               size_t /*len*/, void* /*msg_binding_private*/);
+               size_t /*len*/, bool /*tagOwner*/, uint8_t /*msgTag*/,
+               void* /*msg_binding_private*/);
 
 void handleMCTPControlRequests(uint8_t /*srcEid*/, void* /*data*/,
-                               void* /*msg*/, size_t /*len*/,
-                               void* /*bindingPrivate*/);
+                               void* /*msg*/, size_t /*len*/, bool /*tagOwner*/,
+                               uint8_t /*msgTag*/, void* /*bindingPrivate*/);
 
 class MctpBinding
 {
@@ -126,7 +127,7 @@ class MctpBinding
     void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, void* req,
-                       size_t len);
+                       size_t len, uint8_t msgTag);
 
   protected:
     unsigned int ctrlTxRetryDelay;
@@ -210,6 +211,7 @@ class MctpBinding
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool(void);
     bool sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
+                         bool tagOwner, uint8_t msgTag,
                          std::vector<uint8_t> bindingPrivate);
     void processCtrlTxQueue(void);
     void pushToCtrlTxQueue(
