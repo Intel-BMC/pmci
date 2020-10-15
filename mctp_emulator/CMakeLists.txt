@@ -61,7 +61,7 @@ set (
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 
-target_link_libraries (${PROJECT_NAME} i2c sdbusplus -lsystemd -lboost_system
+target_link_libraries (${PROJECT_NAME} i2c sdbusplus -lsystemd
                        -lmctp_intel -lpthread -lstdc++fs -lphosphor_dbus -lboost_coroutine)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
