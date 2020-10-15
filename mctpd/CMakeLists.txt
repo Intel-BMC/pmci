@@ -101,7 +101,7 @@ find_package (Boost 1.71 REQUIRED)
 include_directories (SYSTEM ${BOOST_SRC_DIR})
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
-target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
+target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd
                         -lpthread -lphosphor_dbus -lmctp_intel i2c -lboost_coroutine)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
