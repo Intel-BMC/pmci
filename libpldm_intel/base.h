@@ -14,6 +14,7 @@ extern "C" {
 /** @brief PLDM Commands
  */
 enum pldm_supported_commands {
+	PLDM_SET_TID = 0x01,
 	PLDM_GET_TID = 0x2,
 	PLDM_GET_PLDM_VERSION = 0x3,
 	PLDM_GET_PLDM_TYPES = 0x4,
@@ -136,6 +137,15 @@ struct pldm_header_info {
 	uint8_t completion_code; //!< PLDM completion code, applies for response
 };
 
+/** @struct pldm_cc_only_rsp
+ *
+ *  Structure representing generic pldm response message with only
+ *  completion code
+ */
+struct pldm_cc_only_rsp {
+	uint8_t completion_code; //!< PLDM completion code
+} __attribute__((packed));
+
 /** @struct pldm_get_types_resp
  *
  *  Structure representing PLDM get types response.
@@ -177,6 +187,20 @@ struct pldm_get_version_req {
 	uint8_t type; //!< PLDM Type for which version information is being
 		      //!< requested
 } __attribute__((packed));
+
+/** @struct pldm_set_tid_req
+ *
+ *  Structure representing PLDM set terminus id request.
+ */
+struct pldm_set_tid_req {
+	uint8_t tid; //!< Terminus ID to be set
+} __attribute__((packed));
+
+/** @struct pldm_set_tid_rsp
+ *
+ *  Structure representing PLDM set terminus id response.
+ */
+typedef struct pldm_cc_only_rsp pldm_set_tid_rsp;
 
 /** @struct pldm_get_version_resp
  *
@@ -470,6 +494,74 @@ int encode_get_tid_resp(uint8_t instance_id, uint8_t completion_code,
  */
 int encode_cc_only_resp(uint8_t instance_id, uint8_t type, uint8_t command,
 			uint8_t cc, struct pldm_msg *msg);
+
+/** @brief Decode a PLDM response message containing only completion code
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload. Should be 1
+ * byte.
+ *  @param[out] completion_code - Pointer to store response msg's PLDM
+ * completion code
+ *  @return pldm_completion_codes
+ */
+int decode_cc_only_resp(const struct pldm_msg *msg, const size_t payload_length,
+			uint8_t *completion_code);
+
+/*SetTID*/
+
+/** @brief Create a PLDM request message for SetTID
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] tid - Terminus ID to be set
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_set_tid_req(const uint8_t instance_id, const uint8_t tid,
+		       struct pldm_msg *msg);
+
+/** @brief Create a PLDM response message for SetTID
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] completion_code - PLDM completion code
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+inline int encode_set_tid_resp(const uint8_t instance_id,
+			       const uint8_t completion_code,
+			       struct pldm_msg *msg)
+{
+	return encode_cc_only_resp(instance_id, PLDM_BASE, PLDM_SET_TID,
+				   completion_code, msg);
+}
+
+/** @brief Decode a SetTID request message
+ *
+ *  @param[in] msg - Request message
+ *  @param[in] payload_length - length of request message payload
+ *  @param[out] tid - Terminus ID to be set
+ *  @return pldm_completion_codes
+ */
+int decode_set_tid_req(const struct pldm_msg *msg, const size_t payload_length,
+		       uint8_t *tid);
+
+/** @brief Decode a SetTID response message
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to store response msg's PLDM
+ * completion code
+ *  @return pldm_completion_codes
+ */
+inline int decode_set_tid_resp(const struct pldm_msg *msg,
+			       const size_t payload_length,
+			       uint8_t *completion_code)
+{
+	return decode_cc_only_resp(msg, payload_length, completion_code);
+}
 
 #ifdef __cplusplus
 }

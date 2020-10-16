@@ -408,3 +408,63 @@ int encode_cc_only_resp(uint8_t instance_id, uint8_t type, uint8_t command,
 
 	return PLDM_SUCCESS;
 }
+
+int decode_cc_only_resp(const struct pldm_msg *msg, const size_t payload_length,
+			uint8_t *completion_code)
+{
+	if (NULL == msg || NULL == completion_code) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (sizeof(uint8_t) != payload_length) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	struct pldm_cc_only_rsp *rsp =
+	    (struct pldm_cc_only_rsp *)(msg->payload);
+	*completion_code = rsp->completion_code;
+
+	return PLDM_SUCCESS;
+}
+
+int encode_set_tid_req(const uint8_t instance_id, const uint8_t tid,
+		       struct pldm_msg *msg)
+{
+	struct pldm_header_info header = {0};
+	int rc = PLDM_SUCCESS;
+
+	if (NULL == msg) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	header.msg_type = PLDM_REQUEST;
+	header.instance = instance_id;
+	header.pldm_type = PLDM_BASE;
+	header.command = PLDM_SET_TID;
+
+	if ((rc = pack_pldm_header(&header, &(msg->hdr))) != PLDM_SUCCESS) {
+		return rc;
+	}
+
+	struct pldm_set_tid_req *request =
+	    (struct pldm_set_tid_req *)msg->payload;
+	request->tid = tid;
+
+	return PLDM_SUCCESS;
+}
+
+int decode_set_tid_req(const struct pldm_msg *msg, const size_t payload_length,
+		       uint8_t *tid)
+{
+	if (NULL == msg || NULL == tid) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (sizeof(struct pldm_set_tid_req) != payload_length) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct pldm_set_tid_req *request =
+	    (struct pldm_set_tid_req *)msg->payload;
+	*tid = request->tid;
+
+	return PLDM_SUCCESS;
+}

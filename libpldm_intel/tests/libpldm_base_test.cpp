@@ -544,6 +544,185 @@ TEST(CcOnlyResponse, testEncode)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(CcOnlyResponse, testDecodeValid)
+{
+    std::array<uint8_t, 4> byteData{};
+    pldm_completion_codes testCC = PLDM_ERROR_INVALID_DATA;
+    struct pldm_msg* msgData =
+        reinterpret_cast<struct pldm_msg*>(byteData.data());
+    pldm_cc_only_rsp* ccOnlyRsp =
+        reinterpret_cast<pldm_cc_only_rsp*>(msgData->payload);
+    ccOnlyRsp->completion_code = testCC;
+
+    uint8_t decodedCC = PLDM_SUCCESS;
+    int rc = decode_cc_only_resp(msgData, 1, &decodedCC);
+    EXPECT_EQ(decodedCC, testCC);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+
+    testCC = PLDM_ERROR_INVALID_PLDM_TYPE;
+    ccOnlyRsp->completion_code = testCC;
+    rc = decode_cc_only_resp(msgData, 1, &decodedCC);
+    EXPECT_EQ(decodedCC, testCC);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+}
+
+TEST(CcOnlyResponse, testDecodeInvalid)
+{
+    std::array<uint8_t, hdrSize + sizeof(uint8_t)> byteData{};
+    struct pldm_msg* msgData =
+        reinterpret_cast<struct pldm_msg*>(byteData.data());
+    uint8_t completion_code = PLDM_ERROR;
+
+    auto rc = decode_cc_only_resp(msgData, 1, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_cc_only_resp(msgData, 0, &completion_code);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    rc = decode_cc_only_resp(msgData, 0, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_cc_only_resp(nullptr, 1, &completion_code);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_cc_only_resp(nullptr, 1, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_cc_only_resp(nullptr, 0, &completion_code);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_cc_only_resp(nullptr, 0, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(SetTID, encodeRequestValid)
+{
+    std::array<uint8_t, hdrSize + sizeof(struct pldm_set_tid_req)> reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+    constexpr uint8_t instanceId = 0x12;
+    constexpr uint8_t tid = 0x24;
+
+    auto rc = encode_set_tid_req(instanceId, tid, msg);
+    EXPECT_EQ(msg->hdr.command, PLDM_SET_TID);
+    EXPECT_EQ(msg->hdr.type, PLDM_BASE);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+    pldm_set_tid_req* req =
+        reinterpret_cast<pldm_set_tid_req*>(&(msg->payload[0]));
+    EXPECT_EQ(req->tid, tid);
+}
+
+TEST(SetTID, encodeRequestInvalid)
+{
+    constexpr uint8_t instanceId = 0x12;
+    constexpr uint8_t tid = 0x24;
+
+    auto rc = encode_set_tid_req(instanceId, tid, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(SetTID, encodeResponseValid)
+{
+    constexpr uint8_t instanceId = 0x12;
+    constexpr uint8_t completionCode = PLDM_SUCCESS;
+    std::array<uint8_t, hdrSize + sizeof(uint8_t)> rspMsg{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(rspMsg.data());
+
+    auto rc = encode_set_tid_resp(instanceId, completionCode, msg);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_SET_TID);
+    EXPECT_EQ(msg->hdr.type, PLDM_BASE);
+    EXPECT_EQ(msg->hdr.request, 0);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+    pldm_cc_only_rsp* rspData =
+        reinterpret_cast<pldm_cc_only_rsp*>(msg->payload);
+    EXPECT_EQ(rspData->completion_code, completionCode);
+}
+
+TEST(SetTID, encodeResponseInvalid)
+{
+    constexpr uint8_t instanceId = 0x12;
+    constexpr uint8_t completionCode = PLDM_SUCCESS;
+
+    auto rc = encode_set_tid_resp(instanceId, completionCode, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+TEST(SetTID, decodeRequestValid)
+{
+    constexpr uint8_t tid = 0x12;
+    std::array<uint8_t, hdrSize + sizeof(struct pldm_set_tid_req)> request{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(request.data());
+    pldm_set_tid_req* setTidReq =
+        reinterpret_cast<pldm_set_tid_req*>(msg->payload);
+    setTidReq->tid = tid;
+
+    uint8_t decodedTID = 0x00;
+    auto rc =
+        decode_set_tid_req(msg, sizeof(struct pldm_set_tid_req), &decodedTID);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(decodedTID, tid);
+}
+TEST(SetTID, decodeRequestInvalid)
+{
+    std::array<uint8_t, hdrSize + sizeof(struct pldm_set_tid_req)> request{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(request.data());
+    uint8_t decodedTID = 0x00;
+
+    auto rc = decode_set_tid_req(nullptr, sizeof(struct pldm_set_tid_req),
+                                 &decodedTID);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_req(nullptr, sizeof(struct pldm_set_tid_req), nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_req(nullptr, sizeof(struct pldm_set_tid_req) - 1,
+                            &decodedTID);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_req(nullptr, sizeof(struct pldm_set_tid_req) - 1,
+                            nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_set_tid_req(msg, sizeof(struct pldm_set_tid_req), nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_req(msg, sizeof(struct pldm_set_tid_req) - 1,
+                            &decodedTID);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    rc = decode_set_tid_req(msg, sizeof(struct pldm_set_tid_req) - 1, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(SetTID, decodeResponseValid)
+{
+    std::array<uint8_t, hdrSize + sizeof(uint8_t)> rspArray{};
+    pldm_msg* rspMsg = reinterpret_cast<pldm_msg*>(rspArray.data());
+    uint8_t completionCode = PLDM_SUCCESS;
+    pldm_set_tid_rsp* rspSetTID =
+        reinterpret_cast<pldm_set_tid_rsp*>(rspMsg->payload);
+    rspSetTID->completion_code = completionCode;
+
+    uint8_t decodedCC = PLDM_ERROR;
+    auto rc = decode_set_tid_resp(rspMsg, sizeof(pldm_set_tid_rsp), &decodedCC);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(decodedCC, completionCode);
+}
+
+TEST(SetTID, decodeResponseInvalid)
+{
+    std::array<uint8_t, hdrSize + sizeof(uint8_t)> rspArray{};
+    pldm_msg* rspMsg = reinterpret_cast<pldm_msg*>(rspArray.data());
+    uint8_t decodedCC = PLDM_ERROR;
+
+    auto rc = decode_set_tid_resp(rspMsg, sizeof(pldm_set_tid_rsp), nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_resp(rspMsg, sizeof(pldm_set_tid_rsp) - 1, &decodedCC);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    rc = decode_set_tid_resp(rspMsg, sizeof(pldm_set_tid_rsp) - 1, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_resp(nullptr, sizeof(pldm_set_tid_rsp), &decodedCC);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_resp(nullptr, sizeof(pldm_set_tid_rsp), nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_resp(nullptr, sizeof(pldm_set_tid_rsp) - 1, &decodedCC);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_set_tid_resp(nullptr, sizeof(pldm_set_tid_rsp) - 1, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
