@@ -148,6 +148,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
     io(ioc),
     objectServer(objServer), ctrlTxTimer(io)
 {
+    std::vector<std::pair<uint8_t, uint8_t>> eidPoolRanges;
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
     try
@@ -162,12 +163,20 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             ctrlTxRetryDelay = smbusConf->reqToRespTime;
             ctrlTxRetryCount = smbusConf->reqRetryCount;
 
-            // TODO: Add bus owner interface.
             // TODO: If we are not top most busowner, wait for top mostbus owner
             // to issue EID Pool
             if (smbusConf->mode == mctp_server::BindingModeTypes::BusOwner)
             {
                 initializeEidPool(smbusConf->eidPool);
+                getEidRange(smbusConf->eidPool, eidPoolRanges);
+                busOwnerInterface = objServer->add_interface(
+                    objPath, "xyz.openbmc_project.BusOwner");
+                registerProperty(busOwnerInterface, "EidPool", eidPoolRanges);
+                registerProperty(busOwnerInterface, "TopMostBusOwner",
+                                 smbusConf->topMostBusOwner);
+                registerProperty(busOwnerInterface, "OwnEidPool",
+                                 smbusConf->ownEidPool);
+                busOwnerInterface->initialize();
             }
         }
         else if (PcieConfiguration* pcieConf =
@@ -309,6 +318,39 @@ void MctpBinding::initializeEidPool(const std::set<mctp_eid_t>& pool)
     for (auto const& epId : pool)
     {
         eidPoolMap.emplace(epId, false);
+    }
+}
+
+void MctpBinding::getEidRange(
+    const std::set<uint8_t>& eidSet,
+    std::vector<std::pair<uint8_t, uint8_t>>& eidPoolRanges)
+{
+    uint8_t begin = 0;
+    uint8_t end = 0;
+    for (auto it = eidSet.begin(); it != eidSet.end(); ++it)
+    {
+        if ((begin == 0) && (end == 0))
+        {
+            begin = *it;
+            end = begin;
+            continue;
+        }
+
+        if ((*it - end) == 1)
+        {
+            end = *it;
+            continue;
+        }
+        else
+        {
+            eidPoolRanges.push_back(std::make_pair(begin, end));
+            begin = *it;
+            end = *it;
+        }
+    }
+    if ((begin != 0) && (end != 0))
+    {
+        eidPoolRanges.push_back(std::make_pair(begin, end));
     }
 }
 

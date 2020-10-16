@@ -135,6 +135,8 @@ static std::optional<SMBusConfiguration>
     uint64_t bmcReceiverAddress = 0;
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
+    bool topMostBusOwner = false;
+    bool ownEidPool = false;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -174,7 +176,18 @@ static std::optional<SMBusConfiguration>
     {
         return std::nullopt;
     }
+    if (role == "busowner")
+    {
+        if (!getField(map, "TopMostBusOwner", topMostBusOwner))
+        {
+            return std::nullopt;
+        }
 
+        if (!getField(map, "OwnEidPool", ownEidPool))
+        {
+            return std::nullopt;
+        }
+    }
     const auto mode = stringToBindingModeMap.at(role);
     if (mode == mctp_server::BindingModeTypes::BusOwner &&
         !getField(map, "EIDPool", eidPool) &&
@@ -198,7 +211,8 @@ static std::optional<SMBusConfiguration>
     config.bmcSlaveAddr = static_cast<uint8_t>(bmcReceiverAddress);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
-
+    config.topMostBusOwner = topMostBusOwner;
+    config.ownEidPool = ownEidPool;
     return config;
 }
 

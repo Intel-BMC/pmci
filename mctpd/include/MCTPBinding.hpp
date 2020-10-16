@@ -38,6 +38,8 @@ struct SMBusConfiguration
     uint8_t bmcSlaveAddr;
     unsigned int reqToRespTime;
     uint8_t reqRetryCount;
+    bool topMostBusOwner;
+    bool ownEidPool;
 };
 
 struct PcieConfiguration
@@ -213,6 +215,7 @@ class MctpBinding
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     std::shared_ptr<object_server>& objectServer;
     std::shared_ptr<dbus_interface> mctpInterface;
+    std::shared_ptr<dbus_interface> busOwnerInterface;
     std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
     std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
     std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
@@ -228,8 +231,9 @@ class MctpBinding
                    std::vector<uint8_t>, std::vector<uint8_t>,
                    std::function<void(PacketState, std::vector<uint8_t>&)>>>
         ctrlTxQueue;
-
-    void createUuid();
+    void getEidRange(const std::set<uint8_t>& eidSet,
+                     std::vector<std::pair<uint8_t, uint8_t>>& eidPool);
+    void createUuid(void);
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool();
     bool sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
