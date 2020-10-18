@@ -153,7 +153,7 @@ int encode_get_firmware_parameters_req(const uint8_t instance_id,
 				       struct pldm_msg *msg,
 				       const size_t payload_length);
 
-/** @brief Decode a GetFirmwareParameters response message
+/** @brief Decode a GetFirmwareParameters component image set response
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
@@ -163,23 +163,37 @@ int encode_get_firmware_parameters_req(const uint8_t instance_id,
  *
  *  @param[in] msg - Response message
  *  @param[in] payload_length - Length of response message payload
- *  @param[out] completion_code - Pointer to response msg's PLDM completion code
  *  @param[out] resp_data - Pointer to get firmware parameters response
  *  @param[out] active_comp_image_set_ver_str - Pointer to active component
  * image set version string
  *  @param[out] pending_comp_image_set_ver_str - Pointer to pending component
  * image set version string
+ *  @return pldm_completion_codes
+ */
+int decode_get_firmware_parameters_comp_img_set_resp(
+    const struct pldm_msg *msg, const size_t payload_length,
+    struct get_firmware_parameters_resp *resp_data,
+    struct variable_field *active_comp_image_set_ver_str,
+    struct variable_field *pending_comp_image_set_ver_str);
+
+/** @brief Decode a GetFirmwareParameters component response
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
  *  @param[out] component_data - Pointer to component parameter table
  *  @param[out] active_comp_ver_str - Pointer to active component version string
  *  @param[out] pending_comp_ver_str - Pointer to pending component version
  * string
  *  @return pldm_completion_codes
  */
-int decode_get_firmware_parameters_resp(
-    const struct pldm_msg *msg, const size_t payload_length,
-    uint8_t *completion_code, struct get_firmware_parameters_resp *resp_data,
-    struct variable_field *active_comp_image_set_ver_str,
-    struct variable_field *pending_comp_image_set_ver_str,
+int decode_get_firmware_parameters_comp_resp(
+    uint8_t *msg, const size_t payload_length,
     struct component_parameter_table *component_data,
     struct variable_field *active_comp_ver_str,
     struct variable_field *pending_comp_ver_str);
