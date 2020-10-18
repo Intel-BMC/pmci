@@ -25,12 +25,10 @@ namespace pldm
 {
 namespace fwu
 {
-using FWUVariantType =
-    std::variant<uint8_t, uint16_t, uint32_t, uint64_t, std::string>;
-// TODO: The map will be updated for adding Get Firmware Parameters capabilities
-std::map<pldm_tid_t, std::map<std::string, FWUVariantType>>
-    terminusFwuProperties;
-std::map<std::string, FWUVariantType> fwuProperties;
+// map that holds the properties of all terminus
+std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
+// map that holds the general properties of a terminus
+FWUProperties fwuProperties;
 
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
@@ -172,7 +170,7 @@ static void
     }
 }
 
-int FWInventoryInfo::runQueryDeviceIdentifiers()
+int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
 {
     uint8_t instanceID = createInstanceId(tid);
     std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
@@ -236,10 +234,205 @@ int FWInventoryInfo::runQueryDeviceIdentifiers()
     return PLDM_SUCCESS;
 }
 
-FWInventoryInfo::FWInventoryInfo(boost::asio::yield_context _yield,
-                                 const pldm_tid_t _tid) :
-    yield(_yield),
-    tid(_tid)
+void FWInventoryInfo::copyCompImgSetData(
+    const struct get_firmware_parameters_resp& respData,
+    const struct variable_field& activeCompImgSetVerData,
+    const struct variable_field& pendingCompImgSetVerData)
+{
+    fwuProperties["CapabilitiesDuringUpdate"] =
+        htole32(respData.capabilities_during_update);
+    fwuProperties["ComponentCount"] = htole16(respData.comp_count);
+    std::string activeCompImgSetVerStr(
+        reinterpret_cast<const char*>(activeCompImgSetVerData.ptr),
+        activeCompImgSetVerData.length);
+    fwuProperties["ActiveCompImgSetVerStr"] = activeCompImgSetVerStr;
+
+    if (pendingCompImgSetVerData.length != 0)
+    {
+        std::string pendingCompImgSetVerStr(
+            reinterpret_cast<const char*>(pendingCompImgSetVerData.ptr),
+            pendingCompImgSetVerData.length);
+        fwuProperties["PendingCompImgSetVerStr"] = pendingCompImgSetVerStr;
+    }
+}
+
+void FWInventoryInfo::copyCompData(
+    const uint16_t count, const struct component_parameter_table* componentData,
+    struct variable_field* activeCompVerData,
+    struct variable_field* pendingCompVerData)
+{
+    std::map<std::string, FWUVariantType> compProperties;
+    compProperties["ComponentClassification"] =
+        componentData->comp_classification;
+    compProperties["ComponentIdentifier"] = componentData->comp_identifier;
+    compProperties["ComponentClassificationIndex"] =
+        componentData->comp_classification_index;
+    compProperties["ActiveComponentComparisonStamp"] =
+        componentData->active_comp_comparison_stamp;
+    compProperties["ActiveComponentReleaseDate"] =
+        componentData->active_comp_release_date;
+    std::string activeCompVerStr(
+        reinterpret_cast<const char*>(activeCompVerData->ptr),
+        activeCompVerData->length);
+    compProperties["ActiveComponentVersionString"] = activeCompVerStr;
+
+    compProperties["PendingComponentComparisonStamp"] =
+        componentData->pending_comp_comparison_stamp;
+    compProperties["PendingComponentReleaseDate"] =
+        componentData->pending_comp_release_date;
+    std::string pendingCompVerStr(
+        reinterpret_cast<const char*>(pendingCompVerData->ptr),
+        pendingCompVerData->length);
+    compProperties["PendingComponentVersionString"] = pendingCompVerStr;
+
+    compProperties["ComponentActivationMethods"] =
+        componentData->comp_activation_methods;
+    compProperties["CapabilitiesDuringUpdate"] =
+        componentData->capabilities_during_update;
+    compPropertiesMap[count] = compProperties;
+}
+
+void FWInventoryInfo::unpackCompData(const uint16_t count,
+                                     const std::vector<uint8_t>& compData)
+{
+    struct component_parameter_table compDataObj;
+    struct variable_field activeCompVerStr;
+    struct variable_field pendingCompVerStr;
+
+    uint16_t found = 0;
+    size_t bytesLeft = 0;
+    auto it = std::begin(compData);
+
+    while (it < std::end(compData) && found != count)
+    {
+        bytesLeft = std::distance(it, std::end(compData));
+
+        if (bytesLeft < sizeof(compDataObj))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetFirmwareParameters: invalid component data");
+            break;
+        }
+
+        int retVal = decode_get_firmware_parameters_comp_resp(
+            &it[0], bytesLeft, &compDataObj, &activeCompVerStr,
+            &pendingCompVerStr);
+
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetFirmwareParameters: decode response of component data "
+                "failed",
+                phosphor::logging::entry("TID=%d", tid),
+                phosphor::logging::entry("RETVAL=%d", retVal));
+            break;
+        }
+
+        size_t offSet = sizeof(struct component_parameter_table) +
+                        compDataObj.active_comp_ver_str_len +
+                        compDataObj.pending_comp_ver_str_len;
+
+        if (offSet > bytesLeft)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetFirmwareParameters: invalid component data");
+            break;
+        }
+        std::advance(it, offSet);
+        found++;
+        copyCompData(found, &compDataObj, &activeCompVerStr,
+                     &pendingCompVerStr);
+    }
+
+    if (found != count)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Component count not matched",
+            phosphor::logging::entry("ACTUAL_COMP_COUNT=%d", found),
+            phosphor::logging::entry("EXPECTED_COMP_COUNT=%d", count));
+    }
+}
+
+int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
+{
+    uint8_t instanceID = createInstanceId(tid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
+
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+
+    int retVal = encode_get_firmware_parameters_req(
+        instanceID, msgReq, PLDM_QUERY_DEVICE_IDENTIFIERS_REQ_BYTES);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFirmwareParameters: encode response failed",
+            phosphor::logging::entry("TID=%d", tid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+
+    std::vector<uint8_t> pldmResp;
+
+    if (!sendReceivePldmMessage(yield, tid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFirmwareParameters: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", tid));
+        return PLDM_ERROR;
+    }
+
+    if (pldmResp.size() < hdrSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFirmwareParameters: Response lenght is invalid");
+        return PLDM_ERROR_INVALID_LENGTH;
+    }
+    auto respMsg = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    size_t payloadLen = pldmResp.size() - hdrSize;
+
+    struct get_firmware_parameters_resp resp;
+    struct variable_field activeCompImageSetVerStr;
+    struct variable_field pendingCompImageSetVerStr;
+
+    retVal = decode_get_firmware_parameters_comp_img_set_resp(
+        respMsg, payloadLen, &resp, &activeCompImageSetVerStr,
+        &pendingCompImageSetVerStr);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFirmwareParameters: decode response failed",
+            phosphor::logging::entry("TID=%d", tid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+
+        return retVal;
+    }
+
+    copyCompImgSetData(resp, activeCompImageSetVerStr,
+                       pendingCompImageSetVerStr);
+
+    size_t compDataOffset = hdrSize + sizeof(get_firmware_parameters_resp) +
+                            resp.active_comp_image_set_ver_str_len +
+                            resp.pending_comp_image_set_ver_str_len;
+
+    if (pldmResp.size() < compDataOffset)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFirmwareParameters: Response lenght is invalid");
+        return PLDM_ERROR_INVALID_LENGTH;
+    }
+
+    std::vector<uint8_t> compData(pldmResp.begin() + compDataOffset,
+                                  pldmResp.end());
+    unpackCompData(resp.comp_count, compData);
+
+    return PLDM_SUCCESS;
+}
+
+FWInventoryInfo::FWInventoryInfo(const pldm_tid_t _tid) : tid(_tid)
 {
 }
 
@@ -263,17 +456,28 @@ static void initializeFWUBase()
     fwuBaseInitialized = true;
 }
 
-int FWInventoryInfo::runInventoryCommands()
+std::optional<FDProperties>
+    FWInventoryInfo::runInventoryCommands(boost::asio::yield_context yield)
 {
-    int retVal = runQueryDeviceIdentifiers();
+    int retVal = runQueryDeviceIdentifiers(yield);
 
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to run QueryDeviceIdentifiers command");
-        return retVal;
+        return std::nullopt;
     }
-    return retVal;
+
+    retVal = runGetFirmwareParameters(yield);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to run GetFirmwareParameters command");
+        return std::nullopt;
+    }
+    FDProperties fdProperties(fwuProperties, compPropertiesMap);
+    return fdProperties;
 }
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
@@ -282,16 +486,19 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     {
         initializeFWUBase();
     }
-    FWInventoryInfo inventoryInfo(yield, tid);
+    FWInventoryInfo inventoryInfo(tid);
 
-    if (inventoryInfo.runInventoryCommands() != PLDM_SUCCESS)
+    if (auto properties = inventoryInfo.runInventoryCommands(yield))
+    {
+        terminusFwuProperties[tid] = *properties;
+    }
+    else
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to run runInventory commands",
             phosphor::logging::entry("TID=%d", tid));
         return false;
     }
-    terminusFwuProperties[tid] = fwuProperties;
 
     fwuProperties.clear();
     return true;
