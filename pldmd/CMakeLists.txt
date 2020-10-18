@@ -56,8 +56,8 @@ set (SERVICE_FILES
 
 add_executable(${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 
-target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lboost_system
-                        -lpthread -lstdc++fs -lphosphor_dbus -lmctpw -lpldm_intel
+target_link_libraries (${PROJECT_NAME} sdbusplus -lsystemd -lpldm_intel
+                        -lpthread -lstdc++fs -lphosphor_dbus -lmctpw
                         -lboost_coroutine)
 
 install (TARGETS ${PROJECT_NAME} DESTINATION bin)
