@@ -22,7 +22,8 @@ namespace pldm
 namespace platform
 {
 
-bool platformInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid)
+bool platformInit(boost::asio::yield_context /*yield*/, const pldm_tid_t tid,
+                  const PLDMCommandTable& /*commandTable*/)
 {
     // TODO: Perform the actual init operations needed
     phosphor::logging::log<phosphor::logging::level::INFO>(

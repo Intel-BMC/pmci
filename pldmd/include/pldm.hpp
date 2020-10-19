@@ -39,6 +39,12 @@ struct PLDMEmptyRequest
     struct pldm_msg_hdr header;
 } __attribute__((packed));
 
+using PLDMCommandTable = std::vector<std::map<
+    ver32_t, /*Supported PLDM Version*/
+    std::array<bitfield8_t, PLDM_MAX_CMDS_PER_TYPE / 8> /*Supported PLDM
+                                                           Commands*/
+    >>;
+
 /** @brief Creates new Instance ID for PLDM messages
  *
  * Generated instance ID will be unique for each TID
@@ -120,7 +126,8 @@ bool baseInit(boost::asio::yield_context yield, const pldm_tid_t tid);
 namespace platform
 {
 
-bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
+                  const PLDMCommandTable& commandTable);
 
 } // namespace platform
 

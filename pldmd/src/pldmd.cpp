@@ -404,7 +404,7 @@ int main(void)
         // Create yield context for each new TID and pass to the Init methods
         boost::asio::spawn(*ioc, [&tid](boost::asio::yield_context yield) {
             // Dummy init method invocation
-            if (pldm::platform::platformInit(yield, *tid))
+            if (pldm::platform::platformInit(yield, *tid, {}))
             {
                 phosphor::logging::log<phosphor::logging::level::INFO>(
                     "PLDM platform init success",
