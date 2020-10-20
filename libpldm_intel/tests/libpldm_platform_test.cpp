@@ -1863,6 +1863,107 @@ TEST(GetSensorReading, testBadDecodeResponse)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 }
 
+TEST(GetPDRRepositoryInfo, testGoodEncodeRequest)
+{
+    std::array<uint8_t, hdrSize> reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+    constexpr uint8_t instanceId = 0x0A;
+
+    auto rc = encode_get_pdr_repository_info_req(instanceId, msg);
+
+    EXPECT_EQ(msg->hdr.command, PLDM_GET_PDR_REPOSITORY_INFO);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+}
+
+TEST(GetPDRRepositoryInfo, testBadEncodeRequest)
+{
+    constexpr uint8_t instanceId = 0x0A;
+
+    auto rc = encode_get_pdr_repository_info_req(instanceId, NULL);
+
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(GetPDRRepositoryInfo, testGoodDecodeResponse)
+{
+    std::array<uint8_t, hdrSize + sizeof(pldm_get_pdr_repository_info_resp)>
+        resp{};
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint32_t recordCount = 100;
+    uint32_t repositorySize = 1024;
+    uint32_t largestRecordSize = 64;
+    uint8_t dataTransferHandle = 0x00;
+
+    struct pldm_get_pdr_repository_info_resp* pdrInfoResp =
+        reinterpret_cast<struct pldm_get_pdr_repository_info_resp*>(
+            rspMsg->payload);
+    pdrInfoResp->completion_code = completionCode;
+    pdrInfoResp->pdr_repo_info.repository_state =
+        PLDM_PDR_REPOSITORY_STATE_AVAILABLE;
+    pdrInfoResp->pdr_repo_info.record_count = htole32(recordCount);
+    pdrInfoResp->pdr_repo_info.repository_size = htole32(repositorySize);
+    pdrInfoResp->pdr_repo_info.largest_record_size = htole32(largestRecordSize);
+    pdrInfoResp->pdr_repo_info.data_transfer_handle_timeout =
+        dataTransferHandle;
+
+    struct pldm_get_pdr_repository_info_resp pdrInfo;
+    auto rc = decode_get_pdr_repository_info_resp(rspMsg, resp.size() - hdrSize,
+                                                  &pdrInfo);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(pdrInfo.completion_code, completionCode);
+    EXPECT_EQ(pdrInfo.pdr_repo_info.repository_state,
+              PLDM_PDR_REPOSITORY_STATE_AVAILABLE);
+    EXPECT_EQ(pdrInfo.pdr_repo_info.record_count, recordCount);
+    EXPECT_EQ(pdrInfo.pdr_repo_info.repository_size, repositorySize);
+    EXPECT_EQ(pdrInfo.pdr_repo_info.largest_record_size, largestRecordSize);
+    EXPECT_EQ(pdrInfo.pdr_repo_info.data_transfer_handle_timeout,
+              dataTransferHandle);
+    // TODO: Validate updateTime and OEMUpdateTime
+}
+
+TEST(GetPDRRepositoryInfo, testBadDecodeResponse)
+{
+    std::array<uint8_t, hdrSize + sizeof(pldm_get_pdr_repository_info_resp)>
+        resp{};
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+    int rc;
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint32_t recordCount = 100;
+    uint32_t repositorySize = 1024;
+    uint32_t largestRecordSize = 64;
+    uint8_t dataTransferHandle = 0x00;
+
+    struct pldm_get_pdr_repository_info_resp* pdrInfoResp =
+        reinterpret_cast<struct pldm_get_pdr_repository_info_resp*>(
+            rspMsg->payload);
+    pdrInfoResp->completion_code = completionCode;
+    pdrInfoResp->pdr_repo_info.repository_state =
+        PLDM_PDR_REPOSITORY_STATE_AVAILABLE;
+    pdrInfoResp->pdr_repo_info.record_count = htole32(recordCount);
+    pdrInfoResp->pdr_repo_info.repository_size = htole32(repositorySize);
+    pdrInfoResp->pdr_repo_info.largest_record_size = htole32(largestRecordSize);
+    pdrInfoResp->pdr_repo_info.data_transfer_handle_timeout =
+        dataTransferHandle;
+
+    rc = decode_get_pdr_repository_info_resp(rspMsg, resp.size() - hdrSize,
+                                             NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    struct pldm_get_pdr_repository_info_resp pdrInfo;
+    rc = decode_get_pdr_repository_info_resp(
+        NULL, hdrSize + sizeof(pldm_get_pdr_repository_info_resp), &pdrInfo);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_pdr_repository_info_resp(rspMsg, hdrSize, &pdrInfo);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

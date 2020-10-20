@@ -81,4 +81,22 @@ typedef union {
 
 typedef float real32_t;
 
+typedef struct {
+#if defined(__LITTLE_ENDIAN_BITFIELD)
+	uint8_t utc_resolution : 4;  /* bit 7:4 UTC & time resolution */
+	uint8_t time_resolution : 4; /* bit 3:0 UTC & time resolution */
+#else
+	uint8_t time_resolution : 4; /* bit 3:0 UTC & time resolution */
+	uint8_t utc_resolution : 4;  /* bit 7:4 UTC & time resolution */
+#endif
+	uint16_t year;		   /* year without any offset */
+	uint8_t month;		   /* 1..12 */
+	uint8_t day;		   /* 1..31 */
+	uint8_t hour;		   /* 0..23 */
+	uint8_t minute;		   /* 0..59 */
+	uint8_t second;		   /* 0..59 */
+	uint32_t microsecond : 24; /* 24 bit value starting from 0*/
+	int16_t utc_offset;	   /* offset in minutes signed int16 */
+} __attribute__((packed)) timestamp104_t;
+
 #endif /* PLDM_TYPES_H */

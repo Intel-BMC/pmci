@@ -723,6 +723,35 @@ TEST(SetTID, decodeResponseInvalid)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(HeaderOnlyRequest, encodeHeaderOnlyRequestValid)
+{
+    std::array<uint8_t, hdrSize> reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+    constexpr uint8_t instanceID = 0x0B;
+    constexpr uint8_t pldmType = PLDM_BASE;
+    constexpr uint8_t command = PLDM_GET_TID;
+
+    auto rc = encode_header_only_request(instanceID, pldmType, command, msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, command);
+    EXPECT_EQ(msg->hdr.type, pldmType);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+}
+
+TEST(HeaderOnlyRequest, encodeHeaderOnlyRequestInvalid)
+{
+    constexpr uint8_t instanceID = 0x0B;
+    constexpr uint8_t pldmType = PLDM_BASE;
+    constexpr uint8_t command = PLDM_GET_TID;
+
+    auto rc = encode_header_only_request(instanceID, pldmType, command, NULL);
+
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

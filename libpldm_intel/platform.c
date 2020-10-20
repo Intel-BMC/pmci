@@ -1534,3 +1534,50 @@ int decode_get_sensor_reading_req(const struct pldm_msg *msg,
 
 	return PLDM_SUCCESS;
 }
+
+int encode_get_pdr_repository_info_req(const uint8_t instance_id,
+				       struct pldm_msg *msg)
+{
+	return encode_header_only_request(instance_id, PLDM_PLATFORM,
+					  PLDM_GET_PDR_REPOSITORY_INFO, msg);
+}
+
+int decode_get_pdr_repository_info_resp(
+    const struct pldm_msg *msg, size_t payload_length,
+    struct pldm_get_pdr_repository_info_resp *resp)
+{
+
+	if (msg == NULL || resp == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	resp->completion_code = msg->payload[0];
+	if (resp->completion_code != PLDM_SUCCESS) {
+		return PLDM_SUCCESS;
+	}
+
+	if (sizeof(struct pldm_get_pdr_repository_info_resp) !=
+	    payload_length) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	memcpy(&resp->pdr_repo_info, &msg->payload[1],
+	       sizeof(struct pldm_pdr_repository_info));
+
+	switch (resp->pdr_repo_info.repository_state) {
+	case PLDM_PDR_REPOSITORY_STATE_AVAILABLE:
+	case PLDM_PDR_REPOSITORY_STATE_UPDATE_IN_PROGRESS:
+	case PLDM_PDR_REPOSITORY_STATE_FAILED:
+		break;
+	default:
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	LE32TOH(resp->pdr_repo_info.record_count);
+	LE32TOH(resp->pdr_repo_info.repository_size);
+	LE32TOH(resp->pdr_repo_info.largest_record_size);
+
+	// TODO: Validate is update_time and oem_update_time legal
+
+	return PLDM_SUCCESS;
+}
