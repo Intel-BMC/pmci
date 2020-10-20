@@ -126,6 +126,7 @@ class MctpBinding
     uint8_t busOwnerEid;
 
     void initializeMctp();
+    void initializeLogging(void);
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
     virtual bool isReceivedPrivateDataCorrect(const void* bindingPrivate);

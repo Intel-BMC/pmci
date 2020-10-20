@@ -275,7 +275,7 @@ void MctpBinding::createUuid()
 
 void MctpBinding::initializeMctp()
 {
-    mctp_set_log_stdio(MCTP_LOG_INFO);
+    initializeLogging();
     mctp = mctp_init();
     if (!mctp)
     {
@@ -283,6 +283,24 @@ void MctpBinding::initializeMctp()
             "Failed to init mctp");
         throw std::system_error(
             std::make_error_code(std::errc::not_enough_memory));
+    }
+}
+
+void MctpBinding::initializeLogging(void)
+{
+    // Default log level
+    mctp_set_log_stdio(MCTP_LOG_INFO);
+
+    if (auto envPtr = std::getenv("MCTP_TRACES"))
+    {
+        std::string value(envPtr);
+        if (value == "1")
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "MCTP traces enabled, expect lower performance");
+            mctp_set_log_stdio(MCTP_LOG_DEBUG);
+            mctp_set_tracing_enabled(true);
+        }
     }
 }
 
