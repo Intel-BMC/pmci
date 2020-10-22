@@ -34,6 +34,52 @@ extern "C" {
 #define PLDM_QUERY_DEVICE_IDENTIFIERS_REQ_BYTES 0
 // descriptor type 2 byte, length 2 bytes and data 1 byte min.
 #define PLDM_FWU_MIN_DESCRIPTOR_IDENTIFIERS_LEN 5
+/* Maximum progress percentage value*/
+#define FW_UPDATE_MAX_PROGRESS_PERCENT 0x65
+
+/** @brief PLDM Firmware Update States
+ */
+enum pldm_firmware_update_state {
+	FD_IDLE = 0,
+	FD_LEARN_COMPONENTS = 1,
+	FD_READY_XFER = 2,
+	FD_DOWNLOAD = 3,
+	FD_VERIFY = 4,
+	FD_APPLY = 5,
+	FD_ACTIVATE = 6
+};
+
+/** @brief PLDM Firmware Update AuxStates
+ */
+enum pldm_firmware_update_aux_state {
+	FD_OPERATION_IN_PROGRESS = 0,
+	FD_OPERATION_SUCCESSFUL = 1,
+	FD_OPERATION_FAILED = 2,
+	FD_WAIT = 3
+};
+
+/** @brief PLDM Firmware Update AuxStateStatus
+ */
+enum pldm_firmware_update_aux_state_status {
+	FD_AUX_STATE_IN_PROGRESS_OR_SUCCESS = 0x00,
+	FD_TIMEOUT = 0x09,
+	FD_GENERIC_ERROR = 0x0A,
+	FD_VENDOR_DEFINED_STATUS_CODE_START = 0x70,
+	FD_VENDOR_DEFINED_STATUS_CODE_END = 0xEF
+};
+
+/** @brief PLDM Firmware Update ReasonCode
+ */
+enum pldm_firmware_update_reason_code {
+	FD_INITIALIZATION = 0,
+	FD_ACTIVATE_FW_RECEIVED = 1,
+	FD_CANCEL_UPDATE_RECEIVED = 2,
+	FD_TIMEOUT_LEARN_COMPONENT = 3,
+	FD_TIMEOUT_READY_XFER = 4,
+	FD_TIMEOUT_DOWNLOAD = 5,
+	FD_STATUS_VENDOR_DEFINED_MIN = 200,
+	FD_STATUS_VENDOR_DEFINED_MAX = 255
+};
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
 
@@ -239,6 +285,21 @@ struct get_fd_data_resp {
 	uint8_t completion_code;
 	uint32_t next_data_transfer_handle;
 	uint8_t transfer_flag;
+} __attribute__((packed));
+
+/** @struct get_status_resp
+ *
+ *  Structure representing GetStatus response.
+ */
+struct get_status_resp {
+	uint8_t completion_code;
+	uint8_t current_state;
+	uint8_t previous_state;
+	uint8_t aux_state;
+	uint8_t aux_state_status;
+	uint8_t progress_percent;
+	uint8_t reason_code;
+	bitfield32_t update_option_flags_enabled;
 } __attribute__((packed));
 
 /* QueryDeviceIdentifiers */
@@ -824,6 +885,47 @@ int decode_get_meta_data_req(const struct pldm_msg *msg,
 			     const size_t payload_length,
 			     uint32_t *data_transfer_handle,
 			     uint8_t *transfer_operation_flag);
+
+/** @brief Create a PLDM request message for GetStatus
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *		   'msg.payload'
+ */
+int encode_get_status_req(const uint8_t instance_id, struct pldm_msg *msg);
+
+/** @brief Decode a GetStatus response message
+ *
+ *  Note:
+ *	* If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *	* If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion
+ *code
+ *  @param[out] current_state - Pointer to current state machine state
+ *  @param[out] previous_state - Pointer to previous different state machine
+ * state
+ *  @param[out] aux_state - Pointer to current operation state
+ *  @param[out] aux_state_status - Pointer to aux state status
+ *  @param[out] progress_percent - Pointer to current progress percentage
+ *  @param[out] reason_code - Pointer to reason for entering current state
+ *  @param[out] update_option_flags_enabled - Pointer to
+ *updateOptionFlagsEnabled
+ *  @return pldm_completion_codes
+ */
+int decode_get_status_resp(const struct pldm_msg *msg,
+			   const size_t payload_length,
+			   uint8_t *completion_code, uint8_t *current_state,
+			   uint8_t *previous_state, uint8_t *aux_state,
+			   uint8_t *aux_state_status, uint8_t *progress_percent,
+			   uint8_t *reason_code,
+			   bitfield32_t *update_option_flags_enabled);
 
 #ifdef __cplusplus
 }
