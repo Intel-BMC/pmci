@@ -688,9 +688,9 @@ bool MctpBinding::getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam)
     }
     else if constexpr (cmd == MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT)
     {
-        req.resize(sizeof(mctp_ctrl_cmd_get_vdm_support));
-        mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
-            reinterpret_cast<mctp_ctrl_cmd_get_vdm_support*>(req.data());
+        req.resize(sizeof(struct mctp_ctrl_cmd_get_vdm_support));
+        struct mctp_ctrl_cmd_get_vdm_support* getVdmSupport =
+            reinterpret_cast<struct mctp_ctrl_cmd_get_vdm_support*>(req.data());
 
         mctp_encode_ctrl_cmd_get_vdm_support(getVdmSupport, getRqDgramInst(),
                                              std::forward<Args>(reqParam)...);
