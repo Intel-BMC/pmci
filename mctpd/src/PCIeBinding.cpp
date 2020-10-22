@@ -120,10 +120,13 @@ void PCIeBinding::updateRoutingTable()
                     entryOffset += routingTableEntry->phys_address_size;
                     continue;
                 }
-                uint16_t endpointBdfRaw =
-                    getRoutingTableEntryResp[entryOffset] +
-                    uint16_t(getRoutingTableEntryResp[entryOffset + 1] << 8);
-                uint16_t endpointBdf = be16toh(endpointBdfRaw);
+                uint16_t endpointBdf = be16toh(static_cast<uint16_t>(
+                    static_cast<uint16_t>(
+                        getRoutingTableEntryResp[entryOffset]) |
+                    (static_cast<uint16_t>(
+                         getRoutingTableEntryResp[entryOffset + 1])
+                     << 8)));
+
                 for (uint8_t j = 0; j < routingTableEntry->eid_range_size; j++)
                 {
                     routingTableTmp.push_back(std::make_tuple(
