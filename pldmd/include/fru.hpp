@@ -46,19 +46,28 @@ static void removeInterface(
     std::string& interfacePath,
     std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>& interfaces);
 
-class PLDMFRUCmd
+/** @brief run SetFRURecordTable command
+ *
+ * @return PLDM_SUCCESS on success and corresponding error completion code
+ * on failure
+ */
+int setFruRecordTableCmd(boost::asio::yield_context& yield,
+                         const pldm_tid_t tid,
+                         const std::vector<uint8_t>& setFruData);
+
+class GetPLDMFRU
 {
   public:
-    PLDMFRUCmd() = delete;
-    PLDMFRUCmd(boost::asio::yield_context yieldVal, const pldm_tid_t tidVal);
-    ~PLDMFRUCmd();
+    GetPLDMFRU() = delete;
+    GetPLDMFRU(boost::asio::yield_context yieldVal, const pldm_tid_t tidVal);
+    ~GetPLDMFRU();
 
     /** @brief runs supported FRU commands
      *
      * @return true on success; false otherwise
      * on failure
      */
-    bool runFRUCommands();
+    bool runGetFRUCommands();
 
   private:
     /** @brief run GetFRURecordTableMetadata command
