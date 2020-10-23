@@ -40,6 +40,7 @@ set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 # Add header and sources here
 set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/platform.cpp
+               ${PROJECT_SOURCE_DIR}/src/pdr_manager.cpp
                ${PROJECT_SOURCE_DIR}/src/sdbus-asio.cpp
                ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
                ${PROJECT_SOURCE_DIR}/src/fru.cpp

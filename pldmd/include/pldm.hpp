@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
@@ -30,6 +31,8 @@ std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
 
 namespace pldm
 {
+constexpr size_t pldmMsgHdrSize = sizeof(pldm_msg_hdr);
+
 /** @brief pldm_empty_request
  *
  * structure representing PLDM empty request.
@@ -150,11 +153,35 @@ bool baseInit(boost::asio::yield_context yield, const pldm_tid_t tid);
 namespace platform
 {
 
+/** @brief Initilize Platform Monitoring and Control
+ *
+ * Initilizes supported functionalities defined in spec DSP0248.
+ *
+ * @param yield - Context object the represents the currently executing
+ * coroutine
+ * @param tid - TID of the PLDM device
+ * @param commandTable - PLDM command table which defines supported Platform M&C
+ * versions and commands
+ *
+ * @return Status of the operation
+ */
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const PLDMCommandTable& commandTable);
 
+/** @brief Destroy Platform Monitoring and Control
+ *
+ * Destroy Platform Monitoring and Control resources allocated for specific TID.
+ *
+ * @param tid - TID of the PLDM device
+ *
+ * @return Status of the operation
+ */
+
+bool platformDestroy(const pldm_tid_t tid);
+
 } // namespace platform
 
+// TODO: add destroy APIs for Base, FRU and FWU
 namespace fru
 {
 
