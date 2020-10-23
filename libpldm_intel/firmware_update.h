@@ -159,6 +159,16 @@ struct request_update_resp {
 	uint8_t fd_pkg_data;
 } __attribute__((packed));
 
+/** @struct cancel_update_resp
+ *
+ *  Structure representing CancelUpdate response.
+ */
+struct cancel_update_resp {
+	uint8_t completion_code;
+	bool8_t non_functioning_component_indication;
+	uint64_t non_functioning_component_bitmap;
+};
+
 /* QueryDeviceIdentifiers */
 
 /** @brief Create a PLDM request message for QueryDeviceIdentifiers
@@ -506,6 +516,40 @@ int encode_cancel_update_component_req(const uint8_t instance_id,
 int decode_cancel_update_component_resp(const struct pldm_msg *msg,
 					const size_t payload_length,
 					uint8_t *completion_code);
+
+/** @brief Create a PLDM request message for CancelUpdate
+ *
+ *	@param[in] instance_id - Message's instance id
+ *	@param[in,out] msg - Message will be written to this
+ *	@return pldm_completion_codes
+ *	@note  Caller is responsible for memory alloc and dealloc of param
+ *		   'msg.payload'
+ */
+int encode_cancel_update_req(const uint8_t instance_id, struct pldm_msg *msg);
+
+/** @brief Decode a CancelUpdate response message
+ *
+ *	Note:
+ *	* If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *	* If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *	@param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *	@param[out] completion_code - Pointer to response msg's PLDM completion
+ *code
+ *	@param[out] non_functioning_component_indication - Pointer to non
+ *funcional component indication
+ *	@param[out] non_functioning_component_bitmap - Pointer to non functional
+ *component bitmap state
+ *	@return pldm_completion_codes
+ */
+int decode_cancel_update_resp(const struct pldm_msg *msg,
+			      const size_t payload_len,
+			      uint8_t *completion_code,
+			      bool8_t *non_functioning_component_indication,
+			      uint64_t *non_functioning_component_bitmap);
 
 #ifdef __cplusplus
 }
