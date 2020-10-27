@@ -3,6 +3,7 @@
 #include "MCTPBinding.hpp"
 
 #include <libmctp-astpcie.h>
+#include <libudev.h>
 
 #include <boost/asio/deadline_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/PCIe/server.hpp>
@@ -48,9 +49,15 @@ class PCIeBinding : public MctpBinding
     uint16_t bdf;
     uint16_t busOwnerBdf;
     std::shared_ptr<dbus_interface> pcieInterface;
+    udev* udevContext;
+    udev_device* udevice;
+    udev_monitor* umonitor;
+    static constexpr const char* astUdevPath =
+        "/sys/devices/platform/ahb/ahb:apb/1e6e8000.mctp/misc/aspeed-mctp";
     pcie_binding::DiscoveryFlags discoveredFlag{};
     struct mctp_binding_astpcie* pcie = nullptr;
     boost::asio::posix::stream_descriptor streamMonitor;
+    boost::asio::posix::stream_descriptor ueventMonitor;
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTable;
@@ -66,4 +73,7 @@ class PCIeBinding : public MctpBinding
     mctp_server::BindingModeTypes
         getBindingMode(const routingTableEntry_t& routingEntry);
     void changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag);
+    bool initializeUdev();
+    void monitorUdevEvents();
+    void ueventHandlePcieReady(udev_device* dev);
 };

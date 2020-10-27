@@ -6,7 +6,7 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
                          std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
     MctpBinding(objServer, objPath, conf, ioc),
-    streamMonitor(ioc),
+    streamMonitor(ioc), ueventMonitor(ioc),
     getRoutingInterval(std::get<PcieConfiguration>(conf).getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval)
 {
@@ -31,6 +31,7 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
             throw std::system_error(
                 std::make_error_code(std::errc::function_not_supported));
         }
+
         if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
         {
             getRoutingTableTimer.async_wait(
@@ -407,8 +408,14 @@ void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
             std::make_error_code(std::errc::not_enough_memory));
     }
     streamMonitor.assign(driverFd);
-    readResponse();
 
+    if (initializeUdev() == false)
+    {
+        throw std::system_error(
+            std::make_error_code(std::errc::function_not_supported));
+    }
+
+    readResponse();
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
         boost::asio::post(io, [this]() {
@@ -419,6 +426,125 @@ void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
             }
         });
     }
+
+    if (mctp_astpcie_get_bdf(pcie, &bdf) == 0)
+    {
+        pcieInterface->set_property("BDF", bdf);
+    }
+
+    monitorUdevEvents();
+}
+
+bool PCIeBinding::initializeUdev()
+{
+    try
+    {
+        udevContext = udev_new();
+        if (!udevContext)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
+        udevice = udev_device_new_from_syspath(udevContext, astUdevPath);
+        if (!udevice)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
+        umonitor = udev_monitor_new_from_netlink(udevContext, "udev");
+        if (!umonitor)
+        {
+            throw std::system_error(
+                std::make_error_code(std::errc::function_not_supported));
+        }
+        /* TODO: Uncomment when event subsytem fix in KMD will be ready */
+        // udev_monitor_filter_add_match_subsystem_devtype(umonitor, "misc",
+        // NULL);
+        udev_monitor_enable_receiving(umonitor);
+        ueventMonitor.assign(udev_monitor_get_fd(umonitor));
+        return true;
+    }
+    catch (std::exception& e)
+    {
+        if (udevice)
+        {
+            udev_device_unref(udevice);
+            udevice = nullptr;
+        }
+        if (udevContext)
+        {
+            udev_unref(udevContext);
+            udevContext = nullptr;
+        }
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Udev initialization failed",
+            phosphor::logging::entry("Exception:", e.what()));
+    }
+    return false;
+}
+
+void PCIeBinding::monitorUdevEvents()
+{
+    ueventMonitor.async_wait(
+        boost::asio::posix::stream_descriptor::wait_read,
+        [this](const boost::system::error_code& ec) {
+            if (ec)
+            {
+                if (ec == boost::asio::error::operation_aborted)
+                {
+                    return;
+                }
+
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Error reading uevents",
+                    phosphor::logging::entry("error:", ec.message().c_str()));
+                monitorUdevEvents();
+                return;
+            }
+
+            udev_device* dev = udev_monitor_receive_device(umonitor);
+            if (dev)
+            {
+                ueventHandlePcieReady(dev);
+                udev_device_unref(dev);
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Udev monitor get device failed");
+            }
+
+            monitorUdevEvents();
+        });
+}
+
+void PCIeBinding::ueventHandlePcieReady(udev_device* dev)
+{
+    const char* value = udev_device_get_property_value(dev, "PCIE_READY");
+
+    if (!value)
+    {
+        return;
+    }
+
+    if (strcmp(value, "1") == 0)
+    {
+        if (mctp_astpcie_get_bdf(pcie, &bdf) != 0)
+        {
+            bdf = 0;
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Astpcie get bdf failed");
+        }
+    }
+    else
+    {
+        bdf = 0;
+        if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+        {
+            changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
+        }
+    }
+    pcieInterface->set_property("BDF", bdf);
 }
 
 bool PCIeBinding::getBindingPrivateData(uint8_t dstEid,
@@ -455,9 +581,15 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
 
 PCIeBinding::~PCIeBinding()
 {
-    if (streamMonitor.native_handle() >= 0)
+
+    streamMonitor.release();
+
+    if (umonitor)
     {
-        streamMonitor.release();
+        ueventMonitor.release();
+        udev_monitor_unref(umonitor);
+        udev_device_unref(udevice);
+        udev_unref(udevContext);
     }
     if (pcie)
     {
