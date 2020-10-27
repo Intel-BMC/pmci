@@ -433,7 +433,8 @@ int main(void)
 
     // Using dummy EID exposed by emulator until the discovery is implemented
     mctpw_eid_t dummyEid = 8;
-    if (auto tid = pldm::getFreeTid())
+    auto tid = pldm::getFreeTid();
+    if (tid)
     {
         // TODO: Add TID to mapper only if setTID/getTID success
         pldm::addToMapper(*tid, dummyEid);
@@ -442,15 +443,22 @@ int main(void)
         // corresponding init methods
 
         // Create yield context for each new TID and pass to the Init methods
-        boost::asio::spawn(*ioc, [&tid](boost::asio::yield_context yield) {
-            // Dummy init method invocation
-            if (pldm::platform::platformInit(yield, *tid, {}))
-            {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    "PLDM platform init success",
-                    phosphor::logging::entry("TID=%d", *tid));
-            }
-        });
+        boost::asio::spawn(
+            *ioc, [&tid, &dummyEid](boost::asio::yield_context yield) {
+                pldm_tid_t assignedTID = 0x00;
+                if (pldm::base::baseInit(yield, dummyEid, assignedTID))
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "PLDM base init success",
+                        phosphor::logging::entry("EID=%d", dummyEid));
+                }
+                if (pldm::platform::platformInit(yield, *tid, {}))
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "PLDM platform init success",
+                        phosphor::logging::entry("TID=%d", *tid));
+                }
+            });
     }
     ioc->run();
 

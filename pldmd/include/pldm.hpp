@@ -146,7 +146,8 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
 namespace base
 {
 
-bool baseInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
+              pldm_tid_t& tid);
 
 } // namespace base
 
