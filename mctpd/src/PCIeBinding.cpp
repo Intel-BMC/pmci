@@ -260,7 +260,7 @@ void PCIeBinding::readResponse()
  * conf can't be removed since we override virtual function that has the
  * ConfigurationVariant& as argument
  */
-void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
+void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
 {
     int status = 0;
     initializeMctp();
@@ -288,8 +288,10 @@ void PCIeBinding::initializeBinding([[maybe_unused]] ConfigurationVariant& conf)
         throw std::system_error(
             std::make_error_code(static_cast<std::errc>(-status)));
     }
-    mctp_set_rx_all(mctp, rxMessage, nullptr);
-    mctp_set_rx_ctrl(mctp, handleMCTPControlRequests, nullptr);
+    mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
+                    static_cast<MctpBinding*>(this));
+    mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
+                     static_cast<MctpBinding*>(this));
     mctp_binding_set_tx_enabled(binding, true);
 
     int driverFd = mctp_astpcie_get_fd(pcie);

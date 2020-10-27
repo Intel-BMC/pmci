@@ -17,23 +17,12 @@ constexpr unsigned int ctrlTxPollInterval = 5;
 constexpr size_t minCmdRespSize = 4;
 constexpr int completionCodeIndex = 3;
 
-// map<EID, assigned>
-static std::unordered_map<mctp_eid_t, bool> eidPoolMap;
-bool ctrlTxTimerExpired = true;
-// <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
-//  Callback>
-static std::vector<
-    std::tuple<PacketState, uint8_t, unsigned int, mctp_eid_t,
-               std::vector<uint8_t>, std::vector<uint8_t>,
-               std::function<void(PacketState, std::vector<uint8_t>&)>>>
-    ctrlTxQueue;
-
 static uint8_t getInstanceId(const uint8_t msg)
 {
     return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
 }
 
-static void handleCtrlResp(void* msg, const size_t len)
+void MctpBinding::handleCtrlResp(void* msg, const size_t len)
 {
     mctp_ctrl_msg_hdr* respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(msg);
 
@@ -78,12 +67,12 @@ static void handleCtrlResp(void* msg, const size_t len)
 }
 
 /*
- * Declare unused parameters as "maybe_unused", since rxMessage is a callback
+ * Comment out unused parameters since rxMessage is a callback
  * passed to libmctp and we have to match its expected prototype.
  */
-void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
-               size_t len, bool tagOwner, uint8_t msgTag,
-               [[maybe_unused]] void* binding_private)
+void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
+                            bool tagOwner, uint8_t msgTag,
+                            void* /*bindingPrivate*/)
 {
     uint8_t* payload = reinterpret_cast<uint8_t*>(msg);
     uint8_t msgType = payload[0]; // Always the first byte
@@ -100,19 +89,21 @@ void rxMessage(uint8_t srcEid, [[maybe_unused]] void* data, void* msg,
         msgSignal.signal_send();
     }
 
+    auto* binding = static_cast<MctpBinding*>(data);
     // TODO: Take into account the msgTags too when we verify control messages.
     if (mctp_is_mctp_ctrl_msg(msg, len) && !mctp_ctrl_msg_is_req(msg, len) &&
         !tagOwner)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "MCTP Control packet response received!!");
-        handleCtrlResp(msg, len);
+        binding->handleCtrlResp(msg, len);
     }
 }
 
-void handleMCTPControlRequests(uint8_t srcEid, [[maybe_unused]] void* data,
-                               void* msg, size_t len, bool tagOwner,
-                               uint8_t msgTag, void* bindingPrivate)
+void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
+                                            void* msg, size_t len,
+                                            bool tagOwner, uint8_t msgTag,
+                                            void* bindingPrivate)
 {
     /*
      * We only check the msg pointer, private data may be unused by some
@@ -130,11 +121,8 @@ void handleMCTPControlRequests(uint8_t srcEid, [[maybe_unused]] void* data,
             "MCTP Control Message expects that tagOwner is set");
         return;
     }
-    std::visit(
-        [srcEid, bindingPrivate, msg, len, msgTag](auto& binding) {
-            binding->handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
-        },
-        bindingPtr);
+    auto* binding = static_cast<MctpBinding*>(data);
+    binding->handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
 }
 
 bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
@@ -259,7 +247,7 @@ MctpBinding::~MctpBinding()
     }
 }
 
-void MctpBinding::createUuid(void)
+void MctpBinding::createUuid()
 {
     sd_id128_t id;
 
@@ -276,7 +264,7 @@ void MctpBinding::createUuid(void)
     }
 }
 
-void MctpBinding::initializeMctp(void)
+void MctpBinding::initializeMctp()
 {
     mctp_set_log_stdio(MCTP_LOG_INFO);
     mctp = mctp_init();
@@ -325,7 +313,7 @@ void MctpBinding::updateEidStatus(const mctp_eid_t endpointId,
     }
 }
 
-mctp_eid_t MctpBinding::getAvailableEidFromPool(void)
+mctp_eid_t MctpBinding::getAvailableEidFromPool()
 {
     // Note:- No need to check for busowner role explicitly when accessing EID
     // pool since getAvailableEidFromPool will be called only in busowner mode.
@@ -360,7 +348,7 @@ bool MctpBinding::sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
     return true;
 }
 
-void MctpBinding::processCtrlTxQueue(void)
+void MctpBinding::processCtrlTxQueue()
 {
     ctrlTxTimerExpired = false;
     ctrlTxTimer.expires_after(std::chrono::milliseconds(ctrlTxPollInterval));
@@ -623,7 +611,7 @@ PacketState MctpBinding::sendAndRcvMctpCtrl(
     return pktState;
 }
 
-static uint8_t createInstanceId(void)
+static uint8_t createInstanceId()
 {
     static uint8_t instanceId = 0x00;
 
@@ -631,7 +619,7 @@ static uint8_t createInstanceId(void)
     return instanceId;
 }
 
-static uint8_t getRqDgramInst(void)
+static uint8_t getRqDgramInst()
 {
     uint8_t instanceID = createInstanceId();
     uint8_t rqDgramInst = instanceID | MCTP_CTRL_HDR_FLAG_REQUEST;

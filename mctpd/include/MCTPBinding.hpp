@@ -102,19 +102,6 @@ using ConfigurationVariant =
 
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
 
-using BindingVariant =
-    std::variant<std::unique_ptr<SMBusBinding>, std::unique_ptr<PCIeBinding>>;
-
-extern BindingVariant bindingPtr;
-
-void rxMessage(uint8_t /*srcEid*/, void* /*data*/, void* /*msg*/,
-               size_t /*len*/, bool /*tagOwner*/, uint8_t /*msgTag*/,
-               void* /*msg_binding_private*/);
-
-void handleMCTPControlRequests(uint8_t /*srcEid*/, void* /*data*/,
-                               void* /*msg*/, size_t /*len*/, bool /*tagOwner*/,
-                               uint8_t /*msgTag*/, void* /*bindingPrivate*/);
-
 class MctpBinding
 {
   public:
@@ -137,7 +124,8 @@ class MctpBinding
     struct mctp* mctp = nullptr;
     uint8_t ownEid;
     uint8_t busOwnerEid;
-    void initializeMctp(void);
+
+    void initializeMctp();
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
     virtual bool handlePrepareForEndpointDiscovery(
@@ -185,6 +173,14 @@ class MctpBinding
                          const std::vector<uint8_t>& bindingPrivate,
                          bool isBusOwner);
 
+    // MCTP Callbacks
+    void handleCtrlResp(void* msg, const size_t len);
+    static void rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
+                          bool tagOwner, uint8_t msgTag, void* bindingPrivate);
+    static void handleMCTPControlRequests(uint8_t srcEid, void* data, void* msg,
+                                          size_t len, bool tagOwner,
+                                          uint8_t msgTag, void* bindingPrivate);
+
     template <typename Interface, typename PropertyType>
     void registerProperty(Interface ifc, const std::string& name,
                           const PropertyType& property,
@@ -209,13 +205,24 @@ class MctpBinding
     std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
     boost::asio::steady_timer ctrlTxTimer;
 
-    void createUuid(void);
+    // map<EID, assigned>
+    std::unordered_map<mctp_eid_t, bool> eidPoolMap;
+    bool ctrlTxTimerExpired = true;
+    // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
+    //  Callback>
+    std::vector<
+        std::tuple<PacketState, uint8_t, unsigned int, mctp_eid_t,
+                   std::vector<uint8_t>, std::vector<uint8_t>,
+                   std::function<void(PacketState, std::vector<uint8_t>&)>>>
+        ctrlTxQueue;
+
+    void createUuid();
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
-    mctp_eid_t getAvailableEidFromPool(void);
+    mctp_eid_t getAvailableEidFromPool();
     bool sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
                          bool tagOwner, uint8_t msgTag,
                          std::vector<uint8_t> bindingPrivate);
-    void processCtrlTxQueue(void);
+    void processCtrlTxQueue();
     void pushToCtrlTxQueue(
         PacketState pktState, const mctp_eid_t destEid,
         const std::vector<uint8_t>& bindingPrivate,

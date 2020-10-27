@@ -165,7 +165,7 @@ static bool isMuxBus(const std::string& bus)
  * dstEid can't be removed because this is a callback passed to libmctp and we
  * have to match its expected prototype.
  */
-int getSMBusOutputAddress([[maybe_unused]] uint8_t dstEid, uint8_t* outAddr)
+int getSMBusOutputAddress(uint8_t /*dstEid*/, uint8_t* outAddr)
 {
     // Mapping should rely on routing table and message binding private
     // Handling this here until libmctp implements routing infrastructure
@@ -285,7 +285,8 @@ void SMBusBinding::SMBusInit()
         throwRunTimeError("Error in SMBus binding registration");
     }
 
-    mctp_set_rx_all(mctp, rxMessage, nullptr);
+    mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
+                    static_cast<MctpBinding*>(this));
 
     std::string rootPort;
     if (!getBusNumFromPath(bus, rootPort))
@@ -396,7 +397,7 @@ void SMBusBinding::readResponse()
         });
 }
 
-void SMBusBinding::scanAllPorts(void)
+void SMBusBinding::scanAllPorts()
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Scanning root port");
