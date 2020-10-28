@@ -204,6 +204,10 @@ class MctpBinding
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,
                                          std::vector<uint8_t>& response);
+    virtual bool handleGetVdmSupport(mctp_eid_t endpointEid,
+                                     void* bindingPrivate,
+                                     std::vector<uint8_t>& request,
+                                     std::vector<uint8_t>& response);
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
                        const std::vector<uint8_t>& bindingPrivate,
                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);

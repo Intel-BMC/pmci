@@ -778,6 +778,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                    request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT: {
+            sendResponse =
+                handleGetVdmSupport(destEid, bindingPrivate, request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -899,6 +904,16 @@ std::vector<uint8_t> MctpBinding::getBindingMsgTypes()
     // supported by upper layer applications
     std::vector<uint8_t> bindingMsgTypes = {MCTP_MESSAGE_TYPE_MCTP_CTRL};
     return bindingMsgTypes;
+}
+
+bool MctpBinding::handleGetVdmSupport(
+    [[maybe_unused]] mctp_eid_t destEid, [[maybe_unused]] void* bindingPrivate,
+    [[maybe_unused]] std::vector<uint8_t>& request,
+    [[maybe_unused]] std::vector<uint8_t>& response)
+{
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        "Message not supported");
+    return false;
 }
 
 void MctpBinding::pushToCtrlTxQueue(

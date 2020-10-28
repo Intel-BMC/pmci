@@ -343,6 +343,57 @@ bool PCIeBinding::handleGetMsgTypeSupport(mctp_eid_t destEid,
     return true;
 }
 
+bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
+                                      std::vector<uint8_t>& request,
+                                      std::vector<uint8_t>& response)
+{
+    response.resize(sizeof(mctp_pci_ctrl_resp_get_vdm_support));
+
+    struct mctp_ctrl_cmd_get_vdm_support* req =
+        reinterpret_cast<struct mctp_ctrl_cmd_get_vdm_support*>(request.data());
+
+    /* Generic library API. Specialized later on. */
+    struct mctp_ctrl_resp_get_vdm_support* libResp =
+        reinterpret_cast<struct mctp_ctrl_resp_get_vdm_support*>(
+            response.data());
+
+    if (mctp_ctrl_cmd_get_vdm_support(mctp, destEid, libResp) < 0)
+    {
+        return false;
+    }
+
+    mctp_astpcie_pkt_private* pciePrivate =
+        reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+    pciePrivate->routing = PCIE_ROUTE_TO_RC;
+
+    /* Cast to full binding specific response. */
+    mctp_pci_ctrl_resp_get_vdm_support* resp =
+        reinterpret_cast<mctp_pci_ctrl_resp_get_vdm_support*>(response.data());
+    uint8_t setIndex = req->vendor_id_set_selector;
+
+    if (setIndex + 1U > vdmSetDatabase.size())
+    {
+        resp->completion_code = MCTP_CTRL_CC_ERROR_INVALID_DATA;
+        response.resize(sizeof(mctp_ctrl_msg_hdr) +
+                        sizeof(resp->completion_code));
+        return true;
+    }
+
+    if (setIndex + 1U == vdmSetDatabase.size())
+    {
+        resp->vendor_id_set_selector = vendorIdNoMoreSets;
+    }
+    else
+    {
+        resp->vendor_id_set_selector = setIndex + 1;
+    }
+    resp->vendor_id_format = vdmSetDatabase[setIndex].idFormat;
+    resp->vendor_id_data = vdmSetDatabase[setIndex].idData;
+    resp->command_set_type = vdmSetDatabase[setIndex].commandSetType;
+
+    return true;
+}
+
 void PCIeBinding::readResponse()
 {
     streamMonitor.async_wait(
