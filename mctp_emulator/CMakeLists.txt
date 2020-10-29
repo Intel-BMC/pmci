@@ -53,11 +53,8 @@ set (
     ${PROJECT_SOURCE_DIR}/service_files/xyz.openbmc_project.mctp-emulator.service
 )
 
-set (
-    CONFIG_FILES
-    ${PROJECT_SOURCE_DIR}/configurations/req_resp.json
-    ${PROJECT_SOURCE_DIR}/configurations/endpoints.json
-)
+
+file(GLOB_RECURSE CONFIG_FILES "${PROJECT_SOURCE_DIR}/configurations/*.json")
 
 add_executable (${PROJECT_NAME} ${SRC_FILES} ${HEADER_FILES})
 

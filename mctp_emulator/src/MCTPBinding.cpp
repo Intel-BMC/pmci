@@ -19,8 +19,12 @@
 #include "libmctp-vdpci.h"
 #include "libmctp.h"
 
+std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
+
 using json = nlohmann::json;
 using mctp_base = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
+
+std::string epReqRespFile = "/usr/share/mctp-emulator/req_resp_";
 
 std::string reqRespDataFile = "/usr/share/mctp-emulator/req_resp.json";
 
@@ -233,73 +237,25 @@ static void createResponseSignal(int processingDelay, const uint8_t srcEid,
 }
 
 std::optional<std::pair<int, std::vector<uint8_t>>>
-    processMctpCommand(uint8_t dstEid, const std::vector<uint8_t>& payload)
+    processPayload(std::ifstream& jfile, bool validEid,
+                   const std::vector<uint8_t>& payload)
 {
-    uint8_t msgType;
-
-    // TODO: Handle payloads if and only if there is a destination EID match
-    dstEid = dstEid;
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "processPayload called...");
     std::string messageType;
-
-    msgType = payload.at(0);
-
-    std::ifstream jsonFile(reqRespDataFile);
-    if (!jsonFile.good())
-    {
-        std::cerr << "unable to open " << reqRespDataFile << "\n";
-        return std::nullopt;
-    }
-
-    json reqResp = json::parse(jsonFile, nullptr, false);
-
+    uint8_t msgType;
+    json reqResp = nullptr;
     json reqRespData = nullptr;
-    try
-    {
-        messageType = getMessageType(msgType);
-        reqRespData = reqResp[messageType];
-    }
-    catch (json::exception& e)
-    {
-        std::cerr << "message: " << e.what() << '\n'
-                  << "exception id: " << e.id << std::endl;
-        return std::nullopt;
-    }
 
-    std::vector<uint8_t> reqHeader;
-    if (messageType == "VDPCI")
+    reqResp = json::parse(jfile, nullptr, false);
+    // process the MCTP command only oif the above validation are successful
+    if (validEid)
     {
-        if (payload.size() < sizeof(mctp_vdpci_intel_hdr))
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "mctp-emulator: Invalid VDPCI message: Insufficient bytes in "
-                "Payload");
-            return std::nullopt;
-        }
-
-        const auto* vdpciMessage =
-            reinterpret_cast<const mctp_vdpci_intel_hdr*>(payload.data());
-        auto vendorIter =
-            vendorMap.find(be16toh(vdpciMessage->vdpci_hdr.vendor_id));
-        if (vendorIter == vendorMap.end())
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "mctp-emulator: Invalid VDPCI message: Unknown Vendor ID");
-            return std::nullopt;
-        }
-
-        const auto& vendorString = vendorIter->second;
-        if (vendorString == "Intel" && vdpciMessage->reserved != 0x80)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "mctp-emulator: Invalid VDPCI message: Unexpected value in "
-                "reserved byte");
-            return std::nullopt;
-        }
+        msgType = payload.at(0);
         try
         {
-            auto vendorTypeCode =
-                std::to_string(vdpciMessage->vendor_type_code);
-            reqRespData = reqRespData[vendorString][vendorTypeCode];
+            messageType = getMessageType(msgType);
+            reqRespData = reqResp[messageType];
         }
         catch (json::exception& e)
         {
@@ -307,75 +263,86 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                       << "exception id: " << e.id << std::endl;
             return std::nullopt;
         }
-        reqHeader.insert(reqHeader.end(), payload.begin(),
-                         payload.begin() + sizeof(mctp_vdpci_intel_hdr));
-    }
-    else if (messageType == "PLDM")
-    {
-        // MCTPMsgType | rqDInstanceID | PLDMType | PLDMCmd
-        constexpr size_t minPldmReqSize = 4;
-        if (payload.size() < minPldmReqSize)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "mctp-emulator: Invalid PLDM message: Insufficient bytes in "
-                "Payload");
-            return std::nullopt;
-        }
-        uint8_t rqDInstanceID = payload.at(1);
 
-        reqHeader.push_back(msgType);
-        reqHeader.push_back(rqDInstanceID);
-    }
-    else
-    {
-        reqHeader.push_back(msgType);
-    }
-
-    for (auto iter : reqRespData)
-    {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "mctp-emulator: Parsing commands..");
-
-        std::vector<uint8_t> req = {};
-        try
+        std::vector<uint8_t> reqHeader;
+        if (messageType == "VDPCI")
         {
-            req.assign(std::begin(iter["request"]), std::end(iter["request"]));
-        }
-        catch (json::exception& e)
-        {
-            std::cerr << "message: " << e.what() << '\n'
-                      << "exception id: " << e.id << std::endl;
-            continue;
-        }
-
-        req.insert(req.begin(), reqHeader.begin(), reqHeader.end());
-        if (req == payload)
-        {
-            int processingDelayMilliSec = 0;
-            std::vector<uint8_t> response = {};
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                "mctp-emulator: Request Matched");
-            try
+            if (payload.size() < sizeof(mctp_vdpci_intel_hdr))
             {
-                if (iter.contains("processing-delay"))
-                {
-                    processingDelayMilliSec = iter["processing-delay"];
-                }
-
-                // Fill the response header as per the MCTP message type
-                // Note:- PLDM requests and responses in the JSON file should
-                // starts from second byte of PLDM message header(HdrVer |
-                // PLDMType)
-                if (messageType == "PLDM")
-                {
-                    constexpr uint8_t makeResp = 0x7F;
-                    response.assign(reqHeader.begin(), reqHeader.end());
-                    response.at(1) = response.at(1) & makeResp;
-                }
-                response.insert(response.end(), std::begin(iter["response"]),
-                                std::end(iter["response"]));
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "mctp-emulator: Invalid VDPCI message: Insufficient bytes "
+                    "in "
+                    "Payload");
+                return std::nullopt;
             }
 
+            const auto* vdpciMessage =
+                reinterpret_cast<const mctp_vdpci_intel_hdr*>(payload.data());
+            auto vendorIter =
+                vendorMap.find(be16toh(vdpciMessage->vdpci_hdr.vendor_id));
+            if (vendorIter == vendorMap.end())
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "mctp-emulator: Invalid VDPCI message: Unknown Vendor ID");
+                return std::nullopt;
+            }
+
+            const auto& vendorString = vendorIter->second;
+            if (vendorString == "Intel" && vdpciMessage->reserved != 0x80)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "mctp-emulator: Invalid VDPCI message: Unexpected value in "
+                    "reserved byte");
+                return std::nullopt;
+            }
+            try
+            {
+                auto vendorTypeCode =
+                    std::to_string(vdpciMessage->vendor_type_code);
+                reqRespData = reqRespData[vendorString][vendorTypeCode];
+            }
+            catch (json::exception& e)
+            {
+                std::cerr << "message: " << e.what() << '\n'
+                          << "exception id: " << e.id << std::endl;
+                return std::nullopt;
+            }
+            reqHeader.insert(reqHeader.end(), payload.begin(),
+                             payload.begin() + sizeof(mctp_vdpci_intel_hdr));
+        }
+        else if (messageType == "PLDM")
+        {
+            // MCTPMsgType | rqDInstanceID | PLDMType | PLDMCmd
+            constexpr size_t minPldmReqSize = 4;
+            if (payload.size() < minPldmReqSize)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "mctp-emulator: Invalid PLDM message: Insufficient bytes "
+                    "in "
+                    "Payload");
+                return std::nullopt;
+            }
+            uint8_t rqDInstanceID = payload.at(1);
+
+            reqHeader.push_back(msgType);
+            reqHeader.push_back(rqDInstanceID);
+        }
+        else
+        {
+            reqHeader.push_back(msgType);
+        }
+
+        for (auto iter : reqRespData)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "mctp-emulator: Parsing commands..");
+
+            std::vector<uint8_t> req = {};
+            try
+            {
+                req.assign(std::begin(iter["request"]),
+                           std::end(iter["request"]));
+            }
             catch (json::exception& e)
             {
                 std::cerr << "message: " << e.what() << '\n'
@@ -383,7 +350,44 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                 continue;
             }
 
-            return std::make_pair(processingDelayMilliSec, response);
+            req.insert(req.begin(), reqHeader.begin(), reqHeader.end());
+            if (req == payload)
+            {
+                int processingDelayMilliSec = 0;
+                std::vector<uint8_t> response = {};
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    "mctp-emulator: Request Matched");
+                try
+                {
+                    if (iter.contains("processing-delay"))
+                    {
+                        processingDelayMilliSec = iter["processing-delay"];
+                    }
+
+                    // Fill the response header as per the MCTP message type
+                    // Note:- PLDM requests and responses in the JSON file
+                    // should starts from second byte of PLDM message
+                    // header(HdrVer | PLDMType)
+                    if (messageType == "PLDM")
+                    {
+                        constexpr uint8_t makeResp = 0x7F;
+                        response.assign(reqHeader.begin(), reqHeader.end());
+                        response.at(1) = response.at(1) & makeResp;
+                    }
+                    response.insert(response.end(),
+                                    std::begin(iter["response"]),
+                                    std::end(iter["response"]));
+                }
+
+                catch (json::exception& e)
+                {
+                    std::cerr << "message: " << e.what() << '\n'
+                              << "exception id: " << e.id << std::endl;
+                    continue;
+                }
+
+                return std::make_pair(processingDelayMilliSec, response);
+            }
         }
     }
     phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -391,10 +395,83 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
     return std::nullopt;
 }
 
+std::optional<std::pair<int, std::vector<uint8_t>>>
+    processMctpCommand(uint8_t dstEid, const std::vector<uint8_t> payload)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "processMctpCommand called...");
+
+    // enable this check for reserved values error in case of eid
+    if (dstEid > 0 && dstEid <= 7)
+    {
+
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "mctp-emulator: invalid reserved EID, values upto 7 reserved");
+        return std::nullopt;
+    }
+
+    if (std::find_if(
+            endpointInterface.begin(), endpointInterface.end(),
+            [&, dstEid](
+                std::shared_ptr<sdbusplus::asio::dbus_interface> const& p) {
+                std::string path = p->get_object_path();
+                size_t found = path.find_last_of("/");
+                if (found == std::string::npos)
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "mctp-emulator: eid not found in path");
+                    return false;
+                }
+                uint8_t s_eid =
+                    static_cast<uint8_t>(std::stoi(path.substr(found + 1)));
+                return (dstEid == s_eid);
+            }) == endpointInterface.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "mctp-emulator: No EID match found hence no processPayload");
+        return std::nullopt;
+    }
+
+    try
+    {
+        std::ifstream jsonFile;
+        jsonFile.exceptions(std::ios::failbit | std::ios::badbit);
+
+        // the EID concatenated should match the EID's in endpoint.json
+        // the resulting named file should be already present as req_resp_x
+        std::string filename = epReqRespFile;
+        filename.append(std::to_string(dstEid)).append(".json");
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Req_Resp_x filename: " + filename).c_str());
+
+        jsonFile.open(filename, std::ios::in);
+        if (!jsonFile.good())
+        {
+            std::cerr << "unable to open " << filename << "\n";
+            return std::nullopt;
+        }
+
+        return processPayload(jsonFile, true, payload);
+    }
+    catch (const std::ifstream::failure& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "mctp-emulator: file handling error");
+        return std::nullopt;
+    }
+    catch (std::exception& e)
+    {
+        std::cerr << "message: " << e.what() << std::endl;
+        return std::nullopt;
+    }
+}
+
 MctpBinding::MctpBinding(
     std::shared_ptr<sdbusplus::asio::object_server>& objServer,
     std::string& objPath)
 {
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "mctp-emulator: MctpBinding constructor call...");
     eid = 8;
 
     // TODO:Probably read these from mctp_config.json ?

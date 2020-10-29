@@ -1,7 +1,7 @@
 {
     "Endpoints": [
         {
-            "Eid": 1,
+            "Eid": 8,
             "Mode": "busowner",
             "NetworkId": 10,
             "SupportedMessageTypes": {
@@ -20,7 +20,7 @@
             "Uuid": "cba227b7-3144-4573-a824-5cd4557e54e1"
         },
         {
-            "Eid": 2,
+            "Eid": 9,
             "Mode": "endpoint",
             "NetworkId": 20,
             "SupportedMessageTypes": {
@@ -39,7 +39,7 @@
             "Uuid": "196f652f-34d6-4b74-8814-bee70778f367"
         },
         {
-            "Eid": 3,
+            "Eid": 10,
             "Mode": "endpoint",
             "NetworkId": 30,
             "SupportedMessageTypes": {

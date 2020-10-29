@@ -3,7 +3,8 @@
 #include <sdbusplus/asio/object_server.hpp>
 
 extern std::shared_ptr<sdbusplus::asio::connection> bus;
-
+extern std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
+    endpointInterface;
 // TODO:Use the hpp from D-Bus interface
 enum class binding
 {

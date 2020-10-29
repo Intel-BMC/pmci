@@ -1,4 +1,3 @@
-#include "MCTPBinding.hpp"
 #include "SMBusBinding.hpp"
 
 #include <CLI/CLI.hpp>
@@ -24,7 +23,6 @@ std::string uuidIntf = "xyz.openbmc_project.Common.UUID";
 std::string endpointDataFile = "/usr/share/mctp-emulator/endpoints.json";
 std::string pciVdMsgIntf = "xyz.openbmc_project.MCTP.PCIVendorDefined";
 std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
-std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> msgTypeInterface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>
     vendorDefMsgInterface;
