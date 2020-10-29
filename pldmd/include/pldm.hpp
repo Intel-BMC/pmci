@@ -33,6 +33,11 @@ namespace pldm
 {
 constexpr size_t pldmMsgHdrSize = sizeof(pldm_msg_hdr);
 
+/** @brief Limit the maximum length of PLDM message*/
+constexpr size_t maxPLDMMessageLen = 64 /*Maximum MCTP packet payload len*/ -
+                                     1 /*MCTP messageType size*/ -
+                                     pldmMsgHdrSize;
+
 /** @brief pldm_empty_request
  *
  * structure representing PLDM empty request.
@@ -57,6 +62,7 @@ using PLDMCommandTable = std::vector<std::map<
  * @return PLDM Instance ID
  */
 uint8_t createInstanceId(pldm_tid_t tid);
+// TODO: Add an API to free the Instance ID after usage.
 
 /** @brief Returns PLDM message Instance ID
  *

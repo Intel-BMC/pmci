@@ -26,6 +26,11 @@ namespace pldm
 namespace platform
 {
 
+using RecordHandle = uint32_t;
+using DataTransferHandle = uint32_t;
+using PDRDestroyer = std::function<void(pldm_pdr*)>;
+using PDRRepo = std::unique_ptr<pldm_pdr, PDRDestroyer>;
+
 class PDRManager
 {
   public:
@@ -45,8 +50,29 @@ class PDRManager
     std::optional<pldm_pdr_repository_info>
         getPDRRepositoryInfo(boost::asio::yield_context& yield);
 
+    /** @brief fetch single PDR record from terminus*/
+    bool getDevicePDRRecord(boost::asio::yield_context& yield,
+                            const RecordHandle recordHandle,
+                            RecordHandle& nextRecordHandle,
+                            std::vector<uint8_t>& pdrRecord);
+
+    /** @brief fetch PDR repo from terminus*/
+    bool getDevicePDRRepo(
+        boost::asio::yield_context& yield, uint32_t recordCount,
+        std::unordered_map<RecordHandle, std::vector<uint8_t>>& pdrRepo);
+
+    /** @brief Add Device PDRs to BMC PDR repo*/
+    bool addDevicePDRToRepo(
+        std::unordered_map<RecordHandle, std::vector<uint8_t>>& pdrRepo);
+
+    /** @brief fetch PDRs from terminus and add to BMC PDR repo*/
+    bool constructPDRRepo(boost::asio::yield_context& yield);
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
+
+    /** @brief pointer to TID mapped BMC PDR repo*/
+    PDRRepo _pdrRepo;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
