@@ -1,4 +1,5 @@
 #include <endian.h>
+#include <stdbool.h>
 #include <string.h>
 
 #include "base.h"
@@ -267,46 +268,65 @@ int encode_get_version_req(uint8_t instance_id, uint32_t transfer_handle,
 	return PLDM_SUCCESS;
 }
 
-int encode_get_version_resp(uint8_t instance_id, uint8_t completion_code,
-			    uint32_t next_transfer_handle,
-			    uint8_t transfer_flag, const ver32_t *version_data,
-			    size_t version_size, struct pldm_msg *msg)
+int encode_get_version_resp(const uint8_t instance_id,
+			    const uint8_t completion_code,
+			    const uint32_t next_transfer_handle,
+			    const uint8_t transfer_flag,
+			    const ver32_t *version_data,
+			    const size_t version_size, struct pldm_msg *msg)
 {
-	struct pldm_header_info header = {0};
+	if (NULL == version_data || NULL == msg) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 	int rc = PLDM_SUCCESS;
+	struct pldm_header_info header = {0};
+	header.msg_type = PLDM_RESPONSE;
+	header.instance = instance_id;
+	header.pldm_type = PLDM_BASE;
+	header.command = PLDM_GET_PLDM_VERSION;
+	if ((rc = pack_pldm_header(&header, &(msg->hdr))) != PLDM_SUCCESS) {
+		return rc;
+	}
+
 	struct pldm_get_version_resp *response =
 	    (struct pldm_get_version_resp *)msg->payload;
+
 	response->completion_code = completion_code;
-	if (response->completion_code == PLDM_SUCCESS) {
-
-		header.msg_type = PLDM_RESPONSE;
-		header.instance = instance_id;
-		header.pldm_type = PLDM_BASE;
-		header.command = PLDM_GET_PLDM_VERSION;
-
-		if ((rc = pack_pldm_header(&header, &(msg->hdr))) >
-		    PLDM_SUCCESS) {
-			return rc;
-		}
-		response->next_transfer_handle = htole32(next_transfer_handle);
-		response->transfer_flag = transfer_flag;
-		memcpy(response->version_data, (uint8_t *)version_data,
-		       version_size);
+	if (response->completion_code != PLDM_SUCCESS) {
+		return PLDM_SUCCESS;
 	}
+
+	if (!check_transfer_flag_valid(transfer_flag)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	response->next_transfer_handle = htole32(next_transfer_handle);
+	response->transfer_flag = transfer_flag;
+	memcpy(response->version_data, (uint8_t *)version_data, version_size);
+	uint32_t crc = htole32(crc32(response->version_data, version_size));
+	memcpy(response->version_data + version_size, &crc, sizeof(uint32_t));
+
 	return PLDM_SUCCESS;
 }
 
-int decode_get_version_req(const struct pldm_msg *msg, size_t payload_length,
+int decode_get_version_req(const struct pldm_msg *msg,
+			   const size_t payload_length,
 			   uint32_t *transfer_handle, uint8_t *transfer_opflag,
 			   uint8_t *type)
 {
-
+	if (NULL == msg || NULL == transfer_handle || NULL == transfer_opflag ||
+	    NULL == type) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 	if (payload_length != PLDM_GET_VERSION_REQ_BYTES) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
 	struct pldm_get_version_req *request =
 	    (struct pldm_get_version_req *)msg->payload;
+	if (!check_transfer_operation_flag_valid(request->transfer_opflag)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 	*transfer_handle = le32toh(request->transfer_handle);
 	*transfer_opflag = request->transfer_opflag;
 	*type = request->type;
@@ -316,10 +336,12 @@ int decode_get_version_req(const struct pldm_msg *msg, size_t payload_length,
 int decode_get_version_resp(const struct pldm_msg *msg, size_t payload_length,
 			    uint8_t *completion_code,
 			    uint32_t *next_transfer_handle,
-			    uint8_t *transfer_flag, ver32_t *version)
+			    uint8_t *transfer_flag,
+			    struct variable_field *version)
 {
 	if (msg == NULL || next_transfer_handle == NULL ||
-	    transfer_flag == NULL || completion_code == NULL) {
+	    transfer_flag == NULL || completion_code == NULL ||
+	    version == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -328,17 +350,30 @@ int decode_get_version_resp(const struct pldm_msg *msg, size_t payload_length,
 		return PLDM_SUCCESS;
 	}
 
-	if (payload_length < PLDM_GET_VERSION_RESP_BYTES) {
+	if (payload_length < PLDM_GET_VERSION_RESP_MIN_BYTES) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
 	struct pldm_get_version_resp *response =
 	    (struct pldm_get_version_resp *)msg->payload;
-
 	*next_transfer_handle = le32toh(response->next_transfer_handle);
 	*transfer_flag = response->transfer_flag;
-	memcpy(version, (uint8_t *)response->version_data, sizeof(ver32_t));
 
+	if (!check_transfer_flag_valid(*transfer_flag)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	version->length = payload_length - PLDM_GET_VERSION_RESP_FIXED_BYTES -
+			  sizeof(uint32_t);
+	uint32_t *response_crc =
+	    (uint32_t *)(response->version_data + version->length);
+	uint32_t expected_crc = crc32(response->version_data, version->length);
+
+	if (le32toh(*response_crc) != expected_crc) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	version->ptr = response->version_data;
 	return PLDM_SUCCESS;
 }
 

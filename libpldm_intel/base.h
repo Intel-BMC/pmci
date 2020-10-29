@@ -10,6 +10,7 @@ extern "C" {
 #include <stdint.h>
 
 #include "pldm_types.h"
+#include "utils.h"
 
 /** @brief PLDM Commands
  */
@@ -77,8 +78,10 @@ typedef uint8_t pldm_type_t;
 #define PLDM_GET_TYPES_RESP_BYTES 9
 #define PLDM_GET_TID_RESP_BYTES 2
 #define PLDM_GET_COMMANDS_RESP_BYTES 33
-/* Response data has only one version and does not contain the checksum */
-#define PLDM_GET_VERSION_RESP_BYTES 10
+
+/* Response data has minimum one version and its checksum */
+#define PLDM_GET_VERSION_RESP_MIN_BYTES 14
+#define PLDM_GET_VERSION_RESP_FIXED_BYTES 6
 
 #define PLDM_VERSION_0 0
 #define PLDM_CURRENT_VERSION PLDM_VERSION_0
@@ -352,12 +355,18 @@ int encode_get_version_req(uint8_t instance_id, uint32_t transfer_handle,
  *  @param[out] completion_code - Pointer to response msg's PLDM completion code
  *  @param[out] next_transfer_handle - the next handle for the next part of data
  *  @param[out] transfer_flag - flag to indicate the part of data
+ *  @param[out] version - variable field structure in which ptr will be pointing
+ *    to version data and length will contain size of version data in bytes
  *  @return pldm_completion_codes
+ *  @note data pointed by version->ptr will be a portion of msg and need not
+ *   be freed
  */
-int decode_get_version_resp(const struct pldm_msg *msg, size_t payload_length,
+int decode_get_version_resp(const struct pldm_msg *msg,
+			    const size_t payload_length,
 			    uint8_t *completion_code,
 			    uint32_t *next_transfer_handle,
-			    uint8_t *transfer_flag, ver32_t *version);
+			    uint8_t *transfer_flag,
+			    struct variable_field *version);
 
 /* GetTID */
 
@@ -433,16 +442,18 @@ int encode_get_commands_resp(uint8_t instance_id, uint8_t completion_code,
  *              data transfer
  *  @param[in] transfer_flag - Represents the part of transfer
  *  @param[in] version_data - the version data
- *  @param[in] version_size - size of version data
+ *  @param[in] version_size - size of version data in bytes
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
  *         'msg.payload'
  */
-int encode_get_version_resp(uint8_t instance_id, uint8_t completion_code,
-			    uint32_t next_transfer_handle,
-			    uint8_t transfer_flag, const ver32_t *version_data,
-			    size_t version_size, struct pldm_msg *msg);
+int encode_get_version_resp(const uint8_t instance_id,
+			    const uint8_t completion_code,
+			    const uint32_t next_transfer_handle,
+			    const uint8_t transfer_flag,
+			    const ver32_t *version_data,
+			    const size_t version_size, struct pldm_msg *msg);
 
 /** @brief Decode a GetPLDMVersion request message
  *
@@ -453,7 +464,8 @@ int encode_get_version_resp(uint8_t instance_id, uint8_t completion_code,
  *  @param[out] type - PLDM type for which version is requested
  *  @return pldm_completion_codes
  */
-int decode_get_version_req(const struct pldm_msg *msg, size_t payload_length,
+int decode_get_version_req(const struct pldm_msg *msg,
+			   const size_t payload_length,
 			   uint32_t *transfer_handle, uint8_t *transfer_opflag,
 			   uint8_t *type);
 

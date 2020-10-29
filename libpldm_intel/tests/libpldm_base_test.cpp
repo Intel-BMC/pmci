@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../base.h"
+#include "../utils.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -392,12 +393,37 @@ TEST(GetPLDMVersion, testBadEncodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(GetPLDMVersion, testEncodeResponseInvalid)
+{
+    std::array<uint8_t, hdrSize + PLDM_GET_VERSION_RESP_MIN_BYTES>
+        responseArray{};
+    constexpr uint8_t instanceID = 0x12;
+    constexpr uint8_t completionCode = PLDM_ERROR;
+    constexpr uint32_t nextTransferHandle = 0;
+    constexpr uint8_t transferFlag = 0;
+    const ver32_t versionData = {1, 2, 3, 4};
+    constexpr size_t versionSize = sizeof(versionData);
+    auto msg = reinterpret_cast<struct pldm_msg*>(responseArray.data());
+
+    int rc =
+        encode_get_version_resp(instanceID, completionCode, nextTransferHandle,
+                                transferFlag, nullptr, versionSize, msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = encode_get_version_resp(instanceID, completionCode, nextTransferHandle,
+                                 transferFlag, &versionData, versionSize,
+                                 nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = encode_get_version_resp(instanceID, completionCode, nextTransferHandle,
+                                 transferFlag, nullptr, versionSize, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 TEST(GetPLDMVersion, testEncodeResponse)
 {
     uint8_t completionCode = 0;
     uint32_t transferHandle = 0;
     uint8_t flag = PLDM_START_AND_END;
-    std::array<uint8_t, sizeof(pldm_msg_hdr) + PLDM_GET_VERSION_RESP_BYTES>
+    std::array<uint8_t, sizeof(pldm_msg_hdr) + PLDM_GET_VERSION_RESP_MIN_BYTES>
         responseMsg{};
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
     ver32_t version = {0xFF, 0xFF, 0xFF, 0xFF};
@@ -415,6 +441,50 @@ TEST(GetPLDMVersion, testEncodeResponse)
     EXPECT_EQ(0, memcmp(response->payload + sizeof(response->payload[0]) +
                             sizeof(transferHandle) + sizeof(flag),
                         &version, sizeof(version)));
+
+    uint8_t* verBytes = response->payload + PLDM_GET_VERSION_RESP_FIXED_BYTES;
+    uint32_t* rspCrc = reinterpret_cast<uint32_t*>(verBytes + sizeof(version));
+    uint32_t calcCrc = crc32(verBytes, sizeof(version));
+    EXPECT_EQ(le32toh(*rspCrc), calcCrc);
+    rc = encode_get_version_resp(0, PLDM_SUCCESS, 0, 0xFF, &version,
+                                 sizeof(ver32_t), response);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(GetPLDMVersion, testEncodeResponseMultiVersion)
+{
+    constexpr uint8_t instanceId = 0x01;
+    constexpr uint8_t completionCode = PLDM_SUCCESS;
+    constexpr uint32_t transferHandle = 0x1234;
+    constexpr uint8_t flag = PLDM_START_AND_END;
+    ver32_t version[2] = {{0xFF, 0xFF, 0xFF, 0xFF}, {0x12, 0x34, 0x56, 0x78}};
+    constexpr size_t respLen = sizeof(pldm_msg_hdr) +
+                               PLDM_GET_VERSION_RESP_FIXED_BYTES +
+                               sizeof(version) + sizeof(uint32_t);
+    std::array<uint8_t, respLen> responseMsg{};
+    pldm_msg* response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc =
+        encode_get_version_resp(instanceId, completionCode, transferHandle,
+                                flag, version, sizeof(version), response);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(instanceId, response->hdr.instance_id);
+    EXPECT_EQ(PLDM_GET_PLDM_VERSION, response->hdr.command);
+    EXPECT_EQ(PLDM_BASE, response->hdr.type);
+    EXPECT_EQ(completionCode, response->payload[0]);
+
+    pldm_get_version_resp* getVersionRsp =
+        reinterpret_cast<pldm_get_version_resp*>(response->payload);
+    EXPECT_EQ(transferHandle, le32toh(getVersionRsp->next_transfer_handle));
+    EXPECT_EQ(flag, getVersionRsp->transfer_flag);
+
+    EXPECT_EQ(0,
+              memcmp(&version, getVersionRsp->version_data, sizeof(version)));
+    uint32_t* rspCrc = reinterpret_cast<uint32_t*>(getVersionRsp->version_data +
+                                                   sizeof(version));
+    uint32_t calcCrc = crc32(version, sizeof(version));
+    EXPECT_EQ(le32toh(*rspCrc), calcCrc);
 }
 
 TEST(GetPLDMVersion, testDecodeRequest)
@@ -445,9 +515,66 @@ TEST(GetPLDMVersion, testDecodeRequest)
     EXPECT_EQ(pldmType, retType);
 }
 
+TEST(GetPLDMVersion, testDecodeRequestInvalid)
+{
+    std::array<uint8_t, hdrSize + PLDM_GET_VERSION_REQ_BYTES> requestMsg{};
+    uint32_t retTransferHandle = 0x0;
+    uint8_t retFlag = PLDM_GET_FIRSTPART;
+    uint8_t retType = PLDM_BASE;
+    auto request = reinterpret_cast<pldm_msg*>(requestMsg.data());
+
+    auto rc = decode_get_version_req(request, PLDM_GET_VERSION_REQ_BYTES,
+                                     &retTransferHandle, &retFlag, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_req(request, PLDM_GET_VERSION_REQ_BYTES,
+                                &retTransferHandle, nullptr, &retType);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_req(request, PLDM_GET_VERSION_REQ_BYTES, nullptr,
+                                &retFlag, &retType);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_req(request, ~PLDM_GET_VERSION_REQ_BYTES,
+                                &retTransferHandle, &retFlag, &retType);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    rc = decode_get_version_req(nullptr, PLDM_GET_VERSION_REQ_BYTES,
+                                &retTransferHandle, &retFlag, &retType);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(GetPLDMVersion, testDecodeResponseInvalid)
+{
+    std::array<uint8_t, sizeof(pldm_msg_hdr) + PLDM_GET_VERSION_RESP_MIN_BYTES>
+        responseMsg{};
+    auto msg = reinterpret_cast<const struct pldm_msg*>(responseMsg.data());
+    const size_t payloadLength = PLDM_GET_VERSION_RESP_MIN_BYTES;
+    uint8_t completionCode;
+    uint32_t nextTransferHandle;
+    uint8_t transferFlag;
+    variable_field version;
+
+    auto rc =
+        decode_get_version_resp(msg, payloadLength, &completionCode,
+                                &nextTransferHandle, &transferFlag, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_resp(msg, payloadLength, &completionCode,
+                                 &nextTransferHandle, nullptr, &version);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_resp(msg, payloadLength, &completionCode, nullptr,
+                                 &transferFlag, &version);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_resp(msg, payloadLength, nullptr,
+                                 &nextTransferHandle, &transferFlag, &version);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_version_resp(msg, 1, &completionCode, &nextTransferHandle,
+                                 &transferFlag, &version);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    rc = decode_get_version_resp(nullptr, payloadLength, &completionCode,
+                                 &nextTransferHandle, &transferFlag, &version);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 TEST(GetPLDMVersion, testDecodeResponse)
 {
-    std::array<uint8_t, sizeof(pldm_msg_hdr) + PLDM_GET_VERSION_RESP_BYTES>
+    std::array<uint8_t, sizeof(pldm_msg_hdr) + PLDM_GET_VERSION_RESP_MIN_BYTES>
         responseMsg{};
     uint32_t transferHandle = 0x0;
     uint32_t retTransferHandle = 0x0;
@@ -455,7 +582,9 @@ TEST(GetPLDMVersion, testDecodeResponse)
     uint8_t retFlag = PLDM_START_AND_END;
     uint8_t completionCode = 0;
     ver32_t version = {0xFF, 0xFF, 0xFF, 0xFF};
-    ver32_t versionOut;
+    uint32_t crc =
+        htole32(crc32(reinterpret_cast<uint8_t*>(&version), sizeof(version)));
+    variable_field versionOut;
     uint8_t completion_code;
 
     memcpy(responseMsg.data() + sizeof(completionCode) + hdrSize,
@@ -466,6 +595,10 @@ TEST(GetPLDMVersion, testDecodeResponse)
     memcpy(responseMsg.data() + sizeof(completionCode) +
                sizeof(transferHandle) + sizeof(flag) + hdrSize,
            &version, sizeof(version));
+    memcpy(responseMsg.data() + sizeof(completionCode) +
+               sizeof(transferHandle) + sizeof(flag) + sizeof(version) +
+               hdrSize,
+           &crc, sizeof(uint32_t));
 
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
 
@@ -475,11 +608,70 @@ TEST(GetPLDMVersion, testDecodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(transferHandle, retTransferHandle);
     EXPECT_EQ(flag, retFlag);
+    EXPECT_EQ(versionOut.length, sizeof(version));
 
-    EXPECT_EQ(versionOut.major, version.major);
-    EXPECT_EQ(versionOut.minor, version.minor);
-    EXPECT_EQ(versionOut.update, version.update);
-    EXPECT_EQ(versionOut.alpha, version.alpha);
+    auto rspVerData = reinterpret_cast<const ver32_t*>(versionOut.ptr);
+    EXPECT_EQ(rspVerData->major, version.major);
+    EXPECT_EQ(rspVerData->minor, version.minor);
+    EXPECT_EQ(rspVerData->update, version.update);
+    EXPECT_EQ(rspVerData->alpha, version.alpha);
+    flag = 0xFF;
+    memcpy(responseMsg.data() + sizeof(completionCode) +
+               sizeof(transferHandle) + hdrSize,
+           &flag, sizeof(flag));
+    rc = decode_get_version_resp(response, responseMsg.size() - hdrSize,
+                                 &completion_code, &retTransferHandle, &retFlag,
+                                 &versionOut);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(GetPLDMVersion, testDecodeResponseMultiVersion)
+{
+    ver32_t version[2] = {{0xFF, 0xFF, 0xFF, 0xFF}, {0x12, 0x24, 0x45, 0x56}};
+    constexpr size_t respLen = hdrSize + PLDM_GET_VERSION_RESP_FIXED_BYTES +
+                               sizeof(version) + sizeof(uint32_t);
+    std::array<uint8_t, respLen> responseMsg{};
+
+    constexpr uint32_t transferHandle = 0x12345678;
+    constexpr uint8_t flag = PLDM_START_AND_END;
+    constexpr uint8_t completionCode = PLDM_SUCCESS;
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(responseMsg.data());
+    pldm_get_version_resp* rsp =
+        reinterpret_cast<pldm_get_version_resp*>(msg->payload);
+    rsp->completion_code = completionCode;
+    rsp->transfer_flag = flag;
+    rsp->next_transfer_handle = htole32(transferHandle);
+    std::copy(std::begin(version), std::end(version),
+              reinterpret_cast<ver32_t*>(rsp->version_data));
+    uint32_t calcCrc = crc32(&version, sizeof(version));
+    uint32_t* crc =
+        reinterpret_cast<uint32_t*>(rsp->version_data + sizeof(version));
+    *crc = htole32(calcCrc);
+
+    uint8_t rspCompletionCode = completionCode + 1;
+    uint32_t rspHandle = 0xABCD;
+    uint8_t rspFlag = 0xAB;
+    variable_field rspVersions;
+
+    auto rc = decode_get_version_resp(msg, responseMsg.size() - hdrSize,
+                                      &rspCompletionCode, &rspHandle, &rspFlag,
+                                      &rspVersions);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, rspCompletionCode);
+    if (rspCompletionCode == PLDM_SUCCESS)
+    {
+        EXPECT_EQ(rspVersions.length, sizeof(version));
+        EXPECT_EQ(transferHandle, rspHandle);
+        EXPECT_EQ(flag, rspFlag);
+        auto verOut = reinterpret_cast<const ver32_t*>(rspVersions.ptr);
+        for (size_t i = 0; i < rspVersions.length / sizeof(ver32_t); i++)
+        {
+            EXPECT_EQ(version[i].major, verOut[i].major);
+            EXPECT_EQ(version[i].minor, verOut[i].minor);
+            EXPECT_EQ(version[i].update, verOut[i].update);
+            EXPECT_EQ(version[i].alpha, verOut[i].alpha);
+        }
+    }
 }
 
 TEST(GetTID, testEncodeRequest)
