@@ -145,6 +145,10 @@ class MctpBinding
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,
                                          std::vector<uint8_t>& response);
+    virtual bool handleGetMsgTypeSupport(mctp_eid_t destEid,
+                                         void* bindingPrivate,
+                                         std::vector<uint8_t>& request,
+                                         std::vector<uint8_t>& response);
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
                        const std::vector<uint8_t>& bindingPrivate,
                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);
@@ -247,4 +251,5 @@ class MctpBinding
     void populateEndpointProperties(const EndpointProperties& epProperties);
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
+    std::vector<uint8_t> getBindingMsgTypes();
 };

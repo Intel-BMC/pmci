@@ -476,6 +476,11 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
                                                    request, response);
             break;
         }
+        case MCTP_CTRL_CMD_GET_MESSAGE_TYPE_SUPPORT: {
+            sendResponse = handleGetMsgTypeSupport(destEid, bindingPrivate,
+                                                   request, response);
+            break;
+        }
         default: {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Message not supported");
@@ -580,6 +585,31 @@ bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
                 versions.size() * sizeof(version_entry),
                 response.data() + sizeof(mctp_ctrl_resp_get_mctp_ver_support));
     return true;
+}
+
+bool MctpBinding::handleGetMsgTypeSupport(mctp_eid_t, void*,
+                                          std::vector<uint8_t>&,
+                                          std::vector<uint8_t>& response)
+{
+    std::vector<uint8_t> supportedMsgTypes = getBindingMsgTypes();
+    mctp_ctrl_resp_get_msg_type_support* resp =
+        reinterpret_cast<mctp_ctrl_resp_get_msg_type_support*>(response.data());
+    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
+    resp->msg_type_count = static_cast<uint8_t>(supportedMsgTypes.size());
+    response.resize(sizeof(mctp_ctrl_resp_get_msg_type_support) +
+                    supportedMsgTypes.size() * sizeof(msg_type_entry));
+    std::copy_n(supportedMsgTypes.data(),
+                supportedMsgTypes.size() * sizeof(msg_type_entry),
+                response.data() + sizeof(mctp_ctrl_resp_get_msg_type_support));
+    return true;
+}
+
+std::vector<uint8_t> MctpBinding::getBindingMsgTypes()
+{
+    // TODO: endpoints should expose info about message types
+    // supported by upper layer applications
+    std::vector<uint8_t> bindingMsgTypes = {MCTP_MESSAGE_TYPE_MCTP_CTRL};
+    return bindingMsgTypes;
 }
 
 void MctpBinding::pushToCtrlTxQueue(
