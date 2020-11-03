@@ -536,6 +536,7 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
     mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
+        busOwnerEid = destEid;
         ownEid = resp->eid_set;
     }
     return true;

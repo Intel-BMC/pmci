@@ -174,6 +174,16 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     mctp_eid_t, void* bindingPrivate, std::vector<uint8_t>&,
     std::vector<uint8_t>& response)
 {
+    mctp_astpcie_pkt_private* pciePrivate =
+        reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+    if (pciePrivate->routing != PCIE_BROADCAST_FROM_RC)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Prepare for Endpoint Discovery command can only be accepted as "
+            "broadcast.");
+        return false;
+    }
+
     if (bindingModeType != mctp_server::BindingModeTypes::Endpoint)
     {
         return false;
@@ -182,9 +192,9 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     struct mctp_ctrl_resp_prepare_discovery* resp =
         reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
 
+    preparePrivateDataResp(bindingPrivate);
     discoveredFlag = pcie_binding::DiscoveryFlags::Undiscovered;
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
-    preparePrivateDataResp(bindingPrivate);
     return true;
 }
 
@@ -196,12 +206,22 @@ bool PCIeBinding::handleEndpointDiscovery(mctp_eid_t, void* bindingPrivate,
     {
         return false;
     }
+
+    mctp_astpcie_pkt_private* pciePrivate =
+        reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+    if (pciePrivate->routing != PCIE_BROADCAST_FROM_RC)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Endpoint Discovery command can only be accepted as broadcast.");
+        return false;
+    }
+    busOwnerBdf = pciePrivate->remote_id;
     response.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
     struct mctp_ctrl_resp_endpoint_discovery* resp =
         reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(response.data());
 
-    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     preparePrivateDataResp(bindingPrivate);
+    resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     return true;
 }
 
@@ -223,6 +243,14 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                       std::vector<uint8_t>& request,
                                       std::vector<uint8_t>& response)
 {
+    mctp_astpcie_pkt_private* pciePrivate =
+        reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
+    if (pciePrivate->remote_id != busOwnerBdf)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Set EID requested from non-bus owner.");
+        return false;
+    }
     if (!MctpBinding::handleSetEndpointId(destEid, bindingPrivate, request,
                                           response))
     {
