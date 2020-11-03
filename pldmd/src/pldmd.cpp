@@ -110,6 +110,46 @@ std::optional<MessageType> getPldmPacketType(std::vector<uint8_t>& message)
     return static_cast<MessageType>(rqDValue);
 }
 
+bool validatePLDMReqEncode(const pldm_tid_t tid, const int rc,
+                           const std::string& commandString)
+{
+    if (rc != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (commandString + ": Request encode failed").c_str(),
+            phosphor::logging::entry("TID=%d", tid),
+            phosphor::logging::entry("RC=%d", rc));
+        return false;
+    }
+    return true;
+}
+
+bool validatePLDMRespDecode(const pldm_tid_t tid, const int rc,
+                            const uint8_t completionCode,
+                            const std::string& commandString)
+{
+    if (rc != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (commandString + ": Response decode failed").c_str(),
+            phosphor::logging::entry("TID=%d", tid),
+            phosphor::logging::entry("RC=%d", rc));
+        return false;
+    }
+
+    // Completion code value is considered as valid only if decode is success(rc
+    // = PLDM_SUCCESS)
+    if (completionCode != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (commandString + ": Invalid completion code").c_str(),
+            phosphor::logging::entry("TID=%d", tid),
+            phosphor::logging::entry("CC=%d", completionCode));
+        return false;
+    }
+    return true;
+}
+
 static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
                                       const mctpw_eid_t dstEid,
                                       const uint16_t timeout,

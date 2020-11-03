@@ -97,6 +97,30 @@ void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid);
 std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid);
 std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid);
 
+/** @brief Validate PLDM message encode
+ *
+ * @param tid[in] - TID of the PLDM device
+ * @param rc[in] - Return code of the decode operation
+ * @param commandString[in] - Command name
+ *
+ * @return Validation status
+ */
+bool validatePLDMReqEncode(const pldm_tid_t tid, const int rc,
+                           const std::string& commandString);
+
+/** @brief Validate PLDM message decode
+ *
+ * @param tid[in] - TID of the PLDM device
+ * @param rc[in] - Return code of the decode operation
+ * @param completionCode[in] - Completion code in the response
+ * @param commandString[in] - Command name
+ *
+ * @return Validation status
+ */
+bool validatePLDMRespDecode(const pldm_tid_t tid, const int rc,
+                            const uint8_t completionCode,
+                            const std::string& commandString);
+
 /** @brief Send PLDM message
  *
  * Sends PLDM messages to a PLDM device.
