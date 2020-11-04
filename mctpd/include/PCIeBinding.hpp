@@ -4,6 +4,7 @@
 
 #include <libmctp-astpcie.h>
 
+#include <boost/asio/deadline_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/PCIe/server.hpp>
 
 using pcie_binding =
