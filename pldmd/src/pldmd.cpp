@@ -465,17 +465,19 @@ int main(void)
         boost::asio::spawn(
             *ioc, [&tid, &dummyEid](boost::asio::yield_context yield) {
                 pldm_tid_t assignedTID = 0x00;
-                if (pldm::base::baseInit(yield, dummyEid, assignedTID))
+                if (!pldm::base::baseInit(yield, dummyEid, assignedTID))
                 {
-                    phosphor::logging::log<phosphor::logging::level::INFO>(
-                        "PLDM base init success",
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "PLDM base init failed",
                         phosphor::logging::entry("EID=%d", dummyEid));
+                    return;
                 }
-                if (pldm::platform::platformInit(yield, *tid, {}))
+                if (!pldm::platform::platformInit(yield, *tid, {}))
                 {
                     phosphor::logging::log<phosphor::logging::level::INFO>(
-                        "PLDM platform init success",
+                        "PLDM platform init failed",
                         phosphor::logging::entry("TID=%d", *tid));
+                    return;
                 }
             });
     }
