@@ -237,6 +237,67 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 			       uint16_t *fd_meta_data_len,
 			       uint8_t *fd_pkg_data);
 
+/* GetDeviceMetaData */
+
+/* @struct get_device_meta_data_req
+ *
+ *  Structure representing Get Device Meta Data request
+ */
+struct get_device_meta_data_req {
+	uint32_t data_transfer_handle;
+	uint8_t transfer_operation_flag;
+} __attribute__((packed));
+
+/* @struct get_device_meta_data_resp
+ *
+ *  Structure representing Get Device Meta Data response
+ */
+struct get_device_meta_data_resp {
+	uint8_t completion_code;
+	uint32_t next_data_transfer_handle;
+	uint8_t transfer_flag;
+} __attribute__((packed));
+
+/** @brief Create a PLDM request message for GetDeviceMetaData
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[in] data_transfer_handle - A handle that is used to identify a
+ * package data transfer
+ *  @param[in] transfer_operation_flag - The operation flag that indiates
+ * whether this is the start of the transfer
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_get_device_meta_data_req(const uint8_t instance_id,
+				    struct pldm_msg *msg,
+				    const size_t payload_length,
+				    const uint32_t data_transfer_handle,
+				    const uint8_t transfer_operation_flag);
+
+/** @brief Decode a GetDeviceMetaData response message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion code
+ *  @param[out] next_data_transfer_handle - Pointer to next data transfer handle
+ *  @param[out] transfer_flag - Pointer to transfer flag
+ *  @param[out] portion_of_meta_data - Pointer to portion of meta data
+ *  @return pldm_completion_codes
+ */
+int decode_get_device_meta_data_resp(
+    const struct pldm_msg *msg, const size_t payload_length,
+    uint8_t *completion_code, uint32_t *next_data_transfer_handle,
+    uint8_t *transfer_flag, struct variable_field *portion_of_meta_data);
+
 #ifdef __cplusplus
 }
 #endif

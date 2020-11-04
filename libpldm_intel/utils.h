@@ -93,6 +93,22 @@ uint32_t dec2bcd32(uint32_t dec);
 bool is_time_legal(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day,
 		   uint8_t month, uint16_t year);
 
+/** @brief Check whether transfer flag is valid
+ *
+ *  @param[in] transfer flag. Value: Start=0x01, Middle=0x02, End=0x04,
+ * StartAndEnd = 0x05
+ *  @return true if is from above values, false if not
+ */
+bool check_transfer_flag_valid(const uint8_t transfer_flag);
+
+/** @brief Check whether transfer operation flag is valid
+ *
+ *  @param[in] transfer operation flag. Value: PLDM_GET_NEXTPART = 0,
+ * PLDM_GET_FIRSTPART = 1
+ *  @return true if is from above values, false if not
+ */
+bool check_transfer_operation_flag_valid(const uint8_t transfer_operation_flag);
+
 #ifdef __cplusplus
 }
 #endif

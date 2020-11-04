@@ -317,3 +317,84 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 
 	return PLDM_SUCCESS;
 }
+
+int encode_get_device_meta_data_req(const uint8_t instance_id,
+				    struct pldm_msg *msg,
+				    const size_t payload_length,
+				    const uint32_t data_transfer_handle,
+				    const uint8_t transfer_operation_flag)
+{
+	if (msg == NULL || data_transfer_handle == NULL ||
+	    transfer_operation_flag == NULL || msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (payload_length != sizeof(struct get_device_meta_data_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct pldm_header_info header = {0};
+	header.instance = instance_id;
+	header.msg_type = PLDM_REQUEST;
+	header.pldm_type = PLDM_FWU;
+	header.command = PLDM_GET_DEVICE_META_DATA;
+
+	int rc = pack_pldm_header(&header, &(msg->hdr));
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+
+	struct get_device_meta_data_req *request =
+	    (struct get_device_meta_data_req *)msg->payload;
+
+	request->data_transfer_handle = htole32(data_transfer_handle);
+
+	if (!check_transfer_operation_flag_valid(transfer_operation_flag)) {
+		return PLDM_INVALID_TRANSFER_OPERATION_FLAG;
+	}
+
+	request->transfer_operation_flag = transfer_operation_flag;
+
+	return PLDM_SUCCESS;
+}
+
+int decode_get_device_meta_data_resp(
+    const struct pldm_msg *msg, const size_t payload_length,
+    uint8_t *completion_code, uint32_t *next_data_transfer_handle,
+    uint8_t *transfer_flag, struct variable_field *portion_of_meta_data)
+{
+	if (msg == NULL || completion_code == NULL ||
+	    next_data_transfer_handle == NULL || transfer_flag == NULL ||
+	    portion_of_meta_data == NULL || msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*completion_code = msg->payload[0];
+
+	if (*completion_code != PLDM_SUCCESS) {
+		return *completion_code;
+	}
+
+	if (payload_length < sizeof(struct get_device_meta_data_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct get_device_meta_data_resp *response =
+	    (struct get_device_meta_data_resp *)msg->payload;
+
+	*next_data_transfer_handle =
+	    le32toh(response->next_data_transfer_handle);
+
+	if (!check_transfer_flag_valid(response->transfer_flag)) {
+		return PLDM_INVALID_TRANSFER_OPERATION_FLAG;
+	}
+
+	*transfer_flag = response->transfer_flag;
+
+	portion_of_meta_data->ptr =
+	    msg->payload + sizeof(struct get_device_meta_data_resp);
+	portion_of_meta_data->length =
+	    payload_length - sizeof(struct get_device_meta_data_resp);
+
+	return PLDM_SUCCESS;
+}

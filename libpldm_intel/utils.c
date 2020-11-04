@@ -1,4 +1,5 @@
 #include "utils.h"
+#include "base.h"
 
 #include <stdio.h>
 
@@ -194,4 +195,30 @@ bool is_time_legal(uint8_t seconds, uint8_t minutes, uint8_t hours, uint8_t day,
 		return false;
 	}
 	return true;
+}
+
+bool check_transfer_flag_valid(const uint8_t transfer_flag)
+{
+	switch (transfer_flag) {
+	case PLDM_START:
+	case PLDM_MIDDLE:
+	case PLDM_END:
+	case PLDM_START_AND_END:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+bool check_transfer_operation_flag_valid(const uint8_t transfer_operation_flag)
+{
+	switch (transfer_operation_flag) {
+	case PLDM_GET_NEXTPART:
+	case PLDM_GET_FIRSTPART:
+		return true;
+
+	default:
+		return false;
+	}
 }

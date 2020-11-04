@@ -320,6 +320,72 @@ TEST(RequestUpdate, testGoodDecodeResponse)
     EXPECT_EQ(fd_pkg_data, inResp->fd_pkg_data);
 }
 
+TEST(GetDeviceMetaData, testGoodEncodeRequest)
+{
+    std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_req)>
+        requestMsg{};
+
+    auto msg = reinterpret_cast<pldm_msg*>(requestMsg.data());
+
+    auto request = reinterpret_cast<get_device_meta_data_req*>(msg->payload);
+
+    // Random value for data transfer handle and transfer operation flag
+    uint32_t dataTransferHandle = 32;
+    uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
+
+    auto rc = encode_get_device_meta_data_req(
+        0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle,
+        transferOperationFlag);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(msg->hdr.instance_id, 0u);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.command, PLDM_GET_DEVICE_META_DATA);
+    EXPECT_EQ(dataTransferHandle, request->data_transfer_handle);
+    EXPECT_EQ(transferOperationFlag, request->transfer_operation_flag);
+}
+
+TEST(GetDeviceMetaData, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint32_t nextDataTransferHandle = 0;
+    uint8_t transferFlag = 0;
+    // portionOfMetaDataLen is not fixed here taking it as 6
+    constexpr uint8_t portionOfMetaDataLen = 6;
+    struct variable_field outPortionMetaData;
+
+    std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_resp) +
+                            portionOfMetaDataLen>
+        responseMsg{};
+    struct get_device_meta_data_resp* inResp =
+        reinterpret_cast<struct get_device_meta_data_resp*>(responseMsg.data() +
+                                                            hdrSize);
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->next_data_transfer_handle = 1;
+    inResp->transfer_flag = 0x05;
+
+    // filling portion of meta data
+    std::fill(responseMsg.data() + hdrSize +
+                  sizeof(struct get_device_meta_data_resp),
+              responseMsg.end() - 1, 0xFF);
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
+    EXPECT_EQ(nextDataTransferHandle, inResp->next_data_transfer_handle);
+    EXPECT_EQ(transferFlag, inResp->transfer_flag);
+    EXPECT_EQ(0, memcmp(outPortionMetaData.ptr,
+                        responseMsg.data() + hdrSize +
+                            sizeof(struct get_device_meta_data_resp),
+                        outPortionMetaData.length));
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
