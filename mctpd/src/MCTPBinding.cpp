@@ -137,6 +137,11 @@ bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
     return true;
 }
 
+bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
+{
+    return true;
+}
+
 MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                          const std::string& objPath, ConfigurationVariant& conf,
                          boost::asio::io_context& ioc) :
@@ -439,6 +444,12 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "MCTP Control Request is not initialized.");
+        return;
+    }
+    if (!isReceivedPrivateDataCorrect(bindingPrivate))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Binding Private Data is not correct.");
         return;
     }
 

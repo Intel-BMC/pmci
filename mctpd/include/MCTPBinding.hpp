@@ -128,6 +128,7 @@ class MctpBinding
     void initializeMctp();
     virtual bool getBindingPrivateData(uint8_t dstEid,
                                        std::vector<uint8_t>& pvtData);
+    virtual bool isReceivedPrivateDataCorrect(const void* bindingPrivate);
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);
