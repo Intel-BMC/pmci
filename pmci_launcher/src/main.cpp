@@ -1,4 +1,6 @@
 #include <boost/algorithm/string.hpp>
+#include <boost/asio/signal_set.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 #include <unordered_set>
