@@ -2,6 +2,107 @@
 #include <string.h>
 
 #include "firmware_update.h"
+static uint32_t maximum_transfer_size;
+static uint32_t component_image_size;
+// TODO: need to maintain maximum_transfer_size and component_image_size using a
+// context structure
+static struct request_firmware_data_req requested_comp_image_seg;
+
+void initialize_fw_update(const uint32_t max_transfer_size,
+			  const uint32_t comp_image_size)
+{
+	maximum_transfer_size = max_transfer_size;
+	component_image_size = comp_image_size;
+}
+
+static int check_request_firmware_data_req_validity()
+{
+	if (!((PLDM_FWU_BASELINE_TRANSFER_SIZE <=
+	       requested_comp_image_seg.length) &&
+	      (requested_comp_image_seg.length <= maximum_transfer_size))) {
+		return INVALID_TRANSFER_LENGTH;
+	}
+	if (!((requested_comp_image_seg.length +
+	       requested_comp_image_seg.offset) <=
+	      (PLDM_FWU_BASELINE_TRANSFER_SIZE + component_image_size))) {
+		return DATA_OUT_OF_RANGE;
+	}
+	return PLDM_SUCCESS;
+}
+
+static int get_padding_length(uint32_t *padding_length)
+{
+	if (padding_length == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	*padding_length = 0;
+	int padding = (requested_comp_image_seg.length +
+		       requested_comp_image_seg.offset - component_image_size);
+	if (padding > PLDM_FWU_BASELINE_TRANSFER_SIZE) {
+		return DATA_OUT_OF_RANGE;
+	}
+	*padding_length = (padding > 0) ? padding : 0;
+	return PLDM_SUCCESS;
+}
+
+int decode_request_firmware_data_req(const struct pldm_msg *msg,
+				     const size_t payload_length,
+				     uint32_t *offset, uint32_t *length)
+{
+	if (msg == NULL || offset == NULL || length == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (payload_length != sizeof(struct request_firmware_data_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	struct request_firmware_data_req *request =
+	    (struct request_firmware_data_req *)msg->payload;
+	*offset = le32toh(request->offset);
+	*length = le32toh(request->length);
+	requested_comp_image_seg = *request;
+	return check_request_firmware_data_req_validity();
+}
+
+int encode_request_firmware_data_resp(
+    const uint8_t instance_id, struct pldm_msg *msg,
+    const size_t payload_length, const uint8_t completion_code,
+    struct variable_field *component_image_portion)
+{
+	if (msg == NULL || component_image_portion == NULL ||
+	    component_image_portion->ptr == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (payload_length != requested_comp_image_seg.length + 1 ||
+	    component_image_portion->length == 0) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	int rc =
+	    encode_pldm_header(instance_id, PLDM_FWU,
+			       PLDM_REQUEST_FIRMWARE_DATA, PLDM_RESPONSE, msg);
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+	uint32_t padding_length;
+	rc = get_padding_length(&padding_length);
+	if (PLDM_SUCCESS != rc) {
+		msg->payload[0] = rc;
+		return rc;
+	}
+	msg->payload[0] = completion_code;
+	if (!padding_length) {
+		memcpy(msg->payload + 1, component_image_portion->ptr,
+		       requested_comp_image_seg.length);
+	} else {
+		memcpy(msg->payload + 1, component_image_portion->ptr,
+		       requested_comp_image_seg.length - padding_length);
+		memset(msg->payload + 1 + requested_comp_image_seg.length -
+			   padding_length,
+		       0x00, padding_length);
+	}
+	return PLDM_SUCCESS;
+}
 
 /** @brief Check whether Component Version String Type or Component Image Set
  * Version String Type is valid

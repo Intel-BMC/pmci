@@ -6,6 +6,116 @@
 
 constexpr auto hdrSize = sizeof(pldm_msg_hdr);
 
+TEST(RequestFirmwareData, testGoodDecodeRequest)
+{
+    uint32_t offset;
+    uint32_t length;
+    initialize_fw_update(512, 160);
+    std::array<uint8_t, hdrSize + sizeof(struct request_firmware_data_req)>
+        requestMsg{};
+    struct request_firmware_data_req* request =
+        reinterpret_cast<struct request_firmware_data_req*>(requestMsg.data() +
+                                                            hdrSize);
+    request->length = 64;
+    request->offset = 0;
+    auto requestIn = reinterpret_cast<pldm_msg*>(requestMsg.data());
+    auto rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(offset, request->offset);
+    EXPECT_EQ(length, request->length);
+}
+
+TEST(RequestFirmwareData, testGoodEncodeResponse)
+{
+    // ComponentImagePortion is not fixed, here taking it as 64 byte
+    constexpr uint8_t compImgLen = 64;
+    std::array<uint8_t, compImgLen> image;
+    size_t payload_length = compImgLen + 1;
+    struct variable_field img;
+    img.ptr = image.data();
+    img.length = 32;
+    uint8_t instanceID = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+
+    std::fill(image.data(), image.end(), 0xFF);
+    std::array<uint8_t, hdrSize + 1 + compImgLen> resp;
+    auto msg = (struct pldm_msg*)resp.data();
+    auto rc = encode_request_firmware_data_resp(instanceID, msg, payload_length,
+                                                completionCode, &img);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.command, PLDM_REQUEST_FIRMWARE_DATA);
+    EXPECT_EQ(msg->payload[0], completionCode);
+    EXPECT_EQ(0, memcmp(img.ptr, msg->payload + 1, img.length));
+}
+
+TEST(RequestFirmwareData, testBadDecodeRequest)
+{
+    uint32_t offset;
+    uint32_t length;
+    std::array<uint8_t, hdrSize + sizeof(struct request_firmware_data_req)>
+        requestMsg{};
+    initialize_fw_update(512, 160);
+    struct request_firmware_data_req* request =
+        reinterpret_cast<struct request_firmware_data_req*>(requestMsg.data() +
+                                                            hdrSize);
+    request->length = 64;
+    request->offset = 0;
+    auto requestIn = reinterpret_cast<pldm_msg*>(requestMsg.data());
+    auto rc = decode_request_firmware_data_req(
+        NULL, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_request_firmware_data_req(requestIn, 0, &offset, &length);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    request->length = 21;
+    request->offset = 0;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
+    request->length = 121;
+    request->offset = 100;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, DATA_OUT_OF_RANGE);
+}
+
+TEST(RequestFirmwareData, testBadEncodeResponse)
+{
+    // ComponentImagePortion is not fixed, here taking it as 64 byte
+    constexpr uint8_t compImgLen = 64;
+    std::array<uint8_t, compImgLen> image;
+    size_t payload_length = compImgLen + 1;
+    initialize_fw_update(512, 160);
+    struct variable_field img;
+    img.ptr = image.data();
+    img.length = 32;
+    uint8_t instanceID = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+    std::fill(image.data(), image.end(), 0xFF);
+    std::array<uint8_t, hdrSize + 1 + compImgLen> resp;
+    auto msg = (struct pldm_msg*)resp.data();
+
+    auto rc = encode_request_firmware_data_resp(
+        instanceID, NULL, payload_length, completionCode, &img);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_request_firmware_data_resp(instanceID, msg, payload_length,
+                                           completionCode, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    img.length = 0;
+    rc = encode_request_firmware_data_resp(instanceID, msg, payload_length,
+                                           completionCode, &img);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    img.ptr = NULL;
+    rc = encode_request_firmware_data_resp(instanceID, msg, payload_length,
+                                           completionCode, &img);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 TEST(GetStatus, testGoodEncodeRequest)
 {
     uint8_t instanceId = 0x01;

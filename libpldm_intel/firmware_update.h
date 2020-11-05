@@ -38,7 +38,6 @@ extern "C" {
 #define PLDM_FWU_MIN_DESCRIPTOR_IDENTIFIERS_LEN 5
 /* Maximum progress percentage value*/
 #define FW_UPDATE_MAX_PROGRESS_PERCENT 0x65
-
 /** @brief PLDM FW update error completion codes
  */
 enum fw_update_error_completion_codes {
@@ -148,6 +147,7 @@ enum pldm_firmware_update_reason_code {
 };
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
+#define PLDM_FWU_BASELINE_TRANSFER_SIZE 32
 
 /** @brief PLDM FWU codes for transfer result
  */
@@ -358,6 +358,15 @@ struct get_status_resp {
 	uint8_t progress_percent;
 	uint8_t reason_code;
 	bitfield32_t update_option_flags_enabled;
+} __attribute__((packed));
+
+/** @struct request_firmware_data_req
+ *
+ *  Structure representing Request firmware data request.
+ */
+struct request_firmware_data_req {
+	uint32_t offset;
+	uint32_t length;
 } __attribute__((packed));
 
 /* QueryDeviceIdentifiers */
@@ -1029,6 +1038,51 @@ int encode_apply_complete_resp(const uint8_t instance_id,
 int decode_apply_complete_req(
     const struct pldm_msg *msg, const size_t payload_length,
     uint8_t *apply_result, bitfield16_t *comp_activation_methods_modification);
+
+/** @brief Decode a RequestFirmwareData request message
+ *
+ *	Note:
+ *	* If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *	* If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *	@param[in] msg - request message
+ *	@param[in] payload_length - Length of request message payload
+ *	@param[out] offset - pointer to offset of the component image segment
+ *	@param[out] length - pointer to size of the component image segment
+ * requested by the FD information
+ *	@return pldm_completion_codes
+ */
+int decode_request_firmware_data_req(const struct pldm_msg *msg,
+				     const size_t payload_length,
+				     uint32_t *offset, uint32_t *length);
+
+/** @brief Create a PLDM response message for RequestFirmwareData
+ *
+ *	@param[in] instance_id - Message's instance id
+ *	@param[in,out] msg - Message will be written to this
+ *  @param[in] payload_length - Length of response message payload
+ *	@param[in] completion_code - Pointer to response msg's PLDM completion
+ *code
+ *	@param[in] component_image_portion - Pointer which holds image segment
+ * information
+ *	@return pldm_completion_codes
+ *	@note  Caller is responsible for memory alloc and dealloc of param
+ *		   'msg.payload'
+ */
+int encode_request_firmware_data_resp(
+    const uint8_t instance_id, struct pldm_msg *msg,
+    const size_t payload_length, const uint8_t completion_code,
+    struct variable_field *component_image_portion);
+
+/** @brief Initialize firmware update parameter
+ *
+ *  @param[in] max_transfer_size - Maximum transfer size
+ *  @param[in] comp_image_size - Component image size
+ */
+void initialize_fw_update(const uint32_t max_transfer_size,
+			  const uint32_t comp_image_size);
 
 #ifdef __cplusplus
 }
