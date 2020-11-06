@@ -35,6 +35,13 @@ extern "C" {
 // descriptor type 2 byte, length 2 bytes and data 1 byte min.
 #define PLDM_FWU_MIN_DESCRIPTOR_IDENTIFIERS_LEN 5
 
+/** @brief PLDM FWU codes for Self Contained Activation Request
+ */
+enum self_contained_activation_req {
+	NOT_CONTAINING_SELF_ACTIVATED_COMPONENTS = 0,
+	CONTAINS_SELF_ACTIVATED_COMPONENTS = 1
+};
+
 /** @struct query_device_identifiers_resp
  *
  *  Structure representing query device identifiers response.
@@ -297,6 +304,62 @@ int decode_get_device_meta_data_resp(
     const struct pldm_msg *msg, const size_t payload_length,
     uint8_t *completion_code, uint32_t *next_data_transfer_handle,
     uint8_t *transfer_flag, struct variable_field *portion_of_meta_data);
+
+/*ActivateFirmware*/
+
+/* @struct activate_firmware_req
+ *
+ *  Structure representing Activate Firmware request
+ */
+struct activate_firmware_req {
+	bool8_t self_contained_activation_req;
+} __attribute__((packed));
+
+/* @struct activate_firmware_resp
+ *
+ *  Structure representing Activate Firmware response
+ */
+struct activate_firmware_resp {
+	uint8_t completion_code;
+	uint16_t estimated_time_activation;
+} __attribute__((packed));
+
+/** @brief Create a PLDM request message for ActivateFirmware
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[in] self_contained_activation_req returns True if FD shall activate
+ * all self-contained components and returns False if FD shall not activate any
+ * self-contained components.
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_activate_firmware_req(const uint8_t instance_id,
+				 struct pldm_msg *msg,
+				 const size_t payload_length,
+				 const bool8_t self_contained_activation_req);
+
+/** @brief Decode a ActivateFirmware response message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion code
+ *  @param[out] estimated_time_activation - Pointer to Estimated Time For Self
+ * Contained Activation request firmware data information
+ *  @return pldm_completion_codes
+ */
+int decode_activate_firmware_resp(const struct pldm_msg *msg,
+				  const size_t payload_length,
+				  uint8_t *completion_code,
+				  uint16_t *estimated_time_activation);
 
 #ifdef __cplusplus
 }

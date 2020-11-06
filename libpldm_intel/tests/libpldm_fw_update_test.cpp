@@ -386,6 +386,54 @@ TEST(GetDeviceMetaData, testGoodDecodeResponse)
                         outPortionMetaData.length));
 }
 
+TEST(ActivateFirmware, testGoodEncodeRequest)
+{
+    std::array<uint8_t, hdrSize + sizeof(struct activate_firmware_req)>
+        requestMsg{};
+
+    auto msg = reinterpret_cast<pldm_msg*>(requestMsg.data());
+
+    auto request = reinterpret_cast<activate_firmware_req*>(msg->payload);
+
+    bool8_t selfContainedActivationReq = 1;
+
+    auto rc = encode_activate_firmware_req(0, msg,
+                                           sizeof(struct activate_firmware_req),
+                                           selfContainedActivationReq);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(msg->hdr.instance_id, 0u);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.command, PLDM_ACTIVATE_FIRMWARE);
+    EXPECT_EQ(selfContainedActivationReq,
+              request->self_contained_activation_req);
+}
+
+TEST(ActivateFirmware, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint16_t estimatedTimeActivation = 1;
+
+    std::array<uint8_t, hdrSize + sizeof(struct activate_firmware_resp)>
+        responseMsg{};
+    struct activate_firmware_resp* inResp =
+        reinterpret_cast<struct activate_firmware_resp*>(responseMsg.data() +
+                                                         hdrSize);
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->estimated_time_activation = 0x01;
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_activate_firmware_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &estimatedTimeActivation);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
+    EXPECT_EQ(estimatedTimeActivation, inResp->estimated_time_activation);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

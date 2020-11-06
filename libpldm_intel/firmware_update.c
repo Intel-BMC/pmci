@@ -398,3 +398,72 @@ int decode_get_device_meta_data_resp(
 
 	return PLDM_SUCCESS;
 }
+
+int encode_activate_firmware_req(const uint8_t instance_id,
+				 struct pldm_msg *msg,
+				 const size_t payload_length,
+				 const bool8_t self_contained_activation_req)
+{
+	if (msg == NULL || self_contained_activation_req == NULL ||
+	    msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (payload_length != sizeof(struct activate_firmware_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct pldm_header_info header = {0};
+	header.instance = instance_id;
+	header.msg_type = PLDM_REQUEST;
+	header.pldm_type = PLDM_FWU;
+	header.command = PLDM_ACTIVATE_FIRMWARE;
+
+	int rc = pack_pldm_header(&header, &(msg->hdr));
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+
+	struct activate_firmware_req *request =
+	    (struct activate_firmware_req *)msg->payload;
+
+	if (self_contained_activation_req !=
+		NOT_CONTAINING_SELF_ACTIVATED_COMPONENTS &&
+	    self_contained_activation_req !=
+		CONTAINS_SELF_ACTIVATED_COMPONENTS) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	request->self_contained_activation_req = self_contained_activation_req;
+
+	return PLDM_SUCCESS;
+}
+
+int decode_activate_firmware_resp(const struct pldm_msg *msg,
+				  const size_t payload_length,
+				  uint8_t *completion_code,
+				  uint16_t *estimated_time_activation)
+{
+	if (msg == NULL || completion_code == NULL ||
+	    estimated_time_activation == NULL || msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*completion_code = msg->payload[0];
+
+	if (*completion_code != PLDM_SUCCESS) {
+		return *completion_code;
+	}
+
+	if (payload_length != sizeof(struct activate_firmware_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct activate_firmware_resp *response =
+	    (struct activate_firmware_resp *)msg->payload;
+
+	*estimated_time_activation =
+	    le32toh(response->estimated_time_activation);
+
+	return PLDM_SUCCESS;
+}
