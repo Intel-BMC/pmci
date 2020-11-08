@@ -934,3 +934,127 @@ int decode_transfer_complete_req(const struct pldm_msg *msg,
 	*transfer_result = msg->payload[0];
 	return PLDM_SUCCESS;
 }
+
+/** @brief generic encode api for GetMetaData/GetPackageData response command
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] data - pointer to response data
+ *  @param[in] portion_of_meta_data - pointer to package data
+ *  @return pldm_completion_codes
+ */
+static int encode_firmware_device_data_resp(
+    const uint8_t instance_id, const size_t payload_length,
+    struct pldm_msg *msg, uint8_t command_code, struct get_fd_data_resp *data,
+    struct variable_field *portion_of_meta_data)
+{
+	if (msg == NULL || data == NULL || portion_of_meta_data == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	int rc = encode_pldm_header(instance_id, PLDM_FWU, command_code,
+				    PLDM_RESPONSE, msg);
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+	if (payload_length < sizeof(struct get_fd_data_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	if (!check_transfer_flag_valid(data->transfer_flag)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (portion_of_meta_data->ptr == NULL) {
+		return PLDM_ERROR;
+	}
+	HTOLE32(data->next_data_transfer_handle);
+	memcpy(msg->payload, data, sizeof(struct get_fd_data_resp));
+	memcpy(msg->payload + sizeof(struct get_fd_data_resp),
+	       portion_of_meta_data->ptr, portion_of_meta_data->length);
+	return PLDM_SUCCESS;
+}
+
+/** @brief generic decode api for GetMetaData/GetPackageData request command
+ *
+ *  @param[in] msg - request message
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[out] data_transfer_handle - Pointer to data transfer handle
+ *  @param[out] transfer_operation_flag - Pointer to transfer operation flag
+ *  @return pldm_completion_codes
+ */
+static int decode_firmware_device_data_req(const struct pldm_msg *msg,
+					   const size_t payload_length,
+					   uint32_t *data_transfer_handle,
+					   uint8_t *transfer_operation_flag)
+{
+	if (msg == NULL || data_transfer_handle == NULL ||
+	    transfer_operation_flag == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (payload_length != sizeof(struct get_fd_data_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	struct get_fd_data_req *request =
+	    (struct get_fd_data_req *)msg->payload;
+	if (request->transfer_operation_flag > PLDM_GET_FIRSTPART) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	*data_transfer_handle = le32toh(request->data_transfer_handle);
+	*transfer_operation_flag = request->transfer_operation_flag;
+	return PLDM_SUCCESS;
+}
+
+int encode_get_package_data_resp(const uint8_t instance_id,
+				 const size_t payload_length,
+				 struct pldm_msg *msg,
+				 struct get_fd_data_resp *data,
+				 struct variable_field *portion_of_meta_data)
+{
+	if (msg == NULL || data == NULL || portion_of_meta_data == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	return (encode_firmware_device_data_resp(instance_id, payload_length,
+						 msg, PLDM_GET_PACKAGE_DATA,
+						 data, portion_of_meta_data));
+}
+
+int decode_get_pacakge_data_req(const struct pldm_msg *msg,
+				const size_t payload_length,
+				uint32_t *data_transfer_handle,
+				uint8_t *transfer_operation_flag)
+{
+	if (msg == NULL || data_transfer_handle == NULL ||
+	    transfer_operation_flag == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	return (decode_firmware_device_data_req(msg, payload_length,
+						data_transfer_handle,
+						transfer_operation_flag));
+}
+
+int encode_get_meta_data_resp(const uint8_t instance_id,
+			      const size_t payload_length, struct pldm_msg *msg,
+			      struct get_fd_data_resp *data,
+			      struct variable_field *portion_of_meta_data)
+{
+	if (msg == NULL || data == NULL || portion_of_meta_data == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	return (encode_firmware_device_data_resp(instance_id, payload_length,
+						 msg, PLDM_GET_META_DATA, data,
+						 portion_of_meta_data));
+}
+
+int decode_get_meta_data_req(const struct pldm_msg *msg,
+			     const size_t payload_length,
+			     uint32_t *data_transfer_handle,
+			     uint8_t *transfer_operation_flag)
+{
+	if (msg == NULL || data_transfer_handle == NULL ||
+	    transfer_operation_flag == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	return (decode_firmware_device_data_req(msg, payload_length,
+						data_transfer_handle,
+						transfer_operation_flag));
+}

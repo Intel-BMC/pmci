@@ -222,6 +222,25 @@ struct cancel_update_resp {
 	uint64_t non_functioning_component_bitmap;
 };
 
+/* @struct get_fd_data_req
+ *
+ *  Structure representing GetMetaData/GetPackageData request
+ */
+struct get_fd_data_req {
+	uint32_t data_transfer_handle;
+	uint8_t transfer_operation_flag;
+} __attribute__((packed));
+
+/* @struct get_fd_data_resp
+ *
+ *  Structure representing GetMetaData/GetPackageData response
+ */
+struct get_fd_data_resp {
+	uint8_t completion_code;
+	uint32_t next_data_transfer_handle;
+	uint8_t transfer_flag;
+} __attribute__((packed));
+
 /* QueryDeviceIdentifiers */
 
 /** @brief Create a PLDM request message for QueryDeviceIdentifiers
@@ -734,6 +753,78 @@ int encode_transfer_complete_resp(const uint8_t instance_id,
  */
 int decode_transfer_complete_req(const struct pldm_msg *msg,
 				 uint8_t *transfer_result);
+
+/** @brief Create a PLDM response message for GetPackageData
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] data - pointer to response data
+ *  @param[in] portion_of_meta_data - pointer to package data
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_get_package_data_resp(const uint8_t instance_id,
+				 const size_t payload_length,
+				 struct pldm_msg *msg,
+				 struct get_fd_data_resp *data,
+				 struct variable_field *portion_of_meta_data);
+
+/** @brief Decode a GetPackageData request message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Request message
+ *  @param[in] payload_length - Length of Request message payload
+ *  @param[out] data_transfer_handle - Pointer to data transfer handle
+ *  @param[out] transfer_operation_flag - Pointer to transfer operation flag
+ *  @return pldm_completion_codes
+ */
+int decode_get_pacakge_data_req(const struct pldm_msg *msg,
+				const size_t payload_length,
+				uint32_t *data_transfer_handle,
+				uint8_t *transfer_operation_flag);
+
+/** @brief Create a PLDM response message for GetMetaData
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] data - pointer to response data
+ *  @param[in] portion_of_meta_data - pointer to package data
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_get_meta_data_resp(const uint8_t instance_id,
+			      const size_t payload_length, struct pldm_msg *msg,
+			      struct get_fd_data_resp *data,
+			      struct variable_field *portion_of_meta_data);
+
+/** @brief Decode a GetMetaData request message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - request message
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[out] data_transfer_handle - Pointer to data transfer handle
+ *  @param[out] transfer_operation_flag - Pointer to transfer operation flag
+ *  @return pldm_completion_codes
+ */
+int decode_get_meta_data_req(const struct pldm_msg *msg,
+			     const size_t payload_length,
+			     uint32_t *data_transfer_handle,
+			     uint8_t *transfer_operation_flag);
+
 #ifdef __cplusplus
 }
 #endif
