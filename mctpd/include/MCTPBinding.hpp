@@ -171,6 +171,8 @@ class MctpBinding
     uint8_t ctrlTxRetryCount;
     boost::asio::io_context& io;
     mctp_server::BindingModeTypes bindingModeType{};
+    mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
+    std::shared_ptr<dbus_interface> mctpInterface;
     struct mctp* mctp = nullptr;
     uint8_t ownEid;
     uint8_t busOwnerEid;
@@ -256,14 +258,14 @@ class MctpBinding
             throw std::invalid_argument(name);
         }
     }
+    bool setMediumId(uint8_t value,
+                     mctp_server::MctpPhysicalMediumIdentifiers& mediumId);
 
   private:
     bool staticEid;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
-    mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     std::shared_ptr<object_server>& objectServer;
-    std::shared_ptr<dbus_interface> mctpInterface;
     std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
     std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
     std::vector<std::shared_ptr<dbus_interface>> uuidInterface;

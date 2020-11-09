@@ -21,6 +21,82 @@ const std::unordered_map<uint8_t, version_entry> versionNumbers = {
     {MCTP_MESSAGE_TYPE_MCTP_CTRL, {0xF1, 0xF3, 0xF1, 0}},
     {MCTP_GET_VERSION_SUPPORT_BASE_INFO, {0xF1, 0xF3, 0xF1, 0}}};
 
+/* According DSP0239(Version: 1.7.0) */
+static const std::unordered_map<uint8_t,
+                                mctp_server::MctpPhysicalMediumIdentifiers>
+    valueToMediumId = {
+        /*0x00 Unspecified*/
+        {0x01,
+         mctp_server::MctpPhysicalMediumIdentifiers::Smbus}, /*SMBus 2.0 100 kHz
+                                                                compatible*/
+        {0x02, mctp_server::MctpPhysicalMediumIdentifiers::
+                   SmbusI2c}, /*SMBus 2.0 + I2C 100 kHz compatible*/
+        {0x03, mctp_server::MctpPhysicalMediumIdentifiers::
+                   I2cCompatible}, /*I2C 100 kHz compatible (Standard-mode)*/
+        {0x04, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Smbus3OrI2c400khzCompatible}, /*SMBus 3.0 or I2C 400 kHz
+                                                    compatible (Fast-mode)*/
+        {0x05, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Smbus3OrI2c1MhzCompatible}, /*SMBus 3.0 or I2C 1 MHz
+                                                  compatible (Fast-mode Plus)*/
+        {0x06,
+         mctp_server::MctpPhysicalMediumIdentifiers::
+             I2c3Mhz4Compatible}, /*I2C 3.4 MHz compatible (High-speed mode)*/
+        /*0x07 Reserved*/
+        {0x08, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Pcie11}, /*PCIe revision 1.1 compatible*/
+        {0x09,
+         mctp_server::MctpPhysicalMediumIdentifiers::Pcie2}, /*PCIe revision 2.0
+                                                                compatible*/
+        {0x0A, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Pcie21}, /*PCIe revision 2.1 compatible*/
+        {0x0B,
+         mctp_server::MctpPhysicalMediumIdentifiers::Pcie3}, /*PCIe revision 3.x
+                                                                compatible*/
+        {0x0C,
+         mctp_server::MctpPhysicalMediumIdentifiers::Pcie4}, /*PCIe revision 4.x
+                                                                compatible*/
+        {0x0D,
+         mctp_server::MctpPhysicalMediumIdentifiers::Pcie5}, /*PCIe revision 5.x
+                                                                compatible*/
+        /*0x0E Reserved*/
+        {0x0F, mctp_server::MctpPhysicalMediumIdentifiers::
+                   PciCompatible}, /*PCI compatible
+                                      (PCI 1.0,2.0,2.1,2.2,2.3,3.0,PCI-X 1.0,
+                                      PCI-X 2.0)*/
+        {0x10, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Usb11Compatible}, /*USB 1.1 compatible*/
+        {0x11, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Usb20Compatible}, /*USB 2.0 compatible*/
+        {0x12, mctp_server::MctpPhysicalMediumIdentifiers::
+                   Usb30Compatible}, /*USB 3.0 compatible*/
+        /*0x13:0x17 Reserved*/
+        {0x18, mctp_server::MctpPhysicalMediumIdentifiers::
+                   NcSiOverRbt}, /*NC-SI over RBT (A physical interface based on
+                                    RMII as defined inDSP0222)*/
+        /*0x19:0x1F Reserved*/
+        {0x20, mctp_server::MctpPhysicalMediumIdentifiers::
+                   KcsLegacy}, /*KCS / Legacy (Fixed Address Decoding)*/
+        {0x21, mctp_server::MctpPhysicalMediumIdentifiers::
+                   KcsPci}, /*KCS / PCI (Base Class 0xC0 Subclass 0x01)*/
+        {0x22, mctp_server::MctpPhysicalMediumIdentifiers::
+                   SerialHostLegacy}, /*Serial Host / Legacy (Fixed Address
+                                         Decoding)*/
+        {0x23, mctp_server::MctpPhysicalMediumIdentifiers::
+                   SerialHostPci}, /*Serial Host / PCI (Base Class 0x07 Subclass
+                                      0x00)*/
+        {0x24,
+         mctp_server::MctpPhysicalMediumIdentifiers::
+             AsynchronousSerial}, /*Asynchronous Serial3(Between MCs and IMDs)*/
+        {0x30, mctp_server::MctpPhysicalMediumIdentifiers::
+                   I3cSDR}, /*I3C 12.5 MHz compatible (SDR)*/
+        {0x31, mctp_server::MctpPhysicalMediumIdentifiers::
+                   I3cHDRDDR} /*I3C 25 MHz compatible (HDR-DDR)*/
+                              /*0x32:0x3F Reserved */
+                              /*0x40, CXL 1.x*/
+                              /*0x41:0xFF Reserved*/
+};
+
 static uint8_t getInstanceId(const uint8_t msg)
 {
     return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
@@ -1470,6 +1546,18 @@ MsgTypes MctpBinding::getMsgTypes(const std::vector<uint8_t>& msgType)
         }
     }
     return messageTypes;
+}
+
+bool MctpBinding::setMediumId(
+    uint8_t value, mctp_server::MctpPhysicalMediumIdentifiers& mediumId)
+{
+    auto id = valueToMediumId.find(value);
+    if (id != valueToMediumId.end())
+    {
+        mediumId = id->second;
+        return true;
+    }
+    return false;
 }
 
 static std::string formatUUID(guid_t& uuid)

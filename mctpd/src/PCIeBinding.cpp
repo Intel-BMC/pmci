@@ -303,6 +303,7 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
         changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Discovered);
+        mctpInterface->set_property("Eid", ownEid);
     }
     pciePrivate->routing = PCIE_ROUTE_BY_ID;
     return true;
@@ -423,6 +424,19 @@ void PCIeBinding::initializeBinding()
     if (mctp_astpcie_get_bdf(pcie, &bdf) == 0)
     {
         pcieInterface->set_property("BDF", bdf);
+    }
+
+    if (setMediumId(mctp_astpcie_get_medium_id(pcie), bindingMediumID))
+    {
+        mctpInterface->set_property(
+            "BindingMediumID",
+            mctp_server::convertMctpPhysicalMediumIdentifiersToString(
+                bindingMediumID));
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Incorrect medium id, BindingMediumID property not updated");
     }
 
     monitorUdevEvents();
