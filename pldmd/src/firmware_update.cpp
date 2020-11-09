@@ -25,9 +25,12 @@ namespace pldm
 {
 namespace fwu
 {
+using FWUVariantType =
+    std::variant<uint8_t, uint16_t, uint32_t, uint64_t, std::string>;
 // TODO: The map will be updated for adding Get Firmware Parameters capabilities
 std::map<pldm_tid_t, std::map<std::string, FWUVariantType>>
     terminusFwuProperties;
+std::map<std::string, FWUVariantType> fwuProperties;
 
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
@@ -45,8 +48,10 @@ void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
 }
 
 template <typename T>
-void PLDMFWUpdate::processDescriptor(const DescriptorHeader& header,
-                                     const T& data)
+static void
+    processDescriptor(const DescriptorHeader& header, const T& data,
+                      std::map<std::string, FWUVariantType>& descriptorData)
+
 {
     std::string value;
     try
@@ -62,23 +67,23 @@ void PLDMFWUpdate::processDescriptor(const DescriptorHeader& header,
     switch (header.type)
     {
         case pldm::fwu::DescriptorIdentifierType::pciVendorID: {
-            fwuProperties["PCIVendorID"] = value;
+            descriptorData["PCIVendorID"] = value;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciDeviceID: {
-            fwuProperties["PCIDeviceID"] = value;
+            descriptorData["PCIDeviceID"] = value;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciSubsystemVendorID: {
-            fwuProperties["PCISubsystemVendorID"] = value;
+            descriptorData["PCISubsystemVendorID"] = value;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciSubsystemID: {
-            fwuProperties["PCISubsystemID"] = value;
+            descriptorData["PCISubsystemID"] = value;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciRevisionID: {
-            fwuProperties["PCIRevisionID"] = value;
+            descriptorData["PCIRevisionID"] = value;
             break;
         }
         // TODO Add cases for other Descriptor Identifier Types
@@ -90,16 +95,19 @@ void PLDMFWUpdate::processDescriptor(const DescriptorHeader& header,
     }
 }
 
-void PLDMFWUpdate::processDescriptor(const DescriptorHeader& /*header*/,
-                                     const std::vector<uint8_t>& /*data*/)
+static void
+    processDescriptor(const DescriptorHeader& /*header*/,
+                      const std::vector<uint8_t>& /*data*/,
+                      std::map<std::string, FWUVariantType>& /*descriptorData*/)
 {
 
     // TODO process non-standard descriptor sizes(Eg: PnP 3 byes) and bigger
     // sizes(Eg: UUID 16 bytes)
 }
 
-void PLDMFWUpdate::unpackDescriptors(const uint8_t count,
-                                     const std::vector<uint8_t>& data)
+static void
+    unpackDescriptors(const uint8_t count, const std::vector<uint8_t>& data,
+                      std::map<std::string, FWUVariantType>& descriptorData)
 {
     size_t found = 0;
     auto it = std::begin(data);
@@ -131,22 +139,24 @@ void PLDMFWUpdate::unpackDescriptors(const uint8_t count,
         // Unpack data
         if (hdr->size == sizeof(uint8_t))
         {
-            processDescriptor(*hdr, *it);
+            processDescriptor(*hdr, *it, descriptorData);
         }
         else if (hdr->size == sizeof(uint16_t))
         {
-            processDescriptor(*hdr, *reinterpret_cast<const uint16_t*>(&*it));
+            processDescriptor(*hdr, *reinterpret_cast<const uint16_t*>(&*it),
+                              descriptorData);
         }
         else if (hdr->size == sizeof(uint32_t))
         {
-            processDescriptor(*hdr, *reinterpret_cast<const uint32_t*>(&*it));
+            processDescriptor(*hdr, *reinterpret_cast<const uint32_t*>(&*it),
+                              descriptorData);
         }
         else
         {
-            std::vector<uint8_t> descriptorData;
+            std::vector<uint8_t> descriptorDataVect;
             std::copy(it, std::next(it, hdr->size),
-                      std::back_inserter(descriptorData));
-            processDescriptor(*hdr, descriptorData);
+                      std::back_inserter(descriptorDataVect));
+            processDescriptor(*hdr, descriptorDataVect, descriptorData);
         }
         std::advance(it, hdr->size);
 
@@ -162,7 +172,7 @@ void PLDMFWUpdate::unpackDescriptors(const uint8_t count,
     }
 }
 
-int PLDMFWUpdate::runQueryDeviceIdentifiers()
+int FWInventoryInfo::runQueryDeviceIdentifiers()
 {
     uint8_t instanceID = createInstanceId(tid);
     std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
@@ -221,19 +231,19 @@ int PLDMFWUpdate::runQueryDeviceIdentifiers()
         return retVal;
     }
 
-    unpackDescriptors(descriptorCount, descriptorDataVect);
+    unpackDescriptors(descriptorCount, descriptorDataVect, fwuProperties);
 
     return PLDM_SUCCESS;
 }
 
-PLDMFWUpdate::PLDMFWUpdate(boost::asio::yield_context _yield,
-                           const pldm_tid_t _tid) :
+FWInventoryInfo::FWInventoryInfo(boost::asio::yield_context _yield,
+                                 const pldm_tid_t _tid) :
     yield(_yield),
     tid(_tid)
 {
 }
 
-PLDMFWUpdate::~PLDMFWUpdate()
+FWInventoryInfo::~FWInventoryInfo()
 {
 }
 
@@ -253,19 +263,17 @@ static void initializeFWUBase()
     fwuBaseInitialized = true;
 }
 
-std::optional<std::map<std::string, FWUVariantType>>
-    PLDMFWUpdate::runInventoryCommands()
+int FWInventoryInfo::runInventoryCommands()
 {
-
     int retVal = runQueryDeviceIdentifiers();
 
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to run QueryDeviceIdentifiers command");
-        return std::nullopt;
+        return retVal;
     }
-    return fwuProperties;
+    return retVal;
 }
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
@@ -274,20 +282,18 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     {
         initializeFWUBase();
     }
-    PLDMFWUpdate fwUpdate(yield, tid);
+    FWInventoryInfo inventoryInfo(yield, tid);
 
-    if (auto properties = fwUpdate.runInventoryCommands())
-    {
-        terminusFwuProperties[tid] = *properties;
-    }
-    else
+    if (inventoryInfo.runInventoryCommands() != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to run runInventory commands",
             phosphor::logging::entry("TID=%d", tid));
         return false;
     }
+    terminusFwuProperties[tid] = fwuProperties;
 
+    fwuProperties.clear();
     return true;
 }
 } // namespace fwu

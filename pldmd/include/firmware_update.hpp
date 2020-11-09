@@ -20,8 +20,6 @@ namespace pldm
 {
 namespace fwu
 {
-using FWUVariantType = std::variant<uint16_t, uint32_t, std::string>;
-
 enum class DescriptorIdentifierType : uint16_t
 {
     pciVendorID = 0,
@@ -43,16 +41,16 @@ struct DescriptorHeader
     uint16_t size;
 };
 
-class PLDMFWUpdate
+class FWInventoryInfo
 {
   public:
-    PLDMFWUpdate() = delete;
-    PLDMFWUpdate(boost::asio::yield_context _yield, const pldm_tid_t _tid);
-    ~PLDMFWUpdate();
+    FWInventoryInfo() = delete;
+    FWInventoryInfo(boost::asio::yield_context _yield, const pldm_tid_t _tid);
+    ~FWInventoryInfo();
 
     /** @brief runs inventory commands
      */
-    std::optional<std::map<std::string, FWUVariantType>> runInventoryCommands();
+    int runInventoryCommands();
 
   private:
     /** @brief run query device identifiers command
@@ -60,26 +58,8 @@ class PLDMFWUpdate
      * on failure
      */
     int runQueryDeviceIdentifiers();
-    /** @brief This API is used for processing descriptor data of standard sizes
-     */
-    template <typename T>
-    void processDescriptor(const DescriptorHeader& header, const T& data);
-
-    /** @brief This API is used for processing descriptor data of non-standard
-     * sizes and bigger sizes.
-     */
-    void processDescriptor(const DescriptorHeader& header,
-                           const std::vector<uint8_t>& data);
-
-    /** @brief This API is used for unpacking descriptor data based on the
-     * descriptor type.
-     */
-    void unpackDescriptors(const uint8_t count,
-                           const std::vector<uint8_t>& data);
-
     boost::asio::yield_context yield;
     pldm_tid_t tid;
-    std::map<std::string, FWUVariantType> fwuProperties;
     const uint16_t timeout = 100;
     const size_t retryCount = 3;
 };
