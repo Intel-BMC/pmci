@@ -431,8 +431,8 @@ int main(void)
 
     // TODO: List Endpoints that support registered PLDM message type
 
-    // Using dummy EID till the discovery is implemented
-    mctpw_eid_t dummyEid = 1;
+    // Using dummy EID exposed by emulator until the discovery is implemented
+    mctpw_eid_t dummyEid = 8;
     if (auto tid = pldm::getFreeTid())
     {
         // TODO: Add TID to mapper only if setTID/getTID success
