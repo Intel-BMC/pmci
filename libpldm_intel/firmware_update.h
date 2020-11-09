@@ -37,6 +37,16 @@ extern "C" {
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
 
+/** @brief PLDM FWU codes for Transfer Result
+ */
+enum pldm_fwu_transfer_result {
+	PLDM_FWU_TRASFER_SUCCESS = 0x00,
+	PLDM_FWU_TRANSFER_COMPLETE_WITH_ERROR = 0x02,
+	PLDM_FWU_FD_ABORTED_TRANSFER = 0x03,
+	PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MIN = 0x70,
+	PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX = 0x8F
+};
+
 /**@brief PLDM FWU common error codes
  */
 enum pldm_fwu_common_error_code {
@@ -696,6 +706,34 @@ int encode_verify_complete_resp(const uint8_t instance_id,
  */
 int decode_verify_complete_req(const struct pldm_msg *msg,
 			       uint8_t *verify_result);
+
+/** @brief Create a PLDM response message for TransferComplete
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] completion_code - completion code
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_transfer_complete_resp(const uint8_t instance_id,
+				  const uint8_t completion_code,
+				  struct pldm_msg *msg);
+
+/** @brief Decode a TransferComplete request message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - request message
+ *  @param[out] transfer_result - Pointer to TransferResult
+ *  @return pldm_completion_codes
+ */
+int decode_transfer_complete_req(const struct pldm_msg *msg,
+				 uint8_t *transfer_result);
 #ifdef __cplusplus
 }
 #endif

@@ -143,6 +143,65 @@ TEST(VerifyComplete, testBadDecodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(TransferComplete, testGoodEncodeResponse)
+{
+    uint8_t instanceId = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+    std::array<uint8_t, (hdrSize + 1)> responseMsg{};
+    auto responsePtr = reinterpret_cast<pldm_msg*>(responseMsg.data());
+    auto rc =
+        encode_transfer_complete_resp(instanceId, completionCode, responsePtr);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
+    EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.command, PLDM_TRANSFER_COMPLETE);
+    EXPECT_EQ(responsePtr->payload[0], completionCode);
+}
+
+TEST(TransferComplete, testBadEncodeResponse)
+{
+    uint8_t instanceId = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+    auto rc = encode_transfer_complete_resp(instanceId, completionCode, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(TransferComplete, testGoodDecodeRequest)
+{
+    std::array<uint8_t, (hdrSize + 1)> request;
+    uint8_t transferResult;
+    auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+    requestPtr->payload[0] = PLDM_FWU_TRASFER_SUCCESS;
+    auto rc = decode_transfer_complete_req(requestPtr, &transferResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(transferResult, PLDM_FWU_TRASFER_SUCCESS);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MIN;
+    rc = decode_transfer_complete_req(requestPtr, &transferResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(transferResult, PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MIN);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX;
+    rc = decode_transfer_complete_req(requestPtr, &transferResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(transferResult, PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX);
+}
+
+TEST(TransferComplete, testBadDecodeRequest)
+{
+    std::array<uint8_t, (hdrSize + 1)> request;
+    uint8_t transferResult;
+    auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+    requestPtr->payload[0] = PLDM_FWU_TRASFER_SUCCESS;
+    auto rc = decode_transfer_complete_req(NULL, &transferResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MIN - 1;
+    rc = decode_transfer_complete_req(requestPtr, &transferResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX + 1;
+    rc = decode_transfer_complete_req(requestPtr, &transferResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 TEST(QueryDeviceIdentifiers, testGoodEncodeRequest)
 {
     std::array<uint8_t, sizeof(pldm_msg_hdr)> requestMsg{};

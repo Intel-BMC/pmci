@@ -26,6 +26,32 @@ static bool validate_verify_result(const uint8_t verify_result)
 	}
 }
 
+/** @brief Check validity of TransferResult in TransferComplete
+ *
+ *	@param[in] transfer_result - TransferResult
+ *	@return validity
+ */
+static bool validate_transfer_result(const uint8_t transfer_result)
+{
+
+	switch (transfer_result) {
+	case PLDM_FWU_TRASFER_SUCCESS:
+	case PLDM_FWU_TRANSFER_COMPLETE_WITH_ERROR:
+	case PLDM_FWU_FD_ABORTED_TRANSFER:
+	case PLDM_FWU_TIME_OUT:
+	case PLDM_FWU_GENERIC_ERROR:
+		return true;
+	default:
+		if (transfer_result >=
+			PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MIN &&
+		    transfer_result <=
+			PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX) {
+			return true;
+		}
+		return false;
+	}
+}
+
 int encode_query_device_identifiers_req(const uint8_t instance_id,
 					struct pldm_msg *msg,
 					const size_t payload_length)
@@ -881,5 +907,30 @@ int decode_verify_complete_req(const struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 	*verify_result = msg->payload[0];
+	return PLDM_SUCCESS;
+}
+
+int encode_transfer_complete_resp(const uint8_t instance_id,
+				  const uint8_t completion_code,
+				  struct pldm_msg *msg)
+{
+	if (msg == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	return (encode_cc_only_resp(instance_id, PLDM_FWU,
+				    PLDM_TRANSFER_COMPLETE, completion_code,
+				    msg));
+}
+
+int decode_transfer_complete_req(const struct pldm_msg *msg,
+				 uint8_t *transfer_result)
+{
+	if (msg == NULL || transfer_result == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (!validate_transfer_result(msg->payload[0])) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	*transfer_result = msg->payload[0];
 	return PLDM_SUCCESS;
 }
