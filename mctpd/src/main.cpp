@@ -450,7 +450,7 @@ int main(int argc, char* argv[])
     auto bindingPtr = getBindingPtr(mctpdConfiguration, objectServer, ioc);
     try
     {
-        bindingPtr->initializeBinding(mctpdConfiguration);
+        bindingPtr->initializeBinding();
     }
     catch (const std::exception& e)
     {

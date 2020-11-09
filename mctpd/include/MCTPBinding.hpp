@@ -160,7 +160,7 @@ class MctpBinding
                 boost::asio::io_context& ioc);
     MctpBinding() = delete;
     virtual ~MctpBinding();
-    virtual void initializeBinding(ConfigurationVariant& conf) = 0;
+    virtual void initializeBinding() = 0;
     void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
@@ -232,7 +232,7 @@ class MctpBinding
     std::optional<mctp_eid_t>
         registerEndpoint(boost::asio::yield_context& yield,
                          const std::vector<uint8_t>& bindingPrivate,
-                         bool isBusOwner, mctp_eid_t eid = 0xFF,
+                         mctp_eid_t eid = 0xFF,
                          mctp_server::BindingModeTypes bindingMode =
                              mctp_server::BindingModeTypes::Endpoint);
     void unregisterEndpoint(mctp_eid_t eid);

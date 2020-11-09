@@ -1612,10 +1612,10 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
 std::optional<mctp_eid_t>
     MctpBinding::registerEndpoint(boost::asio::yield_context& yield,
                                   const std::vector<uint8_t>& bindingPrivate,
-                                  bool isBusOwner, mctp_eid_t eid,
+                                  mctp_eid_t eid,
                                   mctp_server::BindingModeTypes bindingMode)
 {
-    if (isBusOwner)
+    if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
         return busOwnerRegisterEndpoint(yield, bindingPrivate);
     }

@@ -140,7 +140,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
 
     std::unique_ptr<MctpBinding> bindingPtr = std::make_unique<SMBusBinding>(
         objectServerMock, mctpBaseObj, testConfiguration, ioc);
-    bindingPtr->initializeBinding(this->testConfiguration);
+    bindingPtr->initializeBinding();
 }
 
 int main(int argc, char** argv)

@@ -18,7 +18,7 @@ class PCIeBinding : public MctpBinding
     PCIeBinding(std::shared_ptr<object_server>& objServer, std::string& objPath,
                 ConfigurationVariant& conf, boost::asio::io_context& ioc);
     virtual ~PCIeBinding();
-    virtual void initializeBinding(ConfigurationVariant& conf) override;
+    virtual void initializeBinding() override;
 
   protected:
     virtual bool handlePrepareForEndpointDiscovery(

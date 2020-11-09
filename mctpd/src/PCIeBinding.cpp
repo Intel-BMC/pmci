@@ -194,7 +194,7 @@ void PCIeBinding::processRoutingTableChanges(
         if (find(routingTable.begin(), routingTable.end(), routingEntry) ==
             routingTable.end())
         {
-            registerEndpoint(yield, prvData, false, std::get<0>(routingEntry),
+            registerEndpoint(yield, prvData, std::get<0>(routingEntry),
                              getBindingMode(routingEntry));
         }
     }
@@ -358,11 +358,7 @@ void PCIeBinding::readResponse()
         });
 }
 
-/*
- * conf can't be removed since we override virtual function that has the
- * ConfigurationVariant& as argument
- */
-void PCIeBinding::initializeBinding(ConfigurationVariant& /*conf*/)
+void PCIeBinding::initializeBinding()
 {
     int status = 0;
     initializeMctp();

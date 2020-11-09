@@ -237,13 +237,13 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
     }
 }
 
-void SMBusBinding::initializeBinding(ConfigurationVariant& conf)
+void SMBusBinding::initializeBinding()
 {
     try
     {
         initializeMctp();
         SMBusInit();
-        io.post([this, &conf]() { initEndpointDiscovery(conf); });
+        io.post([this]() { initEndpointDiscovery(); });
     }
 
     catch (std::exception& e)
@@ -423,16 +423,12 @@ bool SMBusBinding::isMuxFd(const int fd)
     return false;
 }
 
-void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
+void SMBusBinding::initEndpointDiscovery()
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "InitEndpointDiscovery");
-    bool isBusOwner = std::get<SMBusConfiguration>(conf).mode ==
-                              mctp_server::BindingModeTypes::BusOwner
-                          ? true
-                          : false;
-    /* Scan bus once */
 
+    /* Scan bus once */
     scanAllPorts();
 
     /* Since i2c muxes restrict that only one command needs to be
@@ -440,8 +436,7 @@ void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
      * Thus, in a single yield_context, all the discovered devices
      * are attempted with registration sequentially */
 
-    boost::asio::spawn(io, [isBusOwner,
-                            this](boost::asio::yield_context yield) {
+    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         for (auto& device : deviceMap)
         {
             phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -470,7 +465,7 @@ void SMBusBinding::initEndpointDiscovery(ConfigurationVariant& conf)
             std::vector<uint8_t> bindingPvtVect(ptr,
                                                 ptr + sizeof(smbusBindingPvt));
 
-            auto rc = registerEndpoint(yield, bindingPvtVect, isBusOwner);
+            auto rc = registerEndpoint(yield, bindingPvtVect);
             if (rc)
             {
                 smbusDeviceTable.push_back(
