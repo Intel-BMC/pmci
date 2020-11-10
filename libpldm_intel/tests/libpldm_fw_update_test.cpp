@@ -92,6 +92,57 @@ TEST(CancelUpdate, testBadDecodeResponse)
     EXPECT_EQ(rc, PLDM_ERROR);
 }
 
+TEST(VerifyComplete, testGoodEncodeResponse)
+{
+    uint8_t instanceId = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+    std::array<uint8_t, (hdrSize + 1)> responseMsg{};
+    auto responsePtr = reinterpret_cast<pldm_msg*>(responseMsg.data());
+    auto rc =
+        encode_verify_complete_resp(instanceId, completionCode, responsePtr);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
+    EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.command, PLDM_VERIFY_COMPLETE);
+    EXPECT_EQ(responsePtr->payload[0], completionCode);
+}
+
+TEST(VerifyComplete, testBadEncodeResponse)
+{
+    uint8_t instanceId = 0x01;
+    uint8_t completionCode = PLDM_SUCCESS;
+    auto rc = encode_verify_complete_resp(instanceId, completionCode, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(VerifyComplete, testGoodDecodeRequest)
+{
+    std::array<uint8_t, (hdrSize + 1)> request;
+    uint8_t verifyResult = 0;
+    auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+    requestPtr->payload[0] = PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR;
+    auto rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(verifyResult, PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR);
+}
+
+TEST(VerifyComplete, testBadDecodeRequest)
+{
+    std::array<uint8_t, (hdrSize + 1)> request;
+    uint8_t verifyResult = 0;
+    auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+    requestPtr->payload[0] = PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR;
+    auto rc = decode_verify_complete_req(NULL, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN - 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX + 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 TEST(QueryDeviceIdentifiers, testGoodEncodeRequest)
 {
     std::array<uint8_t, sizeof(pldm_msg_hdr)> requestMsg{};

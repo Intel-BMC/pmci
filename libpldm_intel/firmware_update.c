@@ -3,6 +3,29 @@
 
 #include "firmware_update.h"
 
+/** @brief Check validity of VerifyResult in VerifyComplete request
+ *
+ *	@param[in] verify_result - VerifyResult
+ *	@return validity
+ */
+static bool validate_verify_result(const uint8_t verify_result)
+{
+	switch (verify_result) {
+	case PLDM_FWU_VERIFY_SUCCESS:
+	case PLDM_FWU_VERIFY_COMPLETED_WITH_FAILURE:
+	case PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR:
+	case PLDM_FWU_TIME_OUT:
+	case PLDM_FWU_GENERIC_ERROR:
+		return true;
+	default:
+		if (verify_result >= PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN &&
+		    verify_result <= PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX) {
+			return true;
+		}
+		return false;
+	}
+}
+
 int encode_query_device_identifiers_req(const uint8_t instance_id,
 					struct pldm_msg *msg,
 					const size_t payload_length)
@@ -835,5 +858,28 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 		*non_functioning_component_bitmap =
 		    le64toh(response->non_functioning_component_bitmap);
 	}
+	return PLDM_SUCCESS;
+}
+int encode_verify_complete_resp(const uint8_t instance_id,
+				const uint8_t completion_code,
+				struct pldm_msg *msg)
+{
+	if (msg == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	return (encode_cc_only_resp(instance_id, PLDM_FWU, PLDM_VERIFY_COMPLETE,
+				    completion_code, msg));
+}
+
+int decode_verify_complete_req(const struct pldm_msg *msg,
+			       uint8_t *verify_result)
+{
+	if (msg == NULL || verify_result == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (!validate_verify_result(msg->payload[0])) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	*verify_result = msg->payload[0];
 	return PLDM_SUCCESS;
 }

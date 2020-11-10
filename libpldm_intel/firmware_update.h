@@ -37,6 +37,23 @@ extern "C" {
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
 
+/**@brief PLDM FWU common error codes
+ */
+enum pldm_fwu_common_error_code {
+	PLDM_FWU_TIME_OUT = 0x09,
+	PLDM_FWU_GENERIC_ERROR = 0x0A
+};
+
+/**@brief PLDM FWU result of the Verify stage
+ */
+enum pldm_fwu_verify_result {
+	PLDM_FWU_VERIFY_SUCCESS = 0x00,
+	PLDM_FWU_VERIFY_COMPLETED_WITH_FAILURE = 0x01,
+	PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR = 0x02,
+	PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN = 0x90,
+	PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX = 0xAF
+};
+
 /** @brief PLDM FWU values for Component Classification
  */
 enum comp_classification {
@@ -652,6 +669,33 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 			      bool8_t *non_functioning_component_indication,
 			      uint64_t *non_functioning_component_bitmap);
 
+/** @brief Create a PLDM response message for VerifyComplete
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] completion_code - completion code
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_verify_complete_resp(const uint8_t instance_id,
+				const uint8_t completion_code,
+				struct pldm_msg *msg);
+
+/** @brief Decode a VerifyComplete request message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] verify_result - pointer to VerifyResult from FD
+ *  @return pldm_completion_codes
+ */
+int decode_verify_complete_req(const struct pldm_msg *msg,
+			       uint8_t *verify_result);
 #ifdef __cplusplus
 }
 #endif
