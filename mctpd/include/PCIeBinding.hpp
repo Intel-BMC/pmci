@@ -47,6 +47,7 @@ class PCIeBinding : public MctpBinding
         std::tuple<uint8_t /*eid*/, uint16_t /*bdf*/, uint8_t /*entryType*/>;
     uint16_t bdf;
     uint16_t busOwnerBdf;
+    std::shared_ptr<dbus_interface> pcieInterface;
     pcie_binding::DiscoveryFlags discoveredFlag{};
     struct mctp_binding_astpcie* pcie = nullptr;
     boost::asio::posix::stream_descriptor streamMonitor;
@@ -64,4 +65,5 @@ class PCIeBinding : public MctpBinding
     bool isReceivedPrivateDataCorrect(const void* bindingPrivate) override;
     mctp_server::BindingModeTypes
         getBindingMode(const routingTableEntry_t& routingEntry);
+    void changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag);
 };

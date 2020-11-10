@@ -10,8 +10,7 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
     getRoutingInterval(std::get<PcieConfiguration>(conf).getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval)
 {
-    std::shared_ptr<dbus_interface> pcieInterface =
-        objServer->add_interface(objPath, pcie_binding::interface);
+    pcieInterface = objServer->add_interface(objPath, pcie_binding::interface);
 
     try
     {
@@ -55,6 +54,7 @@ bool PCIeBinding::endpointDiscoveryFlow()
     uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
     std::vector<uint8_t> prvData =
         std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof pktPrv);
+    changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         if (!discoveryNotifyCtrlCmd(yield, prvData, MCTP_EID_NULL))
@@ -233,7 +233,7 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     struct mctp_ctrl_resp_prepare_discovery* resp =
         reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
 
-    discoveredFlag = pcie_binding::DiscoveryFlags::Undiscovered;
+    changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     pciePrivate->routing = PCIE_ROUTE_TO_RC;
     return true;
@@ -304,7 +304,7 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
 
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
-        discoveredFlag = pcie_binding::DiscoveryFlags::Discovered;
+        changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Discovered);
     }
     pciePrivate->routing = PCIE_ROUTE_BY_ID;
     return true;
@@ -444,6 +444,13 @@ bool PCIeBinding::getBindingPrivateData(uint8_t dstEid,
     pvtData = std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
 
     return true;
+}
+
+void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
+{
+    discoveredFlag = flag;
+    pcieInterface->set_property(
+        "DiscoveredFlag", pcie_binding::convertDiscoveryFlagsToString(flag));
 }
 
 PCIeBinding::~PCIeBinding()
