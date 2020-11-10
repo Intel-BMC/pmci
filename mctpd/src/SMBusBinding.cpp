@@ -173,35 +173,33 @@ int getSMBusOutputAddress(uint8_t /*dstEid*/, uint8_t* outAddr)
     return 0;
 }
 
-bool SMBusBinding::getBindingPrivateData(uint8_t dstEid,
-                                         std::vector<uint8_t>& pvtData)
+std::optional<std::vector<uint8_t>>
+    SMBusBinding::getBindingPrivateData(uint8_t dstEid)
 {
-    pvtData.resize(sizeof(mctp_smbus_extra_params));
-    struct mctp_smbus_extra_params* prvt =
-        reinterpret_cast<struct mctp_smbus_extra_params*>(pvtData.data());
+    mctp_smbus_extra_params prvt = {};
 
     for (auto& device : smbusDeviceTable)
     {
         if (device.first == dstEid)
         {
-            struct mctp_smbus_extra_params temp = device.second;
-            prvt->fd = temp.fd;
-            if (isMuxFd(prvt->fd))
+            mctp_smbus_extra_params temp = device.second;
+            prvt.fd = temp.fd;
+            if (isMuxFd(prvt.fd))
             {
-                prvt->muxHoldTimeOut = 1000;
-                prvt->muxFlags = IS_MUX_PORT;
+                prvt.muxHoldTimeOut = 1000;
+                prvt.muxFlags = IS_MUX_PORT;
             }
             else
             {
-                prvt->muxHoldTimeOut = 0;
-                prvt->muxFlags = 0;
+                prvt.muxHoldTimeOut = 0;
+                prvt.muxFlags = 0;
             }
-            prvt->slave_addr = temp.slave_addr;
-            return true;
+            prvt.slave_addr = temp.slave_addr;
+            uint8_t* prvtPtr = reinterpret_cast<uint8_t*>(&prvt);
+            return std::vector<uint8_t>(prvtPtr, prvtPtr + sizeof(prvt));
         }
     }
-
-    return false;
+    return std::nullopt;
 }
 
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
@@ -494,9 +492,10 @@ bool SMBusBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
     }
 
     auto const ptr = reinterpret_cast<uint8_t*>(bindingPrivate);
-    std::vector<uint8_t> bindingPvtVect(ptr,
-                                        ptr + sizeof(mctp_smbus_extra_params));
-    getBindingPrivateData(destEid, bindingPvtVect);
-    std::copy(bindingPvtVect.begin(), bindingPvtVect.end(), ptr);
-    return true;
+    if (auto bindingPvtVect = getBindingPrivateData(destEid))
+    {
+        std::copy(bindingPvtVect->begin(), bindingPvtVect->end(), ptr);
+        return true;
+    }
+    return false;
 }

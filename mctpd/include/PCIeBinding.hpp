@@ -67,8 +67,8 @@ class PCIeBinding : public MctpBinding
         const std::vector<routingTableEntry_t>& newTable,
         boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
     void readResponse();
-    bool getBindingPrivateData(uint8_t dstEid,
-                               std::vector<uint8_t>& pvtData) override;
+    std::optional<std::vector<uint8_t>>
+        getBindingPrivateData(uint8_t dstEid) override;
     bool isReceivedPrivateDataCorrect(const void* bindingPrivate) override;
     mctp_server::BindingModeTypes
         getBindingMode(const routingTableEntry_t& routingEntry);

@@ -129,12 +129,11 @@ void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
     binding->handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
 }
 
-bool MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/,
-                                        std::vector<uint8_t>& pvtData)
+std::optional<std::vector<uint8_t>>
+    MctpBinding::getBindingPrivateData(uint8_t /*dstEid*/)
 {
     // No Binding data by default
-    pvtData.clear();
-    return true;
+    return std::vector<uint8_t>();
 }
 
 bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
@@ -214,18 +213,17 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             "SendMctpMessagePayload",
             [this](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
                    std::vector<uint8_t> payload) {
-                std::vector<uint8_t> pvtData;
-
-                if (!getBindingPrivateData(dstEid, pvtData))
+                std::optional<std::vector<uint8_t>> pvtData =
+                    getBindingPrivateData(dstEid);
+                if (pvtData)
                 {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Invalid destination EID");
-                    return -1;
+                    return mctp_message_tx(mctp, dstEid, payload.data(),
+                                           payload.size(), tagOwner, msgTag,
+                                           pvtData->data());
                 }
-
-                return mctp_message_tx(mctp, dstEid, payload.data(),
-                                       payload.size(), tagOwner, msgTag,
-                                       pvtData.data());
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Invalid destination EID");
+                return -1;
             });
 
         mctpInterface->register_signal<uint8_t, uint8_t, uint8_t, bool,

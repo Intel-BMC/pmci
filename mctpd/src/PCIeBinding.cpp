@@ -547,8 +547,8 @@ void PCIeBinding::ueventHandlePcieReady(udev_device* dev)
     pcieInterface->set_property("BDF", bdf);
 }
 
-bool PCIeBinding::getBindingPrivateData(uint8_t dstEid,
-                                        std::vector<uint8_t>& pvtData)
+std::optional<std::vector<uint8_t>>
+    PCIeBinding::getBindingPrivateData(uint8_t dstEid)
 {
     mctp_astpcie_pkt_private pktPrv = {};
 
@@ -562,14 +562,12 @@ bool PCIeBinding::getBindingPrivateData(uint8_t dstEid,
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Eid not found in routing table");
-        return false;
+        return std::nullopt;
     }
     const auto& [eid, endpointBdf, entryType] = *it;
     pktPrv.remote_id = endpointBdf;
     uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
-    pvtData = std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
-
-    return true;
+    return std::vector<uint8_t>(pktPrvPtr, pktPrvPtr + sizeof(pktPrv));
 }
 
 void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
