@@ -31,6 +31,18 @@ using DataTransferHandle = uint32_t;
 using PDRDestroyer = std::function<void(pldm_pdr*)>;
 using PDRRepo = std::unique_ptr<pldm_pdr, PDRDestroyer>;
 
+struct EntityComparator
+{
+    bool operator()(const pldm_entity& lhsEntity,
+                    const pldm_entity& rhsEntity) const
+    {
+        return std::tie(lhsEntity.entity_type, lhsEntity.entity_instance_num,
+                        lhsEntity.entity_container_id) <
+               std::tie(rhsEntity.entity_type, rhsEntity.entity_instance_num,
+                        rhsEntity.entity_container_id);
+    }
+};
+
 class PDRManager
 {
   public:
@@ -68,11 +80,17 @@ class PDRManager
     /** @brief fetch PDRs from terminus and add to BMC PDR repo*/
     bool constructPDRRepo(boost::asio::yield_context& yield);
 
+    /** @brief Parse the Auxiliary Names PDR */
+    void parseEntityAuxNamesPDR();
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
     /** @brief pointer to TID mapped BMC PDR repo*/
     PDRRepo _pdrRepo;
+
+    /** @brief Holds Entity Auxiliary Names*/
+    std::map<pldm_entity, std::string, EntityComparator> _entityAuxNames;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;

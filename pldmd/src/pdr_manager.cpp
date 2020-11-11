@@ -19,6 +19,7 @@
 #include "platform.hpp"
 #include "pldm.hpp"
 
+#include <codecvt>
 #include <phosphor-logging/log.hpp>
 
 #include "utils.h"
@@ -381,6 +382,119 @@ bool PDRManager::constructPDRRepo(boost::asio::yield_context& yield)
     return true;
 } // namespace platform
 
+static std::optional<std::string> getAuxName(const uint8_t nameStrCount,
+                                             const size_t auxNamesLen,
+                                             const uint8_t* auxNamesStart)
+{
+    if (!auxNamesStart)
+    {
+        return std::nullopt;
+    }
+
+    constexpr size_t strASCIInullSize = 1;
+    constexpr size_t strUTF16nullSize = 2;
+    constexpr size_t codeUnitSize = 2;
+    constexpr size_t maxStrLen = 32;
+    const std::string supportedLangTag = "en";
+    const uint8_t* next = auxNamesStart;
+    size_t advanced{};
+
+    for (uint8_t nameCount = 0;
+         nameCount < nameStrCount && advanced < auxNamesLen; nameCount++)
+    {
+        // If the nameLanguageTag and Auxiliary name in the PDR is not null
+        // terminated, it will be an issue. Thus limit the string length to
+        // maxStrLen. Provided additional one byte buffer to verify if the
+        // length is more than maxStrLen. Why: Croping the string will result in
+        // incorrect value for subsequent nameLanguageTags and Auxiliary names
+        std::string langTag(reinterpret_cast<char const*>(next), 0,
+                            maxStrLen + 1);
+        // If the nameLanguageTag is not null terminated(Incorrect PDR data -
+        // Assuming maximum possible Auxiliary name is of length maxStrLen),
+        // further decodings will be erroneous
+        if (langTag.size() > maxStrLen)
+        {
+            return std::nullopt;
+        }
+        next += langTag.size() + strASCIInullSize;
+
+        std::u16string u16_str(reinterpret_cast<const char16_t*>(next), 0,
+                               maxStrLen + 1);
+        // If the Auxiliary name is not null terminated(Incorrect PDR data -
+        // Assuming maximum possible Auxiliary name is of length maxStrLen),
+        // further decodings will be erroneous
+        if (u16_str.size() > maxStrLen)
+        {
+            return std::nullopt;
+        }
+
+        // Only supports English
+        if (langTag == supportedLangTag)
+        {
+            std::string auxName =
+                std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,
+                                     char16_t>{}
+                    .to_bytes(u16_str);
+            // non printable characters cause sdbusplus exceptions, so better to
+            // handle it by replacing with space
+            std::replace_if(
+                auxName.begin(), auxName.end(),
+                [](const char& c) { return !isprint(c); }, ' ');
+            return auxName;
+        }
+        next += (u16_str.size() * codeUnitSize) + strUTF16nullSize;
+        advanced = next - auxNamesStart;
+    }
+    return std::nullopt;
+}
+
+void PDRManager::parseEntityAuxNamesPDR()
+{
+    uint8_t* pdrData = nullptr;
+    uint32_t pdrSize{};
+    auto record = pldm_pdr_find_record_by_type(_pdrRepo.get(),
+                                               PLDM_ENTITY_AUXILIARY_NAMES_PDR,
+                                               NULL, &pdrData, &pdrSize);
+    while (record)
+    {
+        constexpr size_t sharedNameCountSize = 1;
+        constexpr size_t nameStringCountSize = 1;
+        constexpr size_t minEntityAuxNamesPDRLen =
+            sizeof(pldm_pdr_hdr) + sizeof(pldm_entity) + sharedNameCountSize +
+            nameStringCountSize;
+
+        if (pdrSize >= minEntityAuxNamesPDRLen)
+        {
+            std::vector<uint8_t> namePDRVec(pdrData, pdrData + pdrSize);
+            pldm_pdr_entity_auxiliary_names* namePDR =
+                reinterpret_cast<pldm_pdr_entity_auxiliary_names*>(
+                    namePDRVec.data());
+            LE16TOH(namePDR->entity.entity_type);
+            LE16TOH(namePDR->entity.entity_instance_num);
+            LE16TOH(namePDR->entity.entity_container_id);
+
+            // TODO: Handle sharedNameCount
+            size_t auxNamesLen = pdrSize - minEntityAuxNamesPDRLen;
+            if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
+                                       namePDR->entity_auxiliary_names))
+            {
+                // Cache the Entity Auxiliary Names
+                _entityAuxNames[namePDR->entity] = *name;
+
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Entity Auxiliary Name: " + *name).c_str());
+            }
+        }
+        pdrData = nullptr;
+        pdrSize = 0;
+        record = pldm_pdr_find_record_by_type(_pdrRepo.get(),
+                                              PLDM_ENTITY_AUXILIARY_NAMES_PDR,
+                                              record, &pdrData, &pdrSize);
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Entity Auxiliary Names PDR parsing complete");
+}
+
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
 {
     std::optional<pldm_pdr_repository_info> pdrInfo =
@@ -399,6 +513,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     {
         return false;
     }
+    parseEntityAuxNamesPDR();
 
     return true;
 }
