@@ -21,6 +21,25 @@
 
 #include "utils.h"
 
+namespace std
+{
+template <>
+struct hash<ver32_t>
+{
+    std::size_t operator()(const ver32_t& ver) const
+    {
+        return std::hash<uint8_t>{}(ver.major) ^
+               std::hash<uint8_t>{}(ver.minor) ^
+               std::hash<uint8_t>{}(ver.update) ^
+               std::hash<uint8_t>{}(ver.alpha);
+    }
+};
+bool operator==(const ver32_t& v1, const ver32_t& v2)
+{
+    return v1.major == v2.major && v1.minor == v2.minor &&
+           v1.update == v2.update && v1.alpha == v2.alpha;
+}
+} // namespace std
 namespace pldm
 {
 namespace base
@@ -34,6 +53,12 @@ constexpr uint8_t defaultTID = 0x00;
 using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
 using VersionSupportTable = std::unordered_map<uint8_t, PLDMVersions>;
+// For bitfield8[N], where N = 0 to 31;
+// (bit M is set) => PLDM Command (N*8+M) Supported
+using SupportedCommands = std::array<bitfield8_t, 32>;
+// [PLDMType -> [PLDMVersion -> SupportedCommands]] Mapping
+using CommandSupportTable =
+    std::unordered_map<uint8_t, std::unordered_map<ver32_t, SupportedCommands>>;
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
@@ -225,6 +250,43 @@ bool getPLDMVersions(boost::asio::yield_context yield, const mctpw_eid_t eid,
     return true;
 }
 
+std::optional<SupportedCommands>
+    getPLDMCommands(boost::asio::yield_context yield, const mctpw_eid_t eid,
+                    const uint8_t pldmType, const ver32_t& version)
+{
+    uint8_t instanceID = createInstanceId(defaultTID);
+    std::vector<uint8_t> getCommandsRequest(
+        sizeof(pldm_get_commands_req) + hdrSize, 0x00);
+    auto msg = reinterpret_cast<pldm_msg*>(getCommandsRequest.data());
+    std::vector<uint8_t> getCommandsResponse;
+
+    int rc = encode_get_commands_req(instanceID, pldmType, version, msg);
+    if (!validateBaseReqEncode(eid, rc, "GetPLDMCommands"))
+    {
+        return std::nullopt;
+    }
+
+    if (!sendReceivePldmMessage(yield, defaultTID, timeOut, retryCount,
+                                getCommandsRequest, getCommandsResponse, eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Send receive error during GetPLDMCommands request",
+            phosphor::logging::entry("EID=0x%X", eid));
+        return std::nullopt;
+    }
+
+    uint8_t completionCode;
+    SupportedCommands commands;
+    rc = decode_get_commands_resp(
+        reinterpret_cast<pldm_msg*>(getCommandsResponse.data()),
+        getCommandsResponse.size() - hdrSize, &completionCode, commands.data());
+    if (!validateBaseRespDecode(eid, rc, completionCode, "GetPLDMCommands"))
+    {
+        return std::nullopt;
+    }
+    return commands;
+}
+
 static std::unordered_set<uint8_t>
     getTypeCodesFromSupportedTypes(const SupportedPLDMTypes& supportedTypes)
 {
@@ -247,24 +309,11 @@ static std::unordered_set<uint8_t>
     return types;
 }
 
-bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
-              pldm_tid_t& /*tid*/)
+VersionSupportTable
+    createVersionSupportTable(boost::asio::yield_context yield,
+                              const mctpw_eid_t eid,
+                              const SupportedPLDMTypes& pldmTypes)
 {
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Running Base initialisation", phosphor::logging::entry("EID=%d", eid));
-
-    SupportedPLDMTypes pldmTypes;
-    if (!getSupportedPLDMTypes(yield, eid, pldmTypes))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error getting supported PLDM Types",
-            phosphor::logging::entry("EID=%d", eid));
-        return false;
-    }
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "GetTypes processed successfully",
-        phosphor::logging::entry("EID=%d", eid));
-
     VersionSupportTable versionSupportTable;
     auto typeCodes = getTypeCodesFromSupportedTypes(pldmTypes);
     for (auto pldmType : typeCodes)
@@ -283,7 +332,66 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             // Continue scanning next PLDM type
         }
     }
-    // TODO Get PLDM Commands
+    return versionSupportTable;
+}
+
+CommandSupportTable
+    createCommandSupportTable(boost::asio::yield_context yield,
+                              const mctpw_eid_t eid,
+                              const VersionSupportTable& versionSupportTable)
+{
+    CommandSupportTable cmdSupportTable;
+    for (const auto& versionTable : versionSupportTable)
+    {
+        if (versionTable.second.size() == 0)
+        {
+            // No versions supported for this type
+            continue;
+        }
+        // Only the first PLDM version type given out for the type is
+        // processed
+        ver32_t firstVersion = versionTable.second.front();
+        auto supportedCommands =
+            getPLDMCommands(yield, eid, versionTable.first, firstVersion);
+        if (supportedCommands)
+        {
+            cmdSupportTable[versionTable.first].emplace(
+                firstVersion, supportedCommands.value());
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetPLDMCommands failed",
+                phosphor::logging::entry("TYPE=0x%X", versionTable.first),
+                phosphor::logging::entry("EID=0x%X", eid));
+        }
+    }
+    return cmdSupportTable;
+}
+
+bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
+              pldm_tid_t& /*tid*/)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Running Base initialisation", phosphor::logging::entry("EID=%d", eid));
+
+    SupportedPLDMTypes pldmTypes;
+    if (!getSupportedPLDMTypes(yield, eid, pldmTypes))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error getting supported PLDM Types",
+            phosphor::logging::entry("EID=%d", eid));
+        return false;
+    }
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "GetTypes processed successfully",
+        phosphor::logging::entry("EID=%d", eid));
+
+    auto versionSupportTable = createVersionSupportTable(yield, eid, pldmTypes);
+
+    auto commandSupportTable =
+        createCommandSupportTable(yield, eid, versionSupportTable);
+
     // TODO Get or Assign TID
     return true;
 }
