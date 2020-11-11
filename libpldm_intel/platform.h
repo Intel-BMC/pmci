@@ -316,6 +316,18 @@ struct pldm_pdr_entity_association {
 	pldm_entity children[1];
 } __attribute__((packed));
 
+/** @struct pldm_pdr_entity_auxiliary_names
+ *
+ *  Structure representing PLDM Entity Auxiliary Names PDR
+ */
+struct pldm_pdr_entity_auxiliary_names {
+	struct pldm_pdr_hdr hdr;
+	pldm_entity container;
+	uint8_t shared_name_count;
+	uint8_t name_string_count;
+	uint8_t entity_auxiliary_names[1];
+} __attribute__((packed));
+
 /** @struct pldm_pdr_fru_record_set
  *
  *  Structure representing PLDM FRU record set PDR
