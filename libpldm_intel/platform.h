@@ -115,6 +115,7 @@ enum pldm_effecter_oper_state {
 };
 
 enum pldm_platform_commands {
+	PLDM_GET_TERMINUS_UID = 0x03,
 	PLDM_GET_SENSOR_READING = 0x11,
 	PLDM_GET_STATE_SENSOR_READINGS = 0x21,
 	PLDM_SET_NUMERIC_EFFECTER_VALUE = 0x31,
@@ -843,6 +844,15 @@ struct pldm_pdr_repository_info {
 struct pldm_get_pdr_repository_info_resp {
 	uint8_t completion_code;
 	struct pldm_pdr_repository_info pdr_repo_info;
+} __attribute__((packed));
+
+/** @struct pldm_get_terminus_uid_resp
+ *
+ *  Structure representing PLDM GetTerminusUID response
+ */
+struct pldm_get_terminus_uid_resp {
+	uint8_t completion_code; //!< Response completion code
+	uint8_t uuid[16];	 //!< 16byte UUID
 } __attribute__((packed));
 
 /* Responder */
@@ -1613,6 +1623,30 @@ int decode_get_pdr_repository_info_resp(
     const struct pldm_msg *msg, const size_t payload_length,
     struct pldm_get_pdr_repository_info_resp *pdr_info);
 
+/** @brief Encode GetTerminusUID request message
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ */
+inline int encode_get_terminus_uid_req(const uint8_t instance_id,
+				       struct pldm_msg *msg)
+{
+	return encode_header_only_request(instance_id, PLDM_PLATFORM,
+					  PLDM_GET_TERMINUS_UID, msg);
+}
+
+/** @brief Decode GetTerminusUID response data
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - PLDM completion code
+ *  @param[out] uuid - 16 byte UUID of the device
+ *  @return pldm_completion_codes
+ */
+int decode_get_terminus_uid_resp(const struct pldm_msg *msg,
+				 const size_t payload_length,
+				 uint8_t *completion_code, uint8_t *uuid);
 #ifdef __cplusplus
 }
 #endif

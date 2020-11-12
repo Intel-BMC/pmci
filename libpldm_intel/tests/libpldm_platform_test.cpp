@@ -1964,6 +1964,84 @@ TEST(GetPDRRepositoryInfo, testBadDecodeResponse)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 }
 
+TEST(GetTerminusUID, EncodeRequestGood)
+{
+    constexpr uint8_t instanceId = 0x12;
+    std::array<uint8_t, hdrSize> reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+
+    int rc = encode_get_terminus_uid_req(instanceId, msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_GET_TERMINUS_UID);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+}
+
+TEST(GetTerminusUID, EncodeRequestBad)
+{
+    constexpr uint8_t instanceId = 0x12;
+    int rc = encode_get_terminus_uid_req(instanceId, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+TEST(GetTerminusUID, DecodeResponseGood)
+{
+    std::array<uint8_t, hdrSize + sizeof(pldm_get_terminus_uid_resp)>
+        respData{};
+    auto msg = reinterpret_cast<pldm_msg*>(respData.data());
+    constexpr uint8_t completionCode = PLDM_SUCCESS;
+    std::array<uint8_t, 16> uuidIn{1, 2,  3,  4,  5,  6,  7,  8,
+                                   9, 10, 11, 12, 13, 14, 15, 16};
+    std::array<uint8_t, 16> uuidOut{};
+
+    pldm_get_terminus_uid_resp* response =
+        reinterpret_cast<pldm_get_terminus_uid_resp*>(msg->payload);
+    response->completion_code = completionCode;
+    memcpy(response->uuid, uuidIn.data(), sizeof(response->uuid));
+
+    uint8_t completionCodeOut;
+    int rc =
+        decode_get_terminus_uid_resp(msg, sizeof(pldm_get_terminus_uid_resp),
+                                     &completionCodeOut, uuidOut.data());
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCodeOut, completionCode);
+    EXPECT_EQ(uuidIn, uuidOut);
+}
+
+TEST(GetTerminusUID, DecodeResponseBad)
+{
+    uint8_t completionCodeOut = PLDM_SUCCESS;
+    std::array<uint8_t, 16> uuidOut;
+    std::array<uint8_t, hdrSize + sizeof(pldm_get_terminus_uid_resp)>
+        respData{};
+    auto msg = reinterpret_cast<pldm_msg*>(respData.data());
+    int rc = decode_get_terminus_uid_resp(nullptr,
+                                          sizeof(pldm_get_terminus_uid_resp),
+                                          &completionCodeOut, uuidOut.data());
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_terminus_uid_resp(
+        nullptr, sizeof(pldm_get_terminus_uid_resp), nullptr, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_terminus_uid_resp(
+        nullptr, sizeof(pldm_get_terminus_uid_resp), nullptr, uuidOut.data());
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_terminus_uid_resp(nullptr,
+                                      sizeof(pldm_get_terminus_uid_resp),
+                                      &completionCodeOut, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_terminus_uid_resp(msg, sizeof(pldm_get_terminus_uid_resp),
+                                      nullptr, nullptr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    rc = decode_get_terminus_uid_resp(msg,
+                                      sizeof(pldm_get_terminus_uid_resp) - 1,
+                                      &completionCodeOut, uuidOut.data());
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

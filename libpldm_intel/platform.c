@@ -1581,3 +1581,28 @@ int decode_get_pdr_repository_info_resp(
 
 	return PLDM_SUCCESS;
 }
+
+int decode_get_terminus_uid_resp(const struct pldm_msg *msg,
+				 const size_t payload_length,
+				 uint8_t *completion_code, uint8_t *uuid)
+{
+	if (msg == NULL || completion_code == NULL || uuid == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	struct pldm_get_terminus_uid_resp *response =
+	    (struct pldm_get_terminus_uid_resp *)msg->payload;
+
+	*completion_code = response->completion_code;
+	if (*completion_code != PLDM_SUCCESS) {
+		return PLDM_SUCCESS;
+	}
+
+	if (payload_length != sizeof(struct pldm_get_terminus_uid_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	memcpy(uuid, response->uuid, sizeof(response->uuid));
+
+	return PLDM_SUCCESS;
+}
