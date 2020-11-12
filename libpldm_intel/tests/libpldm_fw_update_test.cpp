@@ -434,6 +434,86 @@ TEST(ActivateFirmware, testGoodDecodeResponse)
     EXPECT_EQ(estimatedTimeActivation, inResp->estimated_time_activation);
 }
 
+TEST(PassComponentTable, testGoodEncodeRequest)
+{
+
+    uint8_t instanceId = 0x01;
+    // Component Version String Length is not fixed here taking it as 6
+    constexpr uint8_t compVerStrLen = 6;
+
+    std::array<uint8_t, compVerStrLen> compVerStrArr;
+    struct variable_field inCompVerStr;
+    inCompVerStr.ptr = compVerStrArr.data();
+    inCompVerStr.length = compVerStrLen;
+
+    struct pass_component_table_req inReq;
+
+    inReq.transfer_flag = 0x01;
+    inReq.comp_classification = 0x000D;
+    inReq.comp_identifier = 0x00;
+    inReq.comp_classification_index = 0x00;
+    inReq.comp_comparison_stamp = 0;
+    inReq.comp_ver_str_type = 1;
+    inReq.comp_ver_str_len = compVerStrLen;
+
+    std::fill(compVerStrArr.data(), compVerStrArr.end() - 1, 0xFF);
+
+    std::array<uint8_t, hdrSize + sizeof(struct pass_component_table_req) +
+                            compVerStrLen>
+        outReq;
+
+    auto msg = (struct pldm_msg*)outReq.data();
+    size_t payloadLen =
+        sizeof(struct pass_component_table_req) + inCompVerStr.length;
+    auto rc = encode_pass_component_table_req(instanceId, msg, payloadLen,
+                                              &inReq, &inCompVerStr);
+
+    auto request = (struct pass_component_table_req*)(outReq.data() + hdrSize);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.command, PLDM_PASS_COMPONENT_TABLE);
+    EXPECT_EQ(request->transfer_flag, inReq.transfer_flag);
+    EXPECT_EQ(request->comp_classification, inReq.comp_classification);
+    EXPECT_EQ(request->comp_identifier, inReq.comp_identifier);
+    EXPECT_EQ(request->comp_classification_index,
+              inReq.comp_classification_index);
+    EXPECT_EQ(request->comp_comparison_stamp, inReq.comp_comparison_stamp);
+    EXPECT_EQ(request->comp_ver_str_type, inReq.comp_ver_str_type);
+    EXPECT_EQ(request->comp_ver_str_len, inReq.comp_ver_str_len);
+    EXPECT_EQ(true, std::equal(compVerStrArr.begin(), compVerStrArr.end(),
+                               outReq.data() + hdrSize +
+                                   sizeof(struct pass_component_table_req)));
+}
+
+TEST(PassComponentTable, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t compResp = COMP_CAN_BE_UPDATEABLE;
+    uint8_t compRespCode = COMP_COMPARISON_STAMP_IDENTICAL;
+
+    std::array<uint8_t, hdrSize + sizeof(struct pass_component_table_resp)>
+        responseMsg{};
+    struct pass_component_table_resp* inResp =
+        reinterpret_cast<struct pass_component_table_resp*>(responseMsg.data() +
+                                                            hdrSize);
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->comp_resp = 1;
+    inResp->comp_resp_code = 0x0B;
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_pass_component_table_resp(
+        response, responseMsg.size() - hdrSize, &completionCode, &compResp,
+        &compRespCode);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
+    EXPECT_EQ(compResp, inResp->comp_resp);
+    EXPECT_EQ(compRespCode, inResp->comp_resp_code);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
