@@ -177,7 +177,7 @@ int decode_get_firmware_parameters_comp_img_set_resp(
 }
 
 int decode_get_firmware_parameters_comp_resp(
-    uint8_t *msg, const size_t payload_length,
+    const uint8_t *msg, const size_t payload_length,
     struct component_parameter_table *component_data,
     struct variable_field *active_comp_ver_str,
     struct variable_field *pending_comp_ver_str)
