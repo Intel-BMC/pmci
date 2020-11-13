@@ -477,6 +477,36 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 				     uint8_t *comp_resp,
 				     uint8_t *comp_resp_code);
 
+/* CancelUpdateComponent */
+
+/** @brief Create a PLDM request message for CancelUpdateComponent
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_cancel_update_component_req(const uint8_t instance_id,
+				       struct pldm_msg *msg);
+
+/** @brief Decode a CancelUpdateComponent response message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion code
+ *  @return pldm_completion_codes
+ */
+int decode_cancel_update_component_resp(const struct pldm_msg *msg,
+					const size_t payload_length,
+					uint8_t *completion_code);
+
 #ifdef __cplusplus
 }
 #endif

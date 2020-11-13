@@ -514,6 +514,40 @@ TEST(PassComponentTable, testGoodDecodeResponse)
     EXPECT_EQ(compRespCode, inResp->comp_resp_code);
 }
 
+/*CancelUpdateComponent*/
+
+/*CancelUpdateComponent Encode Request Test Cases*/
+TEST(CancelUpdateComponent, testGoodEncodeRequest)
+{
+    std::array<uint8_t, sizeof(pldm_msg_hdr)> requestMsg{};
+    auto requestPtr = reinterpret_cast<pldm_msg*>(requestMsg.data());
+
+    uint8_t instanceId = 0x01;
+
+    auto rc = encode_cancel_update_component_req(instanceId, requestPtr);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
+    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(requestPtr->hdr.command, PLDM_CANCEL_UPDATE_COMPONENT);
+}
+
+/*CancelUpdateComponent Decode Response Test Cases*/
+TEST(CancelUpdateComponent, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+
+    std::array<uint8_t, hdrSize + sizeof(uint8_t)> responseMsg{};
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_cancel_update_component_resp(
+        response, responseMsg.size() - hdrSize, &completionCode);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
