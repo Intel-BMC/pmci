@@ -620,6 +620,7 @@ bool MctpBinding::handleGetMsgTypeSupport(mctp_eid_t, void*,
                                           std::vector<uint8_t>&,
                                           std::vector<uint8_t>& response)
 {
+    response.resize(sizeof(mctp_ctrl_resp_get_msg_type_support));
     std::vector<uint8_t> supportedMsgTypes = getBindingMsgTypes();
     mctp_ctrl_resp_get_msg_type_support* resp =
         reinterpret_cast<mctp_ctrl_resp_get_msg_type_support*>(response.data());
