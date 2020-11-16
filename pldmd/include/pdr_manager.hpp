@@ -26,6 +26,7 @@ namespace pldm
 namespace platform
 {
 
+using ContainerID = uint16_t;
 using RecordHandle = uint32_t;
 using DataTransferHandle = uint32_t;
 using PDRDestroyer = std::function<void(pldm_pdr*)>;
@@ -41,6 +42,15 @@ struct EntityComparator
                std::tie(rhsEntity.entity_type, rhsEntity.entity_instance_num,
                         rhsEntity.entity_container_id);
     }
+};
+
+struct EntityNode
+{
+    using NodePtr = std::shared_ptr<EntityNode>;
+    using ContainedEntities = std::vector<NodePtr>;
+
+    pldm_entity containerEntity;
+    ContainedEntities containedEntities;
 };
 
 class PDRManager
@@ -83,6 +93,13 @@ class PDRManager
     /** @brief Parse the Auxiliary Names PDR */
     void parseEntityAuxNamesPDR();
 
+    /**@brief Create Entity Association Tree from PDRs*/
+    void createEntityAssociationTree(
+        std::vector<EntityNode::NodePtr>& entityAssociations);
+
+    /**@brief Parse Entity Association PDRs*/
+    void parseEntityAssociationPDR();
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
@@ -91,6 +108,12 @@ class PDRManager
 
     /** @brief Holds Entity Auxiliary Names*/
     std::map<pldm_entity, std::string, EntityComparator> _entityAuxNames;
+
+    /** @brief Container ID of the parent entity represented by TID*/
+    ContainerID _containerID;
+
+    /** @brief Entity Association tree representing system hierarchy*/
+    EntityNode::NodePtr _entityAssociationTree;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
