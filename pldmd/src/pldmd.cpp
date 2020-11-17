@@ -150,6 +150,23 @@ bool validatePLDMRespDecode(const pldm_tid_t tid, const int rc,
     return true;
 }
 
+static inline void printVect(const std::string& msg,
+                             const std::vector<uint8_t>& vec)
+{
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Length:" + std::to_string(vec.size())).c_str());
+
+    std::stringstream ssVec;
+    ssVec << msg;
+    for (auto re : vec)
+    {
+        ssVec << " 0x" << std::hex << std::setfill('0') << std::setw(2)
+              << static_cast<int>(re);
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ssVec.str().c_str());
+}
+
 static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
                                       const mctpw_eid_t dstEid,
                                       const uint16_t timeout,
@@ -160,9 +177,11 @@ static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
     boost::system::error_code ec;
     auto bus = getSdBus();
     pldmResp = bus->yield_method_call<std::vector<uint8_t>>(
-        yield, ec, "xyz.openbmc_project.mctp-emulator",
+        yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
         "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
         "SendReceiveMctpMessagePayload", dstEid, pldmReq, timeout);
+    printVect("Request(MCTP payload):", pldmReq);
+    printVect("Response(MCTP payload):", pldmResp);
     if (ec)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -327,7 +346,7 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
                 "PLDM message send Success",
                 phosphor::logging::entry("TID=%d", tid));
         },
-        "xyz.openbmc_project.mctp-emulator", "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP_SMBus_PCIe_slot", "/xyz/openbmc_project/mctp",
         "xyz.openbmc_project.MCTP.Base", "SendMctpMessagePayload", dstEid,
         msgTag, tagOwner, payload);
     return true;
@@ -432,7 +451,7 @@ int main(void)
     // TODO: List Endpoints that support registered PLDM message type
 
     // Using dummy EID exposed by emulator until the discovery is implemented
-    mctpw_eid_t dummyEid = 8;
+    mctpw_eid_t dummyEid = 20;
     auto tid = pldm::getFreeTid();
     if (tid)
     {
