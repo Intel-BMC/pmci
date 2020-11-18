@@ -684,6 +684,86 @@ void PDRManager::parseEntityAssociationPDR()
         "Entity Association PDR parsing complete ");
 }
 
+void PDRManager::getEntityAssociationPaths(EntityNode::NodePtr& node,
+                                           EntityAssociationPath path)
+{
+    if (node == nullptr)
+    {
+        return;
+    }
+
+    // Append node to the path
+    path.emplace_back(node->containerEntity);
+
+    // If it is a leaf add to paths
+    if (node->containedEntities.empty())
+    {
+        _entityObjectPaths.emplace_back(path);
+    }
+    else
+    {
+        for (EntityNode::NodePtr& child : node->containedEntities)
+        {
+            getEntityAssociationPaths(child, path);
+        }
+    }
+}
+
+static void populateEntity(std::shared_ptr<DBusInterface>& entityIntf,
+                           const std::string& path, const pldm_entity& entity)
+{
+    auto objServer = getObjServer();
+
+    entityIntf =
+        objServer->add_interface(path, "xyz.openbmc_project.PLDM.Entity");
+    entityIntf->register_property("EntityType", entity.entity_type);
+    entityIntf->register_property("EntityInstanceNumber",
+                                  entity.entity_instance_num);
+    entityIntf->register_property("EntityContainerID",
+                                  entity.entity_container_id);
+    entityIntf->initialize();
+    // TODO: expose details from sensor PDR if the entity has a sensor
+}
+
+void PDRManager::populateSystemHierarchy()
+{
+    std::string pldmDevObj =
+        "/xyz/openbmc_project/system/" + std::to_string(_tid);
+
+    for (const EntityAssociationPath& path : _entityObjectPaths)
+    {
+        std::string pathName;
+        for (const pldm_entity& entity : path)
+        {
+
+            std::string entityAuxName;
+            auto itr = _entityAuxNames.find(entity);
+            if (itr != _entityAuxNames.end())
+            {
+                entityAuxName = itr->second;
+            }
+            else
+            {
+                // Dummy name if no Auxilary Name found
+                entityAuxName = std::to_string(entity.entity_type) + "_" +
+                                std::to_string(entity.entity_instance_num) +
+                                "_" +
+                                std::to_string(entity.entity_container_id);
+            }
+
+            // Append entity names for multilevel entity associations
+            pathName += "/" + entityAuxName;
+            std::string objPath = pldmDevObj + pathName;
+
+            std::shared_ptr<DBusInterface> entityIntf;
+            populateEntity(entityIntf, objPath, entity);
+            _systemHierarchyIntf[entity] = entityIntf;
+        }
+    }
+    // Clear after usage
+    _entityObjectPaths.clear();
+}
+
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
 {
     std::optional<pldm_pdr_repository_info> pdrInfo =
@@ -704,6 +784,8 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     }
     parseEntityAuxNamesPDR();
     parseEntityAssociationPDR();
+    getEntityAssociationPaths(_entityAssociationTree, {});
+    populateSystemHierarchy();
 
     return true;
 }

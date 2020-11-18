@@ -31,6 +31,8 @@ std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
 
 namespace pldm
 {
+using DBusInterface = sdbusplus::asio::dbus_interface;
+
 constexpr size_t pldmMsgHdrSize = sizeof(pldm_msg_hdr);
 
 /** @brief Limit the maximum length of PLDM message*/

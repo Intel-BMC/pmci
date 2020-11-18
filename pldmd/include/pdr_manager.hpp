@@ -31,6 +31,7 @@ using RecordHandle = uint32_t;
 using DataTransferHandle = uint32_t;
 using PDRDestroyer = std::function<void(pldm_pdr*)>;
 using PDRRepo = std::unique_ptr<pldm_pdr, PDRDestroyer>;
+using EntityAssociationPath = std::vector<pldm_entity>;
 
 struct EntityComparator
 {
@@ -100,6 +101,15 @@ class PDRManager
     /**@brief Parse Entity Association PDRs*/
     void parseEntityAssociationPDR();
 
+    /** @brief Get all entity association paths from entity association tree
+     * through recursion*/
+    void getEntityAssociationPaths(EntityNode::NodePtr& node,
+                                   EntityAssociationPath path);
+
+    /** @brief Populate all the PLDM entities on D-Bus to represent system
+     * hierarchy*/
+    void populateSystemHierarchy();
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
@@ -114,6 +124,12 @@ class PDRManager
 
     /** @brief Entity Association tree representing system hierarchy*/
     EntityNode::NodePtr _entityAssociationTree;
+
+    /** @brief Temporary storage for Entity Association paths*/
+    std::vector<EntityAssociationPath> _entityObjectPaths;
+
+    std::map<pldm_entity, std::shared_ptr<DBusInterface>, EntityComparator>
+        _systemHierarchyIntf;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
