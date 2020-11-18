@@ -471,7 +471,7 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
 
     std::vector<uint8_t> response = {};
     bool sendResponse = false;
-    const uint8_t* reqPtr = reinterpret_cast<const uint8_t*>(req);
+    auto reqPtr = reinterpret_cast<const uint8_t*>(req);
     std::vector<uint8_t> request(reqPtr, reqPtr + len);
     mctp_ctrl_msg_hdr* reqHeader =
         reinterpret_cast<mctp_ctrl_msg_hdr*>(request.data());
@@ -516,9 +516,8 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
 
     if (sendResponse)
     {
-        mctp_ctrl_msg_hdr* respHeader =
-            reinterpret_cast<mctp_ctrl_msg_hdr*>(response.data());
-        memcpy(respHeader, reqHeader, sizeof(struct mctp_ctrl_msg_hdr));
+        auto respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(response.data());
+        *respHeader = *reqHeader;
         respHeader->rq_dgram_inst &=
             static_cast<uint8_t>(~MCTP_CTRL_HDR_FLAG_REQUEST);
         mctp_message_tx(mctp, destEid, response.data(), response.size(), false,
@@ -550,8 +549,7 @@ bool MctpBinding::handleGetEndpointId(mctp_eid_t destEid, void*,
                                       std::vector<uint8_t>& response)
 {
     response.resize(sizeof(mctp_ctrl_resp_get_eid));
-    struct mctp_ctrl_resp_get_eid* resp =
-        reinterpret_cast<mctp_ctrl_resp_get_eid*>(response.data());
+    auto resp = reinterpret_cast<mctp_ctrl_resp_get_eid*>(response.data());
 
     bool busownerMode =
         bindingModeType == mctp_server::BindingModeTypes::BusOwner ? true
@@ -569,10 +567,8 @@ bool MctpBinding::handleSetEndpointId(mctp_eid_t destEid, void*,
         return false;
     }
     response.resize(sizeof(mctp_ctrl_resp_set_eid));
-    struct mctp_ctrl_resp_set_eid* resp =
-        reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
-    struct mctp_ctrl_cmd_set_eid* req =
-        reinterpret_cast<mctp_ctrl_cmd_set_eid*>(request.data());
+    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    auto req = reinterpret_cast<mctp_ctrl_cmd_set_eid*>(request.data());
 
     mctp_ctrl_cmd_set_endpoint_id(mctp, destEid, req, resp);
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
@@ -588,9 +584,9 @@ bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
                                           std::vector<uint8_t>& response)
 {
     response.resize(sizeof(mctp_ctrl_resp_get_mctp_ver_support));
-    mctp_ctrl_cmd_get_mctp_ver_support* req =
+    auto req =
         reinterpret_cast<mctp_ctrl_cmd_get_mctp_ver_support*>(request.data());
-    mctp_ctrl_resp_get_mctp_ver_support* resp =
+    auto resp =
         reinterpret_cast<mctp_ctrl_resp_get_mctp_ver_support*>(response.data());
 
     std::vector<version_entry> versions = {};
@@ -606,11 +602,9 @@ bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
         resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     }
     resp->number_of_entries = static_cast<uint8_t>(versions.size());
-    response.resize(sizeof(mctp_ctrl_resp_get_mctp_ver_support) +
-                    versions.size() * sizeof(version_entry));
-    std::copy_n(reinterpret_cast<uint8_t*>(versions.data()),
-                versions.size() * sizeof(version_entry),
-                response.data() + sizeof(mctp_ctrl_resp_get_mctp_ver_support));
+    std::copy(reinterpret_cast<uint8_t*>(versions.data()),
+              reinterpret_cast<uint8_t*>(versions.data() + versions.size()),
+              std::back_inserter(response));
     return true;
 }
 
@@ -620,15 +614,12 @@ bool MctpBinding::handleGetMsgTypeSupport(mctp_eid_t, void*,
 {
     response.resize(sizeof(mctp_ctrl_resp_get_msg_type_support));
     std::vector<uint8_t> supportedMsgTypes = getBindingMsgTypes();
-    mctp_ctrl_resp_get_msg_type_support* resp =
+    auto resp =
         reinterpret_cast<mctp_ctrl_resp_get_msg_type_support*>(response.data());
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     resp->msg_type_count = static_cast<uint8_t>(supportedMsgTypes.size());
-    response.resize(sizeof(mctp_ctrl_resp_get_msg_type_support) +
-                    supportedMsgTypes.size() * sizeof(msg_type_entry));
-    std::copy_n(supportedMsgTypes.data(),
-                supportedMsgTypes.size() * sizeof(msg_type_entry),
-                response.data() + sizeof(mctp_ctrl_resp_get_msg_type_support));
+    std::copy(supportedMsgTypes.begin(), supportedMsgTypes.end(),
+              std::back_inserter(response));
     return true;
 }
 

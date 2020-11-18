@@ -121,15 +121,15 @@ void PCIeBinding::updateRoutingTable()
                     "Get Routing Table failed");
                 return;
             }
-            struct mctp_ctrl_resp_get_routing_table* routingTableHdr =
-                reinterpret_cast<struct mctp_ctrl_resp_get_routing_table*>(
+            auto routingTableHdr =
+                reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
                     getRoutingTableEntryResp.data());
             size_t entryOffset = sizeof(mctp_ctrl_resp_get_routing_table);
 
             for (uint8_t i = 0; i < routingTableHdr->number_of_entries; i++)
             {
-                struct get_routing_table_entry* routingTableEntry =
-                    reinterpret_cast<struct get_routing_table_entry*>(
+                auto routingTableEntry =
+                    reinterpret_cast<get_routing_table_entry*>(
                         getRoutingTableEntryResp.data() + entryOffset);
 
                 entryOffset += sizeof(get_routing_table_entry);
@@ -202,9 +202,7 @@ void PCIeBinding::processRoutingTableChanges(
 
 bool PCIeBinding::isReceivedPrivateDataCorrect(const void* bindingPrivate)
 {
-    const mctp_astpcie_pkt_private* pciePrivate;
-
-    pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<const mctp_astpcie_pkt_private*>(bindingPrivate);
     if (pciePrivate == nullptr || pciePrivate->remote_id == 0x00)
     {
@@ -221,7 +219,7 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
     {
         return false;
     }
-    mctp_astpcie_pkt_private* pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (pciePrivate->routing != PCIE_BROADCAST_FROM_RC)
     {
@@ -231,7 +229,7 @@ bool PCIeBinding::handlePrepareForEndpointDiscovery(
         return false;
     }
     response.resize(sizeof(mctp_ctrl_resp_prepare_discovery));
-    struct mctp_ctrl_resp_prepare_discovery* resp =
+    auto resp =
         reinterpret_cast<mctp_ctrl_resp_prepare_discovery*>(response.data());
 
     changeDiscoveredFlag(pcie_binding::DiscoveryFlags::Undiscovered);
@@ -258,7 +256,7 @@ bool PCIeBinding::handleEndpointDiscovery(mctp_eid_t, void* bindingPrivate,
     }
     busOwnerBdf = pciePrivate->remote_id;
     response.resize(sizeof(mctp_ctrl_resp_endpoint_discovery));
-    struct mctp_ctrl_resp_endpoint_discovery* resp =
+    auto resp =
         reinterpret_cast<mctp_ctrl_resp_endpoint_discovery*>(response.data());
 
     resp->completion_code = MCTP_CTRL_CC_SUCCESS;
@@ -270,7 +268,7 @@ bool PCIeBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                       std::vector<uint8_t>& request,
                                       std::vector<uint8_t>& response)
 {
-    mctp_astpcie_pkt_private* pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (!MctpBinding::handleGetEndpointId(destEid, bindingPrivate, request,
                                           response))
@@ -286,7 +284,7 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                                       std::vector<uint8_t>& request,
                                       std::vector<uint8_t>& response)
 {
-    mctp_astpcie_pkt_private* pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (pciePrivate->remote_id != busOwnerBdf)
     {
@@ -300,8 +298,7 @@ bool PCIeBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
         return false;
     }
     response.resize(sizeof(mctp_ctrl_resp_set_eid));
-    struct mctp_ctrl_resp_set_eid* resp =
-        reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
 
     if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
     {
@@ -316,7 +313,7 @@ bool PCIeBinding::handleGetVersionSupport(mctp_eid_t destEid,
                                           std::vector<uint8_t>& request,
                                           std::vector<uint8_t>& response)
 {
-    mctp_astpcie_pkt_private* pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (!MctpBinding::handleGetVersionSupport(destEid, bindingPrivate, request,
                                               response))
@@ -333,7 +330,7 @@ bool PCIeBinding::handleGetMsgTypeSupport(mctp_eid_t destEid,
                                           std::vector<uint8_t>& request,
                                           std::vector<uint8_t>& response)
 {
-    mctp_astpcie_pkt_private* pciePrivate =
+    auto pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
     if (!MctpBinding::handleGetMsgTypeSupport(destEid, bindingPrivate, request,
                                               response))
