@@ -322,7 +322,7 @@ struct pldm_pdr_entity_association {
  */
 struct pldm_pdr_entity_auxiliary_names {
 	struct pldm_pdr_hdr hdr;
-	pldm_entity container;
+	pldm_entity entity;
 	uint8_t shared_name_count;
 	uint8_t name_string_count;
 	uint8_t entity_auxiliary_names[1];
