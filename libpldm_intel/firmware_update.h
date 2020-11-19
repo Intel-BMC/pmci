@@ -35,6 +35,8 @@ extern "C" {
 // descriptor type 2 byte, length 2 bytes and data 1 byte min.
 #define PLDM_FWU_MIN_DESCRIPTOR_IDENTIFIERS_LEN 5
 
+#define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
+
 /** @brief PLDM FWU values for Component Classification
  */
 enum comp_classification {
@@ -63,6 +65,30 @@ enum comp_ver_str_type {
 	COMP_UTF_16 = 3,
 	COMP_UTF_16LE = 4,
 	COMP_UTF_16BE = 5
+};
+
+/** @brief PLDM FWU codes for Component Compatibility Response
+ */
+enum comp_compatability_resp {
+	COMPONENT_CAN_BE_UPDATED = 0,
+	COMPONENT_CANNOT_BE_UPDATED = 1
+};
+
+/** @brief PLDM FWU codes for Component Compatibility Response Code
+ */
+enum comp_compatability_resp_code {
+	NO_RESPONSE_CODE = 0x0,
+	COMPATABILITY_COMPARISON_STAMP_IDENTICAL = 0x01,
+	COMPATABILITY_COMPARISON_STAMP_LOWER = 0x02,
+	INVALID_COMPATABILITY_COMPARISON_STAMP = 0x03,
+	COMPATABILITY_CONFLICT = 0x04,
+	COMPATABILITY_PREREQUISITES = 0x05,
+	COMPATABILITY_NOT_SUPPORTED = 0x06,
+	COMPATABILITY_SECURITY_RESTRICTIONS = 0x07,
+	INCOMPLETE_COMPONENT_IMAGE_SET = 0x08,
+	COMPATABILITY_NO_MATCH = 0x09,
+	COMPATABILITY_VER_STR_IDENTICAL = 0x0A,
+	COMPATABILITY_VER_STR_LOWER = 0x0B
 };
 
 /** @brief PLDM FWU codes for Component Response
@@ -364,6 +390,81 @@ int decode_get_device_meta_data_resp(
     const struct pldm_msg *msg, const size_t payload_length,
     uint8_t *completion_code, uint32_t *next_data_transfer_handle,
     uint8_t *transfer_flag, struct variable_field *portion_of_meta_data);
+
+/*UpdateComponent*/
+
+/* @struct update_component_req
+ *
+ *  Structure representing Update Component request
+ */
+struct update_component_req {
+	uint16_t comp_classification;
+	uint16_t comp_identifier;
+	uint8_t comp_classification_index;
+	uint32_t comp_comparison_stamp;
+	uint32_t comp_image_size;
+	uint32_t update_option_flags;
+	uint8_t comp_ver_str_type;
+	uint8_t comp_ver_str_len;
+} __attribute__((packed));
+
+/* @struct update_component_resp
+ *
+ *  Structure representing Update Component response
+ */
+struct update_component_resp {
+	uint8_t completion_code;
+	uint8_t comp_compatability_resp;
+	uint8_t comp_compatability_resp_code;
+	uint32_t update_option_flags_enabled;
+	uint16_t estimated_time_req_fd;
+} __attribute__((packed));
+
+/** @brief Create a PLDM request message for UpdateComponent
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in,out] msg - Message will be written to this
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[in] data - Pointer for UpdateComponent Request
+ *  @param[in] comp_ver_str - Pointer to component version string
+ * information
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
+				const size_t payload_length,
+				const struct update_component_req *data,
+				struct variable_field *comp_ver_str);
+
+/** @brief Decode a UpdateComponent response message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion code
+ *  @param[out] comp_compatability_resp - Pointer to component compatability
+ * response
+ *  @param[out] comp_compatability_resp_code - Pointer to component
+ * compatability response code
+ *  @param[out] update_option_flags_enabled - Pointer to update option flags
+ * enabled
+ *  @param[out] estimated_time_req_fd - Pointer to estimated time before sending
+ * request firmware data information
+ *  @return pldm_completion_codes
+ */
+int decode_update_component_resp(const struct pldm_msg *msg,
+				 const size_t payload_length,
+				 uint8_t *completion_code,
+				 uint8_t *comp_compatability_resp,
+				 uint8_t *comp_compatability_resp_code,
+				 uint32_t *update_option_flags_enabled,
+				 uint16_t *estimated_time_req_fd);
 
 /*ActivateFirmware*/
 

@@ -472,6 +472,99 @@ TEST(GetDeviceMetaData, testGoodDecodeResponse)
                         outPortionMetaData.length));
 }
 
+TEST(UpdateComponent, testGoodEncodeRequest)
+{
+    uint8_t instanceId = 0x01;
+    // Component Version String Length is not fixed here taking it as 6
+    constexpr uint8_t compVerStrLen = 6;
+
+    std::array<uint8_t, compVerStrLen> compVerStrArr;
+    struct variable_field inCompVerStr;
+    inCompVerStr.ptr = compVerStrArr.data();
+    inCompVerStr.length = compVerStrLen;
+
+    struct update_component_req inReq;
+
+    inReq.comp_classification = COMP_OTHER;
+    inReq.comp_identifier = 0x01;
+    inReq.comp_classification_index = 0x0F;
+    inReq.comp_comparison_stamp = 0;
+    inReq.comp_image_size = 32;
+    inReq.update_option_flags = 1;
+    inReq.comp_ver_str_type = COMP_ASCII;
+    inReq.comp_ver_str_len = compVerStrLen;
+
+    std::fill(compVerStrArr.data(), compVerStrArr.end() - 1, 0xFF);
+
+    std::array<uint8_t,
+               hdrSize + sizeof(struct update_component_req) + compVerStrLen>
+        outReq;
+
+    auto msg = (struct pldm_msg*)outReq.data();
+    size_t payloadLen =
+        sizeof(struct update_component_req) + inCompVerStr.length;
+    auto rc = encode_update_component_req(instanceId, msg, payloadLen, &inReq,
+                                          &inCompVerStr);
+
+    auto request = (struct update_component_req*)(outReq.data() + hdrSize);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.command, PLDM_UPDATE_COMPONENT);
+    EXPECT_EQ(request->comp_classification, inReq.comp_classification);
+    EXPECT_EQ(request->comp_identifier, inReq.comp_identifier);
+    EXPECT_EQ(request->comp_classification_index,
+              inReq.comp_classification_index);
+    EXPECT_EQ(request->comp_comparison_stamp, inReq.comp_comparison_stamp);
+    EXPECT_EQ(request->comp_image_size, inReq.comp_image_size);
+    EXPECT_EQ(request->update_option_flags, inReq.update_option_flags);
+    EXPECT_EQ(request->comp_ver_str_type, inReq.comp_ver_str_type);
+    EXPECT_EQ(request->comp_ver_str_len, inReq.comp_ver_str_len);
+    EXPECT_EQ(true, std::equal(compVerStrArr.begin(), compVerStrArr.end(),
+                               outReq.data() + hdrSize +
+                                   sizeof(struct update_component_req)));
+}
+
+TEST(UpdateComponent, testGoodDecodeResponse)
+{
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t compCompatabilityResp = COMPONENT_CANNOT_BE_UPDATED;
+    uint8_t compCompatabilityRespCode =
+        COMPATABILITY_COMPARISON_STAMP_IDENTICAL;
+    uint32_t updateOptionFlagsEnabled = 1;
+    uint16_t estimatedTimeReqFd = 1;
+
+    std::array<uint8_t, hdrSize + sizeof(struct update_component_resp)>
+        responseMsg{};
+    struct update_component_resp* inResp =
+        reinterpret_cast<struct update_component_resp*>(responseMsg.data() +
+                                                        hdrSize);
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->comp_compatability_resp = COMPONENT_CANNOT_BE_UPDATED;
+    inResp->comp_compatability_resp_code =
+        COMPATABILITY_COMPARISON_STAMP_IDENTICAL;
+    inResp->update_option_flags_enabled = 0x01;
+    inResp->estimated_time_req_fd = 0x01;
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_update_component_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &compCompatabilityResp, &compCompatabilityRespCode,
+        &updateOptionFlagsEnabled, &estimatedTimeReqFd);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
+    EXPECT_EQ(compCompatabilityResp, inResp->comp_compatability_resp);
+    EXPECT_EQ(compCompatabilityRespCode, inResp->comp_compatability_resp_code);
+    EXPECT_EQ(updateOptionFlagsEnabled, inResp->update_option_flags_enabled);
+    EXPECT_EQ(estimatedTimeReqFd, inResp->estimated_time_req_fd);
+}
+
+/*ActivateFirmware*/
+
+/*ActivateFirmware Encode Request Test Cases*/
 TEST(ActivateFirmware, testGoodEncodeRequest)
 {
     std::array<uint8_t, hdrSize + sizeof(struct activate_firmware_req)>

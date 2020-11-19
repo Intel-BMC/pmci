@@ -641,6 +641,135 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 	return PLDM_SUCCESS;
 }
 
+/** @brief Check whether Component Compatibility Response Code is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool
+check_compatability_resp_code_valid(const uint8_t comp_compatability_resp_code)
+{
+	switch (comp_compatability_resp_code) {
+	case NO_RESPONSE_CODE:
+	case COMPATABILITY_COMPARISON_STAMP_IDENTICAL:
+	case COMPATABILITY_COMPARISON_STAMP_LOWER:
+	case INVALID_COMPATABILITY_COMPARISON_STAMP:
+	case COMPATABILITY_CONFLICT:
+	case COMPATABILITY_PREREQUISITES:
+	case COMPATABILITY_NOT_SUPPORTED:
+	case COMPATABILITY_SECURITY_RESTRICTIONS:
+	case INCOMPLETE_COMPONENT_IMAGE_SET:
+	case COMPATABILITY_NO_MATCH:
+	case COMPATABILITY_VER_STR_IDENTICAL:
+	case COMPATABILITY_VER_STR_LOWER:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
+				const size_t payload_length,
+				const struct update_component_req *data,
+				struct variable_field *comp_ver_str)
+{
+	if (msg == NULL || data == NULL || comp_ver_str == NULL ||
+	    msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (payload_length < sizeof(struct update_component_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct pldm_header_info header = {0};
+	header.instance = instance_id;
+	header.msg_type = PLDM_REQUEST;
+	header.pldm_type = PLDM_FWU;
+	header.command = PLDM_UPDATE_COMPONENT;
+
+	int rc = pack_pldm_header(&header, &(msg->hdr));
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+
+	if (!check_comp_classification_valid(
+		htole16(data->comp_classification))) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (!check_comp_ver_str_type_valid(data->comp_ver_str_type)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	memcpy(msg->payload, data, sizeof(struct update_component_req));
+
+	if (payload_length !=
+	    sizeof(struct update_component_req) + comp_ver_str->length) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	if (comp_ver_str->ptr == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	memcpy(msg->payload + sizeof(struct update_component_req),
+	       comp_ver_str->ptr, comp_ver_str->length);
+
+	return PLDM_SUCCESS;
+}
+
+int decode_update_component_resp(const struct pldm_msg *msg,
+				 const size_t payload_length,
+				 uint8_t *completion_code,
+				 uint8_t *comp_compatability_resp,
+				 uint8_t *comp_compatability_resp_code,
+				 uint32_t *update_option_flags_enabled,
+				 uint16_t *estimated_time_req_fd)
+{
+	if (msg == NULL || completion_code == NULL ||
+	    comp_compatability_resp == NULL ||
+	    comp_compatability_resp_code == NULL ||
+	    update_option_flags_enabled == NULL ||
+	    estimated_time_req_fd == NULL || msg->payload == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*completion_code = msg->payload[0];
+
+	if (*completion_code != PLDM_SUCCESS) {
+		return *completion_code;
+	}
+
+	if (payload_length != sizeof(struct update_component_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct update_component_resp *response =
+	    (struct update_component_resp *)msg->payload;
+
+	if (response->comp_compatability_resp != COMPONENT_CAN_BE_UPDATED &&
+	    response->comp_compatability_resp != COMPONENT_CANNOT_BE_UPDATED) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*comp_compatability_resp = response->comp_compatability_resp;
+
+	if (!check_compatability_resp_code_valid(
+		response->comp_compatability_resp_code)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*comp_compatability_resp_code = response->comp_compatability_resp_code;
+
+	*update_option_flags_enabled =
+	    le32toh(response->update_option_flags_enabled);
+
+	*estimated_time_req_fd = le16toh(response->estimated_time_req_fd);
+
+	return PLDM_SUCCESS;
+}
+
 /*CancelUpdateComponent*/
 
 /*CancelUpdateComponent Encode Request API */
