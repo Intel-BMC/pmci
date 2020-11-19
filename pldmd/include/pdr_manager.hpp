@@ -32,6 +32,8 @@ using DataTransferHandle = uint32_t;
 using PDRDestroyer = std::function<void(pldm_pdr*)>;
 using PDRRepo = std::unique_ptr<pldm_pdr, PDRDestroyer>;
 using EntityAssociationPath = std::vector<pldm_entity>;
+using SensorID = uint16_t;
+using EffecterID = uint16_t;
 
 struct EntityComparator
 {
@@ -110,6 +112,16 @@ class PDRManager
      * hierarchy*/
     void populateSystemHierarchy();
 
+    /** @brief Parse Sensor Auxiliary Names PDR */
+    void parseSensorAuxNamesPDR(std::vector<uint8_t>& pdrData);
+
+    /** @brief Parse Effecter Auxiliary Names PDR */
+    void parseEffecterAuxNamesPDR(std::vector<uint8_t>& pdrData);
+
+    /**@brief General parser to each PDR type*/
+    template <pldm_pdr_types pdrType>
+    void parsePDR();
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
@@ -128,8 +140,19 @@ class PDRManager
     /** @brief Temporary storage for Entity Association paths*/
     std::vector<EntityAssociationPath> _entityObjectPaths;
 
-    std::map<pldm_entity, std::shared_ptr<DBusInterface>, EntityComparator>
+    std::map<pldm_entity, std::pair<DBusInterfacePtr, DBusObjectPath>,
+             EntityComparator>
         _systemHierarchyIntf;
+
+    /** @brief Holds Sensor Auxiliary Names.
+     * Note:- SensorID is considered as unique within a terminus
+     */
+    std::unordered_map<SensorID, std::string> _sensorAuxNames;
+
+    /** @brief Holds Effecter Auxiliary Names.
+     * Note:- EffecterID is considered as unique within a terminus
+     */
+    std::unordered_map<EffecterID, std::string> _effecterAuxNames;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;

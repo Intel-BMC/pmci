@@ -709,8 +709,9 @@ void PDRManager::getEntityAssociationPaths(EntityNode::NodePtr& node,
     }
 }
 
-static void populateEntity(std::shared_ptr<DBusInterface>& entityIntf,
-                           const std::string& path, const pldm_entity& entity)
+static void populateEntity(DBusInterfacePtr& entityIntf,
+                           const DBusObjectPath& path,
+                           const pldm_entity& entity)
 {
     auto objServer = getObjServer();
 
@@ -722,7 +723,6 @@ static void populateEntity(std::shared_ptr<DBusInterface>& entityIntf,
     entityIntf->register_property("EntityContainerID",
                                   entity.entity_container_id);
     entityIntf->initialize();
-    // TODO: expose details from sensor PDR if the entity has a sensor
 }
 
 void PDRManager::populateSystemHierarchy()
@@ -753,15 +753,113 @@ void PDRManager::populateSystemHierarchy()
 
             // Append entity names for multilevel entity associations
             pathName += "/" + entityAuxName;
-            std::string objPath = pldmDevObj + pathName;
+            DBusObjectPath objPath = pldmDevObj + pathName;
 
-            std::shared_ptr<DBusInterface> entityIntf;
+            DBusInterfacePtr entityIntf;
             populateEntity(entityIntf, objPath, entity);
-            _systemHierarchyIntf[entity] = entityIntf;
+            _systemHierarchyIntf[entity] = std::make_pair(entityIntf, objPath);
         }
     }
     // Clear after usage
     _entityObjectPaths.clear();
+}
+
+void PDRManager::parseSensorAuxNamesPDR(std::vector<uint8_t>& pdrData)
+{
+    if (pdrData.size() < sizeof(pldm_sensor_auxiliary_names_pdr))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Sensor Auxiliary Names PDR empty");
+        return;
+    }
+    pldm_sensor_auxiliary_names_pdr* namePDR =
+        reinterpret_cast<pldm_sensor_auxiliary_names_pdr*>(pdrData.data());
+    LE16TOH(namePDR->terminus_handle);
+    LE16TOH(namePDR->sensor_id);
+
+    // TODO: Handle Composite sensor names
+    size_t auxNamesLen =
+        pdrData.size() - (sizeof(pldm_sensor_auxiliary_names_pdr) -
+                          sizeof(namePDR->sensor_auxiliary_names));
+    if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
+                               namePDR->sensor_auxiliary_names))
+    {
+        // Cache the Sensor Auxiliary Names
+        _sensorAuxNames[namePDR->sensor_id] = *name;
+
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("SensorID:" +
+             std::to_string(static_cast<int>(namePDR->sensor_id)) +
+             " Sensor Auxiliary Name: " + *name)
+                .c_str());
+    }
+}
+
+void PDRManager::parseEffecterAuxNamesPDR(std::vector<uint8_t>& pdrData)
+{
+    if (pdrData.size() < sizeof(pldm_effecter_auxiliary_names_pdr))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Effecter Auxiliary Names PDR empty");
+        return;
+    }
+    pldm_effecter_auxiliary_names_pdr* namePDR =
+        reinterpret_cast<pldm_effecter_auxiliary_names_pdr*>(pdrData.data());
+    LE16TOH(namePDR->terminus_handle);
+    LE16TOH(namePDR->effecter_id);
+
+    // TODO: Handle Composite effecter names
+    size_t auxNamesLen =
+        pdrData.size() - (sizeof(pldm_effecter_auxiliary_names_pdr) -
+                          sizeof(namePDR->effecter_auxiliary_names));
+    if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
+                               namePDR->effecter_auxiliary_names))
+    {
+        // Cache the Effecter Auxiliary Names
+        _effecterAuxNames[namePDR->effecter_id] = *name;
+
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("EffecterID:" +
+             std::to_string(static_cast<int>(namePDR->effecter_id)) +
+             " Effecter Auxiliary Name: " + *name)
+                .c_str());
+    }
+}
+
+template <pldm_pdr_types pdrType>
+void PDRManager::parsePDR()
+{
+    uint8_t* pdrData = nullptr;
+    uint32_t pdrSize{};
+    auto record = pldm_pdr_find_record_by_type(_pdrRepo.get(), pdrType, NULL,
+                                               &pdrData, &pdrSize);
+    while (record)
+    {
+        std::vector<uint8_t> pdrVec(pdrData, pdrData + pdrSize);
+        // TODO: Move Entity Auxiliary Name PDR and Entity Association PDR
+        // parsing here
+        if constexpr (pdrType == PLDM_SENSOR_AUXILIARY_NAMES_PDR)
+        {
+            parseSensorAuxNamesPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_EFFECTER_AUXILIARY_NAMES_PDR)
+        {
+            parseEffecterAuxNamesPDR(pdrVec);
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Not supported. Unknown PDR type");
+            return;
+        }
+
+        pdrData = nullptr;
+        pdrSize = 0;
+        record = pldm_pdr_find_record_by_type(_pdrRepo.get(), pdrType, record,
+                                              &pdrData, &pdrSize);
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "PDR parsing complete ");
 }
 
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
@@ -786,6 +884,8 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     parseEntityAssociationPDR();
     getEntityAssociationPaths(_entityAssociationTree, {});
     populateSystemHierarchy();
+    parsePDR<PLDM_SENSOR_AUXILIARY_NAMES_PDR>();
+    parsePDR<PLDM_EFFECTER_AUXILIARY_NAMES_PDR>();
 
     return true;
 }

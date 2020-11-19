@@ -31,7 +31,8 @@ std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
 
 namespace pldm
 {
-using DBusInterface = sdbusplus::asio::dbus_interface;
+using DBusInterfacePtr = std::shared_ptr<sdbusplus::asio::dbus_interface>;
+using DBusObjectPath = std::string;
 
 constexpr size_t pldmMsgHdrSize = sizeof(pldm_msg_hdr);
 
