@@ -328,6 +328,32 @@ struct pldm_pdr_entity_auxiliary_names {
 	uint8_t entity_auxiliary_names[1];
 } __attribute__((packed));
 
+/** @struct pldm_sensor_auxiliary_names_pdr
+ *
+ *  Structure representing PLDM Sensor Auxiliary Names PDR
+ */
+struct pldm_sensor_auxiliary_names_pdr {
+	struct pldm_pdr_hdr hdr;
+	uint16_t terminus_handle;
+	uint16_t sensor_id;
+	uint8_t sensor_count;
+	uint8_t name_string_count;
+	uint8_t sensor_auxiliary_names[1];
+} __attribute__((packed));
+
+/** @struct pldm_effecter_auxiliary_names_pdr
+ *
+ *  Structure representing PLDM Effecter Auxiliary Names PDR
+ */
+struct pldm_effecter_auxiliary_names_pdr {
+	struct pldm_pdr_hdr hdr;
+	uint16_t terminus_handle;
+	uint16_t effecter_id;
+	uint8_t effecter_count;
+	uint8_t name_string_count;
+	uint8_t effecter_auxiliary_names[1];
+} __attribute__((packed));
+
 /** @struct pldm_pdr_fru_record_set
  *
  *  Structure representing PLDM FRU record set PDR
