@@ -301,6 +301,19 @@ void pldm_entity_association_pdr_extract(const uint8_t *pdr, uint16_t pdr_len,
 					 size_t *num_entities,
 					 pldm_entity **entities);
 
+/** @brief Parse Numeric Sensor PDR
+ *
+ *  @param[in] pdr - Numeric Sensor PDR
+ *  @param[in] pdr_len - size of Numeric Sensor PDR in bytes
+ *  @param[out] numeric_sensor_pdr - parsed PDR will be writted to this
+ *
+ *  @return bool true if the parsing success
+ *  @note caller is responsible for alloc/dealloc of *pdr and
+ *  *numeric_sensor_pdr
+ */
+bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
+				   uint8_t *numeric_sensor_pdr);
+
 #ifdef __cplusplus
 }
 #endif

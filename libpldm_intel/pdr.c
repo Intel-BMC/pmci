@@ -719,3 +719,471 @@ void pldm_entity_association_pdr_extract(const uint8_t *pdr, uint16_t pdr_len,
 		++i;
 	}
 }
+
+static bool numeric_sensor_pdr_sensor_data_size_parse(
+    struct pldm_numeric_sensor_value_pdr *sensor_pdr_out, const uint8_t **iter,
+    size_t *min_pdr_size, const uint16_t pdr_len)
+{
+	assert(sensor_pdr_out != NULL);
+	assert(*iter != NULL);
+	assert(min_pdr_size != NULL);
+
+	size_t len_after_hysteresis =
+	    sizeof(sensor_pdr_out->supported_thresholds) +
+	    sizeof(sensor_pdr_out->threshold_and_hysteresis_volatility) +
+	    sizeof(sensor_pdr_out->state_transition_interval) +
+	    sizeof(sensor_pdr_out->update_interval);
+
+	switch (sensor_pdr_out->sensor_data_size) {
+	case PLDM_SENSOR_DATA_SIZE_UINT8:
+		memcpy(&sensor_pdr_out->hysteresis.value_u8, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_u8));
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_u8);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_u8, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_u8));
+		*iter += sizeof(sensor_pdr_out->max_readable.value_u8);
+		memcpy(&sensor_pdr_out->min_readable.value_u8, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_u8));
+		*iter += sizeof(sensor_pdr_out->min_readable.value_u8);
+		break;
+	case PLDM_SENSOR_DATA_SIZE_SINT8:
+		memcpy(&sensor_pdr_out->hysteresis.value_s8, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_s8));
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_s8);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_s8, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_s8));
+		*iter += sizeof(sensor_pdr_out->max_readable.value_s8);
+		memcpy(&sensor_pdr_out->min_readable.value_s8, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_s8));
+		*iter += sizeof(sensor_pdr_out->min_readable.value_s8);
+		break;
+	case PLDM_SENSOR_DATA_SIZE_UINT16:
+		*min_pdr_size += 3;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->hysteresis.value_u16, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_u16));
+		LE16TOH(sensor_pdr_out->hysteresis.value_u16);
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_u16);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		LE32TOH(sensor_pdr_out->state_transition_interval);
+		LE32TOH(sensor_pdr_out->update_interval);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_u16, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_u16));
+		LE16TOH(sensor_pdr_out->max_readable.value_u16);
+		*iter += sizeof(sensor_pdr_out->max_readable.value_u16);
+		memcpy(&sensor_pdr_out->min_readable.value_u16, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_u16));
+		LE16TOH(sensor_pdr_out->min_readable.value_u16);
+		*iter += sizeof(sensor_pdr_out->min_readable.value_u16);
+		break;
+	case PLDM_SENSOR_DATA_SIZE_SINT16:
+		*min_pdr_size += 3;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->hysteresis.value_s16, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_s16));
+		LE16TOH(sensor_pdr_out->hysteresis.value_s16);
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_s16);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		LE32TOH(sensor_pdr_out->state_transition_interval);
+		LE32TOH(sensor_pdr_out->update_interval);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_s16, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_s16));
+		LE16TOH(sensor_pdr_out->max_readable.value_s16);
+		*iter += sizeof(sensor_pdr_out->max_readable.value_s16);
+		memcpy(&sensor_pdr_out->min_readable.value_s16, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_s16));
+		LE16TOH(sensor_pdr_out->min_readable.value_s16);
+		*iter += sizeof(sensor_pdr_out->min_readable.value_s16);
+		break;
+	case PLDM_SENSOR_DATA_SIZE_UINT32:
+		*min_pdr_size += 9;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->hysteresis.value_u32, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_u32));
+		LE32TOH(sensor_pdr_out->hysteresis.value_u32);
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_u32);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		LE32TOH(sensor_pdr_out->state_transition_interval);
+		LE32TOH(sensor_pdr_out->update_interval);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_u32, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_u32));
+		LE32TOH(sensor_pdr_out->max_readable.value_u32);
+		*iter += sizeof(sensor_pdr_out->max_readable.value_u32);
+		memcpy(&sensor_pdr_out->min_readable.value_u32, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_u32));
+		LE32TOH(sensor_pdr_out->min_readable.value_u32);
+		*iter += sizeof(sensor_pdr_out->min_readable.value_u32);
+		break;
+	case PLDM_SENSOR_DATA_SIZE_SINT32:
+		*min_pdr_size += 9;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->hysteresis.value_s32, *iter,
+		       sizeof(sensor_pdr_out->hysteresis.value_s32));
+		LE32TOH(sensor_pdr_out->hysteresis.value_s32);
+		*iter += sizeof(sensor_pdr_out->hysteresis.value_s32);
+		memcpy(&sensor_pdr_out->supported_thresholds, *iter,
+		       len_after_hysteresis);
+		LE32TOH(sensor_pdr_out->state_transition_interval);
+		LE32TOH(sensor_pdr_out->update_interval);
+		*iter += len_after_hysteresis;
+		memcpy(&sensor_pdr_out->max_readable.value_s32, *iter,
+		       sizeof(sensor_pdr_out->max_readable.value_s32));
+		LE32TOH(sensor_pdr_out->max_readable.value_s32);
+		*iter += sizeof(sensor_pdr_out->max_readable.value_s32);
+		memcpy(&sensor_pdr_out->min_readable.value_s32, *iter,
+		       sizeof(sensor_pdr_out->min_readable.value_s32));
+		LE32TOH(sensor_pdr_out->min_readable.value_s32);
+		*iter += sizeof(sensor_pdr_out->min_readable.value_s32);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+static bool numeric_sensor_pdr_range_field_format_parse(
+    struct pldm_numeric_sensor_value_pdr *sensor_pdr_out, const uint8_t **iter,
+    size_t *min_pdr_size, const uint16_t pdr_len)
+{
+	assert(sensor_pdr_out != NULL);
+	assert(*iter != NULL);
+	assert(min_pdr_size != NULL);
+
+	switch (sensor_pdr_out->range_field_format) {
+	case PLDM_RANGE_FIELD_FORMAT_UINT8:
+		memcpy(&sensor_pdr_out->nominal_value.value_u8, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_u8));
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_u8);
+		memcpy(&sensor_pdr_out->normal_max.value_u8, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_u8));
+		*iter += sizeof(sensor_pdr_out->normal_max.value_u8);
+		memcpy(&sensor_pdr_out->normal_min.value_u8, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_u8));
+		*iter += sizeof(sensor_pdr_out->normal_min.value_u8);
+		memcpy(&sensor_pdr_out->warning_high.value_u8, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_u8));
+		*iter += sizeof(sensor_pdr_out->warning_high.value_u8);
+		memcpy(&sensor_pdr_out->warning_low.value_u8, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_u8));
+		*iter += sizeof(sensor_pdr_out->warning_low.value_u8);
+		memcpy(&sensor_pdr_out->critical_high.value_u8, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_u8));
+		*iter += sizeof(sensor_pdr_out->critical_high.value_u8);
+		memcpy(&sensor_pdr_out->critical_low.value_u8, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_u8));
+		*iter += sizeof(sensor_pdr_out->critical_low.value_u8);
+		memcpy(&sensor_pdr_out->fatal_high.value_u8, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_u8));
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_u8);
+		memcpy(&sensor_pdr_out->fatal_low.value_u8, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_u8));
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT8:
+		memcpy(&sensor_pdr_out->nominal_value.value_s8, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_s8));
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_s8);
+		memcpy(&sensor_pdr_out->normal_max.value_s8, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_s8));
+		*iter += sizeof(sensor_pdr_out->normal_max.value_s8);
+		memcpy(&sensor_pdr_out->normal_min.value_s8, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_s8));
+		*iter += sizeof(sensor_pdr_out->normal_min.value_s8);
+		memcpy(&sensor_pdr_out->warning_high.value_s8, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_s8));
+		*iter += sizeof(sensor_pdr_out->warning_high.value_s8);
+		memcpy(&sensor_pdr_out->warning_low.value_s8, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_s8));
+		*iter += sizeof(sensor_pdr_out->warning_low.value_s8);
+		memcpy(&sensor_pdr_out->critical_high.value_s8, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_s8));
+		*iter += sizeof(sensor_pdr_out->critical_high.value_s8);
+		memcpy(&sensor_pdr_out->critical_low.value_s8, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_s8));
+		*iter += sizeof(sensor_pdr_out->critical_low.value_s8);
+		memcpy(&sensor_pdr_out->fatal_high.value_s8, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_s8));
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_s8);
+		memcpy(&sensor_pdr_out->fatal_low.value_s8, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_s8));
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT16:
+		*min_pdr_size += 9;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->nominal_value.value_u16, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_u16));
+		LE16TOH(sensor_pdr_out->nominal_value.value_u16);
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_u16);
+		memcpy(&sensor_pdr_out->normal_max.value_u16, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_u16));
+		LE16TOH(sensor_pdr_out->normal_max.value_u16);
+		*iter += sizeof(sensor_pdr_out->normal_max.value_u16);
+		memcpy(&sensor_pdr_out->normal_min.value_u16, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_u16));
+		LE16TOH(sensor_pdr_out->normal_min.value_u16);
+		*iter += sizeof(sensor_pdr_out->normal_min.value_u16);
+		memcpy(&sensor_pdr_out->warning_high.value_u16, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_u16));
+		LE16TOH(sensor_pdr_out->warning_high.value_u16);
+		*iter += sizeof(sensor_pdr_out->warning_high.value_u16);
+		memcpy(&sensor_pdr_out->warning_low.value_u16, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_u16));
+		LE16TOH(sensor_pdr_out->warning_low.value_u16);
+		*iter += sizeof(sensor_pdr_out->warning_low.value_u16);
+		memcpy(&sensor_pdr_out->critical_high.value_u16, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_u16));
+		LE16TOH(sensor_pdr_out->critical_high.value_u16);
+		*iter += sizeof(sensor_pdr_out->critical_high.value_u16);
+		memcpy(&sensor_pdr_out->critical_low.value_u16, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_u16));
+		LE16TOH(sensor_pdr_out->critical_low.value_u16);
+		*iter += sizeof(sensor_pdr_out->critical_low.value_u16);
+		memcpy(&sensor_pdr_out->fatal_high.value_u16, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_u16));
+		LE16TOH(sensor_pdr_out->fatal_high.value_u16);
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_u16);
+		memcpy(&sensor_pdr_out->fatal_low.value_u16, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_u16));
+		LE16TOH(sensor_pdr_out->fatal_low.value_u16);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT16:
+		*min_pdr_size += 9;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->nominal_value.value_s16, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_s16));
+		LE16TOH(sensor_pdr_out->nominal_value.value_s16);
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_s16);
+		memcpy(&sensor_pdr_out->normal_max.value_s16, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_s16));
+		LE16TOH(sensor_pdr_out->normal_max.value_s16);
+		*iter += sizeof(sensor_pdr_out->normal_max.value_s16);
+		memcpy(&sensor_pdr_out->normal_min.value_s16, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_s16));
+		LE16TOH(sensor_pdr_out->normal_min.value_s16);
+		*iter += sizeof(sensor_pdr_out->normal_min.value_s16);
+		memcpy(&sensor_pdr_out->warning_high.value_s16, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_s16));
+		LE16TOH(sensor_pdr_out->warning_high.value_s16);
+		*iter += sizeof(sensor_pdr_out->warning_high.value_s16);
+		memcpy(&sensor_pdr_out->warning_low.value_s16, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_s16));
+		LE16TOH(sensor_pdr_out->warning_low.value_s16);
+		*iter += sizeof(sensor_pdr_out->warning_low.value_s16);
+		memcpy(&sensor_pdr_out->critical_high.value_s16, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_s16));
+		LE16TOH(sensor_pdr_out->critical_high.value_s16);
+		*iter += sizeof(sensor_pdr_out->critical_high.value_s16);
+		memcpy(&sensor_pdr_out->critical_low.value_s16, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_s16));
+		LE16TOH(sensor_pdr_out->critical_low.value_s16);
+		*iter += sizeof(sensor_pdr_out->critical_low.value_s16);
+		memcpy(&sensor_pdr_out->fatal_high.value_s16, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_s16));
+		LE16TOH(sensor_pdr_out->fatal_high.value_s16);
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_s16);
+		memcpy(&sensor_pdr_out->fatal_low.value_s16, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_s16));
+		LE16TOH(sensor_pdr_out->fatal_low.value_s16);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT32:
+		*min_pdr_size += 27;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->nominal_value.value_u32, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_u32));
+		LE32TOH(sensor_pdr_out->nominal_value.value_u32);
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_u32);
+		memcpy(&sensor_pdr_out->normal_max.value_u32, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_u32));
+		LE32TOH(sensor_pdr_out->normal_max.value_u32);
+		*iter += sizeof(sensor_pdr_out->normal_max.value_u32);
+		memcpy(&sensor_pdr_out->normal_min.value_u32, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_u32));
+		LE32TOH(sensor_pdr_out->normal_min.value_u32);
+		*iter += sizeof(sensor_pdr_out->normal_min.value_u32);
+		memcpy(&sensor_pdr_out->warning_high.value_u32, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_u32));
+		LE32TOH(sensor_pdr_out->warning_high.value_u32);
+		*iter += sizeof(sensor_pdr_out->warning_high.value_u32);
+		memcpy(&sensor_pdr_out->warning_low.value_u32, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_u32));
+		LE32TOH(sensor_pdr_out->warning_low.value_u32);
+		*iter += sizeof(sensor_pdr_out->warning_low.value_u32);
+		memcpy(&sensor_pdr_out->critical_high.value_u32, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_u32));
+		LE32TOH(sensor_pdr_out->critical_high.value_u32);
+		*iter += sizeof(sensor_pdr_out->critical_high.value_u32);
+		memcpy(&sensor_pdr_out->critical_low.value_u32, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_u32));
+		LE32TOH(sensor_pdr_out->critical_low.value_u32);
+		*iter += sizeof(sensor_pdr_out->critical_low.value_u32);
+		memcpy(&sensor_pdr_out->fatal_high.value_u32, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_u32));
+		LE32TOH(sensor_pdr_out->fatal_high.value_u32);
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_u32);
+		memcpy(&sensor_pdr_out->fatal_low.value_u32, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_u32));
+		LE32TOH(sensor_pdr_out->fatal_low.value_u32);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT32:
+		*min_pdr_size += 27;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->nominal_value.value_s32, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_s32));
+		LE32TOH(sensor_pdr_out->nominal_value.value_s32);
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_s32);
+		memcpy(&sensor_pdr_out->normal_max.value_s32, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_s32));
+		LE32TOH(sensor_pdr_out->normal_max.value_s32);
+		*iter += sizeof(sensor_pdr_out->normal_max.value_s32);
+		memcpy(&sensor_pdr_out->normal_min.value_s32, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_s32));
+		LE32TOH(sensor_pdr_out->normal_min.value_s32);
+		*iter += sizeof(sensor_pdr_out->normal_min.value_s32);
+		memcpy(&sensor_pdr_out->warning_high.value_s32, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_s32));
+		LE32TOH(sensor_pdr_out->warning_high.value_s32);
+		*iter += sizeof(sensor_pdr_out->warning_high.value_s32);
+		memcpy(&sensor_pdr_out->warning_low.value_s32, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_s32));
+		LE32TOH(sensor_pdr_out->warning_low.value_s32);
+		*iter += sizeof(sensor_pdr_out->warning_low.value_s32);
+		memcpy(&sensor_pdr_out->critical_high.value_s32, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_s32));
+		LE32TOH(sensor_pdr_out->critical_high.value_s32);
+		*iter += sizeof(sensor_pdr_out->critical_high.value_s32);
+		memcpy(&sensor_pdr_out->critical_low.value_s32, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_s32));
+		LE32TOH(sensor_pdr_out->critical_low.value_s32);
+		*iter += sizeof(sensor_pdr_out->critical_low.value_s32);
+		memcpy(&sensor_pdr_out->fatal_high.value_s32, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_s32));
+		LE32TOH(sensor_pdr_out->fatal_high.value_s32);
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_s32);
+		memcpy(&sensor_pdr_out->fatal_low.value_s32, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_s32));
+		LE32TOH(sensor_pdr_out->fatal_low.value_s32);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_REAL32:
+		*min_pdr_size += 27;
+		if (pdr_len < *min_pdr_size) {
+			return false;
+		}
+		memcpy(&sensor_pdr_out->nominal_value.value_f32, *iter,
+		       sizeof(sensor_pdr_out->nominal_value.value_f32));
+		LE32TOH(sensor_pdr_out->nominal_value.value_f32);
+		*iter += sizeof(sensor_pdr_out->nominal_value.value_f32);
+		memcpy(&sensor_pdr_out->normal_max.value_f32, *iter,
+		       sizeof(sensor_pdr_out->normal_max.value_f32));
+		LE32TOH(sensor_pdr_out->normal_max.value_f32);
+		*iter += sizeof(sensor_pdr_out->normal_max.value_f32);
+		memcpy(&sensor_pdr_out->normal_min.value_f32, *iter,
+		       sizeof(sensor_pdr_out->normal_min.value_f32));
+		LE32TOH(sensor_pdr_out->normal_min.value_f32);
+		*iter += sizeof(sensor_pdr_out->normal_min.value_f32);
+		memcpy(&sensor_pdr_out->warning_high.value_f32, *iter,
+		       sizeof(sensor_pdr_out->warning_high.value_f32));
+		LE32TOH(sensor_pdr_out->warning_high.value_f32);
+		*iter += sizeof(sensor_pdr_out->warning_high.value_f32);
+		memcpy(&sensor_pdr_out->warning_low.value_f32, *iter,
+		       sizeof(sensor_pdr_out->warning_low.value_f32));
+		LE32TOH(sensor_pdr_out->warning_low.value_f32);
+		*iter += sizeof(sensor_pdr_out->warning_low.value_f32);
+		memcpy(&sensor_pdr_out->critical_high.value_f32, *iter,
+		       sizeof(sensor_pdr_out->critical_high.value_f32));
+		LE32TOH(sensor_pdr_out->critical_high.value_f32);
+		*iter += sizeof(sensor_pdr_out->critical_high.value_f32);
+		memcpy(&sensor_pdr_out->critical_low.value_f32, *iter,
+		       sizeof(sensor_pdr_out->critical_low.value_f32));
+		LE32TOH(sensor_pdr_out->critical_low.value_f32);
+		*iter += sizeof(sensor_pdr_out->critical_low.value_f32);
+		memcpy(&sensor_pdr_out->fatal_high.value_f32, *iter,
+		       sizeof(sensor_pdr_out->fatal_high.value_f32));
+		LE32TOH(sensor_pdr_out->fatal_high.value_f32);
+		*iter += sizeof(sensor_pdr_out->fatal_high.value_f32);
+		memcpy(&sensor_pdr_out->fatal_low.value_f32, *iter,
+		       sizeof(sensor_pdr_out->fatal_low.value_f32));
+		LE32TOH(sensor_pdr_out->fatal_low.value_f32);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
+				   uint8_t *numeric_sensor_pdr)
+{
+	assert(pdr != NULL);
+	assert(numeric_sensor_pdr != NULL);
+	if (pdr_len < PLDM_NUMERIC_SENSOR_PDR_MIN_LENGTH) {
+		return false;
+	}
+	struct pldm_pdr_hdr *hdr = (struct pldm_pdr_hdr *)pdr;
+	assert(hdr->type == PLDM_NUMERIC_SENSOR_PDR);
+
+	const struct pldm_numeric_sensor_value_pdr *sensor_pdr_in =
+	    (const struct pldm_numeric_sensor_value_pdr *)pdr;
+	struct pldm_numeric_sensor_value_pdr *sensor_pdr_out =
+	    (struct pldm_numeric_sensor_value_pdr *)numeric_sensor_pdr;
+	memcpy(sensor_pdr_out, sensor_pdr_in,
+	       &sensor_pdr_in->hysteresis.value_u8 - pdr);
+	LE32TOH(sensor_pdr_out->hdr.record_handle);
+	LE16TOH(sensor_pdr_out->hdr.record_change_num);
+	LE16TOH(sensor_pdr_out->hdr.length);
+	LE16TOH(sensor_pdr_out->terminus_handle);
+	LE16TOH(sensor_pdr_out->sensor_id);
+	LE16TOH(sensor_pdr_out->entity_type);
+	LE16TOH(sensor_pdr_out->entity_instance_num);
+	LE16TOH(sensor_pdr_out->container_id);
+	LE32TOH(sensor_pdr_out->resolution);
+	LE32TOH(sensor_pdr_out->offset);
+	LE32TOH(sensor_pdr_out->accuracy);
+
+	size_t min_pdr_size = PLDM_NUMERIC_SENSOR_PDR_MIN_LENGTH;
+	const uint8_t *iter = &sensor_pdr_in->minus_tolerance +
+			      sizeof(sensor_pdr_in->minus_tolerance);
+	if (!numeric_sensor_pdr_sensor_data_size_parse(
+		sensor_pdr_out, &iter, &min_pdr_size, pdr_len)) {
+		return false;
+	}
+
+	size_t len_after_min_readable =
+	    sizeof(sensor_pdr_out->range_field_format) +
+	    sizeof(sensor_pdr_out->range_field_support);
+	memcpy(&sensor_pdr_out->range_field_format, iter,
+	       len_after_min_readable);
+	iter += len_after_min_readable;
+
+	if (!numeric_sensor_pdr_range_field_format_parse(
+		sensor_pdr_out, &iter, &min_pdr_size, pdr_len)) {
+		return false;
+	}
+	return true;
+}

@@ -1182,6 +1182,40 @@ TEST(EntityAssociationPDR, testExtract)
     free(out);
 }
 
+TEST(NumericSensorPDR, testParse)
+{
+    std::vector<uint8_t> pdr(sizeof(pldm_numeric_sensor_value_pdr), 0);
+    struct pldm_numeric_sensor_value_pdr* sensor_pdr =
+        (struct pldm_numeric_sensor_value_pdr*)pdr.data();
+
+    sensor_pdr->hdr.type = PLDM_NUMERIC_SENSOR_PDR;
+    sensor_pdr->hdr.length =
+        htole16(sizeof(struct pldm_numeric_sensor_value_pdr));
+    sensor_pdr->sensor_data_size = PLDM_SENSOR_DATA_SIZE_UINT32;
+    sensor_pdr->hysteresis.value_u32 = htole32(1234);
+    sensor_pdr->supported_thresholds.byte = 10;
+    sensor_pdr->range_field_format = PLDM_RANGE_FIELD_FORMAT_UINT32;
+    sensor_pdr->fatal_low.value_u32 = htole32(1122);
+
+    std::vector<uint8_t> numeric_sensor_pdr(
+        sizeof(pldm_numeric_sensor_value_pdr));
+    bool status = pldm_numeric_sensor_pdr_parse(
+        pdr.data(), sizeof(pldm_numeric_sensor_value_pdr),
+        numeric_sensor_pdr.data());
+    EXPECT_EQ(status, true);
+
+    const struct pldm_numeric_sensor_value_pdr* sensor_pdr_out =
+        (const struct pldm_numeric_sensor_value_pdr*)pdr.data();
+    EXPECT_EQ(sensor_pdr_out->sensor_data_size, PLDM_SENSOR_DATA_SIZE_UINT32);
+    EXPECT_EQ(sensor_pdr_out->range_field_format,
+              PLDM_RANGE_FIELD_FORMAT_UINT32);
+    EXPECT_EQ(sensor_pdr->supported_thresholds.byte, 10);
+    EXPECT_EQ(sensor_pdr_out->hysteresis.value_u32, 1234u);
+    EXPECT_EQ(sensor_pdr_out->fatal_low.value_u32, 1122u);
+    // TODO: Add more test cases to validate different sensor data size and
+    // range field formats
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

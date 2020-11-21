@@ -48,6 +48,9 @@ extern "C" {
 #define PLDM_PDR_REPOSITORY_CHG_EVENT_MIN_LENGTH 2
 #define PLDM_PDR_REPOSITORY_CHANGE_RECORD_MIN_LENGTH 2
 
+/* Minumum PDR length*/
+#define PLDM_NUMERIC_SENSOR_PDR_MIN_LENGTH 69
+
 #define PLDM_INVALID_EFFECTER_ID 0xFFFF
 #define PLDM_TID_RESERVED 0xFF
 
@@ -561,7 +564,7 @@ struct pldm_numeric_sensor_value_pdr {
 	union_sensor_data_size max_readable;
 	union_sensor_data_size min_readable;
 	uint8_t range_field_format;
-	bool8_t range_field_support;
+	bitfield8_t range_field_support;
 	union_range_field_format nominal_value;
 	union_range_field_format normal_max;
 	union_range_field_format normal_min;
