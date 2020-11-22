@@ -785,7 +785,8 @@ void PDRManager::parseSensorAuxNamesPDR(std::vector<uint8_t>& pdrData)
                                namePDR->sensor_auxiliary_names))
     {
         // Cache the Sensor Auxiliary Names
-        _sensorAuxNames[namePDR->sensor_id] = *name;
+        _sensorAuxNames[namePDR->sensor_id] =
+            *name + "_" + std::to_string(_tid);
 
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("SensorID:" +
@@ -826,6 +827,122 @@ void PDRManager::parseEffecterAuxNamesPDR(std::vector<uint8_t>& pdrData)
     }
 }
 
+static void populateNumericSensor(DBusInterfacePtr& sensorIntf,
+                                  const DBusObjectPath& path)
+{
+    const std::string sensorInterface =
+        "xyz.openbmc_project.PLDM.NumericSensor";
+
+    auto objServer = getObjServer();
+
+    sensorIntf = objServer->add_interface(path, sensorInterface);
+    // TODO: Expose more numeric sensor info from PDR
+    sensorIntf->initialize();
+}
+
+std::optional<DBusObjectPath>
+    PDRManager::getEntityObjectPath(const pldm_entity& entity)
+{
+    auto systemIter = _systemHierarchyIntf.find(entity);
+    if (systemIter != _systemHierarchyIntf.end())
+    {
+        return systemIter->second.second;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string>
+    PDRManager::getSensorAuxNames(const SensorID& sensorID)
+{
+    auto iter = _sensorAuxNames.find(sensorID);
+    if (iter != _sensorAuxNames.end())
+    {
+        return iter->second;
+    }
+    return std::nullopt;
+}
+
+std::optional<DBusObjectPath>
+    PDRManager::createSensorObjPath(const pldm_entity& entity,
+                                    const SensorID& sensorID,
+                                    const bool8_t auxNamePDR)
+{
+    DBusObjectPath entityPath;
+
+    // Verify the Entity associated
+    if (auto path = getEntityObjectPath(entity))
+    {
+        entityPath = *path;
+    }
+    else
+    {
+        // Discard the sensor if there is no entity info matching with Entity
+        // Association PDR
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to find Entity Associated with Sensor ID",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%x", sensorID));
+        return std::nullopt;
+    }
+
+    // Find sensor name
+    std::string sensorName;
+    if (auxNamePDR)
+    {
+        if (auto name = getSensorAuxNames(sensorID))
+        {
+            sensorName = *name;
+        }
+    }
+    if (sensorName.empty())
+    {
+        // Dummy name if no Sensor Name found
+        sensorName =
+            "Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
+    }
+
+    DBusInterfacePtr sensorIntf;
+    return entityPath + "/" + sensorName;
+}
+
+void PDRManager::parseNumericSensorPDR(std ::vector<uint8_t>& pdrData)
+{
+    std::vector<uint8_t> pdrOut(sizeof(pldm_numeric_sensor_value_pdr), 0);
+
+    if (!pldm_numeric_sensor_pdr_parse(pdrData.data(),
+                                       static_cast<uint16_t>(pdrData.size()),
+                                       pdrOut.data()))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Numeric Sensor PDR parsing failed",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+    pldm_numeric_sensor_value_pdr* sensorPDR =
+        reinterpret_cast<pldm_numeric_sensor_value_pdr*>(pdrOut.data());
+
+    uint16_t sensorID = sensorPDR->sensor_id;
+    pldm_entity entity = {sensorPDR->entity_type,
+                          sensorPDR->entity_instance_num,
+                          sensorPDR->container_id};
+    DBusObjectPath sensorPath;
+    if (auto path = createSensorObjPath(entity, sensorID,
+                                        sensorPDR->sensor_auxiliary_names_pdr))
+    {
+        sensorPath = *path;
+    }
+    else
+    {
+        return;
+    }
+
+    DBusInterfacePtr sensorIntf;
+    populateNumericSensor(sensorIntf, sensorPath);
+    _sensorIntf[sensorID] = std::make_pair(sensorIntf, sensorPath);
+
+    _numericSensorPDR[sensorID] = *sensorPDR;
+}
+
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
@@ -846,6 +963,10 @@ void PDRManager::parsePDR()
         {
             parseEffecterAuxNamesPDR(pdrVec);
         }
+        else if constexpr (pdrType == PLDM_NUMERIC_SENSOR_PDR)
+        {
+            parseNumericSensorPDR(pdrVec);
+        }
         else
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -859,7 +980,7 @@ void PDRManager::parsePDR()
                                               &pdrData, &pdrSize);
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "PDR parsing complete ");
+        ("Type " + std::to_string(pdrType) + " PDR parsing complete").c_str());
 }
 
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
@@ -886,6 +1007,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     populateSystemHierarchy();
     parsePDR<PLDM_SENSOR_AUXILIARY_NAMES_PDR>();
     parsePDR<PLDM_EFFECTER_AUXILIARY_NAMES_PDR>();
+    parsePDR<PLDM_NUMERIC_SENSOR_PDR>();
 
     return true;
 }
