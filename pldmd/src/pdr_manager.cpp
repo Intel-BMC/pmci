@@ -943,6 +943,67 @@ void PDRManager::parseNumericSensorPDR(std ::vector<uint8_t>& pdrData)
     _numericSensorPDR[sensorID] = *sensorPDR;
 }
 
+static void populateStateSensor(DBusInterfacePtr& sensorIntf,
+                                const DBusObjectPath& path)
+{
+    const std::string sensorInterface = "xyz.openbmc_project.PLDM.StateSensor";
+
+    auto objServer = getObjServer();
+
+    sensorIntf = objServer->add_interface(path, sensorInterface);
+    // TODO: Expose more state sensor info from PDR
+    sensorIntf->initialize();
+}
+
+void PDRManager::parseStateSensorPDR(std::vector<uint8_t>& pdrData)
+{
+    // Without composite sensor support there is only one instance of sensor
+    // possible states
+    if (pdrData.size() <
+        sizeof(pldm_state_sensor_pdr) + sizeof(state_sensor_possible_states))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "State Sensor PDR length invalid or sensor disabled",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("PDR_SIZE=%d", pdrData.size()));
+        return;
+    }
+
+    pldm_state_sensor_pdr* sensorPDR =
+        reinterpret_cast<pldm_state_sensor_pdr*>(pdrData.data());
+    LE16TOH(sensorPDR->sensor_id);
+    LE16TOH(sensorPDR->entity_type);
+    LE16TOH(sensorPDR->entity_instance);
+    LE16TOH(sensorPDR->container_id);
+
+    uint16_t sensorID = sensorPDR->sensor_id;
+
+    // TODO: Composite sensor support
+    if (sensorPDR->composite_sensor_count > 0x01)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Composite state sensor not supported",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%x", sensorID),
+            phosphor::logging::entry("COMPOSITE_SENSOR_COUNT=%d",
+                                     sensorPDR->composite_sensor_count));
+    }
+
+    pldm_entity entity = {sensorPDR->entity_type, sensorPDR->entity_instance,
+                          sensorPDR->container_id};
+
+    std::optional<DBusObjectPath> sensorPath = createSensorObjPath(
+        entity, sensorID, sensorPDR->sensor_auxiliary_names_pdr);
+    if (!sensorPath)
+    {
+        return;
+    }
+
+    DBusInterfacePtr sensorIntf;
+    populateStateSensor(sensorIntf, *sensorPath);
+    _sensorIntf.emplace(sensorID, std::make_pair(sensorIntf, *sensorPath));
+}
+
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
@@ -966,6 +1027,10 @@ void PDRManager::parsePDR()
         else if constexpr (pdrType == PLDM_NUMERIC_SENSOR_PDR)
         {
             parseNumericSensorPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_STATE_SENSOR_PDR)
+        {
+            parseStateSensorPDR(pdrVec);
         }
         else
         {
@@ -1008,6 +1073,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     parsePDR<PLDM_SENSOR_AUXILIARY_NAMES_PDR>();
     parsePDR<PLDM_EFFECTER_AUXILIARY_NAMES_PDR>();
     parsePDR<PLDM_NUMERIC_SENSOR_PDR>();
+    parsePDR<PLDM_STATE_SENSOR_PDR>();
 
     return true;
 }

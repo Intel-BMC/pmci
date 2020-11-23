@@ -133,6 +133,9 @@ class PDRManager
     /** @brief Parse Numeric Sensor PDR */
     void parseNumericSensorPDR(std::vector<uint8_t>& pdrData);
 
+    /** @brief Parse State Sensor PDR */
+    void parseStateSensorPDR(std::vector<uint8_t>& pdrData);
+
     /**@brief General parser to each PDR type*/
     template <pldm_pdr_types pdrType>
     void parsePDR();
