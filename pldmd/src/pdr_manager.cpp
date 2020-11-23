@@ -1156,6 +1156,60 @@ void PDRManager::parseStateEffecterPDR(std::vector<uint8_t>& pdrData)
                           std::make_pair(effecterIntf, *effecterPath));
 }
 
+static void populateFRURecordSet(DBusInterfacePtr& fruRSIntf,
+                                 const DBusObjectPath& path,
+                                 const FRURecordSetIdentifier& fruRSIdentifier)
+{
+    const std::string effecterInterface =
+        "xyz.openbmc_project.PLDM.FRURecordSet";
+
+    auto objServer = getObjServer();
+
+    fruRSIntf = objServer->add_interface(path, effecterInterface);
+    fruRSIntf->register_property("FRURecordSetIdentifier", fruRSIdentifier,
+                                 sdbusplus::asio::PropertyPermission::readOnly);
+    fruRSIntf->initialize();
+}
+
+void PDRManager::parseFRURecordSetPDR(std::vector<uint8_t>& pdrData)
+{
+    if (pdrData.size() != sizeof(pldm_fru_record_set_pdr))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "FRU Record Set PDR length invalid",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+
+    pldm_fru_record_set_pdr* fruRecordSetPDR =
+        reinterpret_cast<pldm_fru_record_set_pdr*>(pdrData.data());
+    LE16TOH(fruRecordSetPDR->fru_record_set.entity_type);
+    LE16TOH(fruRecordSetPDR->fru_record_set.entity_instance_num);
+    LE16TOH(fruRecordSetPDR->fru_record_set.container_id);
+    LE16TOH(fruRecordSetPDR->fru_record_set.fru_rsi);
+
+    pldm_entity entity = {fruRecordSetPDR->fru_record_set.entity_type,
+                          fruRecordSetPDR->fru_record_set.entity_instance_num,
+                          fruRecordSetPDR->fru_record_set.container_id};
+    FRURecordSetIdentifier fruRSI = fruRecordSetPDR->fru_record_set.fru_rsi;
+
+    std::optional<DBusObjectPath> fruRSPath = getEntityObjectPath(entity);
+    if (!fruRSPath)
+    {
+        // Discard the FRU if there is no entity info matching with Entity
+        // Association PDR
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to find Entity Associated with FRU",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("FRU_RSI=0x%x", fruRSI));
+        return;
+    }
+
+    DBusInterfacePtr fruRSIntf;
+    populateFRURecordSet(fruRSIntf, *fruRSPath, fruRSI);
+    _fruRecordSetIntf.emplace(fruRSI, std::make_pair(fruRSIntf, *fruRSPath));
+}
+
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
@@ -1191,6 +1245,10 @@ void PDRManager::parsePDR()
         else if constexpr (pdrType == PLDM_STATE_EFFECTER_PDR)
         {
             parseStateEffecterPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_PDR_FRU_RECORD_SET)
+        {
+            parseFRURecordSetPDR(pdrVec);
         }
         else
         {
@@ -1236,6 +1294,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     parsePDR<PLDM_STATE_SENSOR_PDR>();
     parsePDR<PLDM_NUMERIC_EFFECTER_PDR>();
     parsePDR<PLDM_STATE_EFFECTER_PDR>();
+    parsePDR<PLDM_PDR_FRU_RECORD_SET>();
 
     return true;
 }

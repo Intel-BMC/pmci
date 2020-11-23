@@ -34,6 +34,7 @@ using PDRRepo = std::unique_ptr<pldm_pdr, PDRDestroyer>;
 using EntityAssociationPath = std::vector<pldm_entity>;
 using SensorID = uint16_t;
 using EffecterID = uint16_t;
+using FRURecordSetIdentifier = uint16_t;
 
 struct EntityComparator
 {
@@ -152,6 +153,9 @@ class PDRManager
     /** @brief Parse State Effecter PDR */
     void parseStateEffecterPDR(std::vector<uint8_t>& pdrData);
 
+    /** @brief Parse FRU Record Set PDR */
+    void parseFRURecordSetPDR(std::vector<uint8_t>& pdrData);
+
     /**@brief General parser to each PDR type*/
     template <pldm_pdr_types pdrType>
     void parsePDR();
@@ -200,6 +204,11 @@ class PDRManager
 
     /** @brief Holds Numeric Effecter PDR */
     std::map<EffecterID, pldm_numeric_effecter_value_pdr> _numericEffecterPDR;
+
+    /** @brief Holds FRU Record Set D-Bus interfaces and Object paths */
+    std::map<FRURecordSetIdentifier,
+             std::pair<DBusInterfacePtr, DBusObjectPath>>
+        _fruRecordSetIntf;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
