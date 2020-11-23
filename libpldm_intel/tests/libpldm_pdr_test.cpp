@@ -1216,6 +1216,41 @@ TEST(NumericSensorPDR, testParse)
     // range field formats
 }
 
+TEST(NumericEffecterPDR, testParse)
+{
+    std::vector<uint8_t> pdr(sizeof(pldm_numeric_effecter_value_pdr), 0);
+    struct pldm_numeric_effecter_value_pdr* effecter_pdr =
+        (struct pldm_numeric_effecter_value_pdr*)pdr.data();
+
+    effecter_pdr->hdr.type = PLDM_NUMERIC_EFFECTER_PDR;
+    effecter_pdr->hdr.length =
+        htole16(sizeof(struct pldm_numeric_effecter_value_pdr));
+    effecter_pdr->effecter_data_size = PLDM_EFFECTER_DATA_SIZE_UINT32;
+    effecter_pdr->max_set_table.value_u32 = htole32(1234);
+    effecter_pdr->is_linear = 1;
+    effecter_pdr->range_field_format = PLDM_RANGE_FIELD_FORMAT_UINT32;
+    effecter_pdr->nominal_value.value_u32 = htole32(1122);
+
+    std::vector<uint8_t> numeric_effecter_pdr(
+        sizeof(pldm_numeric_effecter_value_pdr));
+    bool status = pldm_numeric_effecter_pdr_parse(
+        pdr.data(), sizeof(pldm_numeric_effecter_value_pdr),
+        numeric_effecter_pdr.data());
+    EXPECT_EQ(status, true);
+
+    const struct pldm_numeric_effecter_value_pdr* effecter_pdr_out =
+        (const struct pldm_numeric_effecter_value_pdr*)pdr.data();
+    EXPECT_EQ(effecter_pdr_out->effecter_data_size,
+              PLDM_EFFECTER_DATA_SIZE_UINT32);
+    EXPECT_EQ(effecter_pdr_out->range_field_format,
+              PLDM_RANGE_FIELD_FORMAT_UINT32);
+    EXPECT_EQ(effecter_pdr->is_linear, 1);
+    EXPECT_EQ(effecter_pdr_out->max_set_table.value_u32, 1234u);
+    EXPECT_EQ(effecter_pdr_out->nominal_value.value_u32, 1122u);
+    // TODO: Add more test cases to validate different effecter data size and
+    // range field formats
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

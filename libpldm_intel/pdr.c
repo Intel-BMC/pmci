@@ -1187,3 +1187,346 @@ bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
 	}
 	return true;
 }
+
+static bool validate_numeric_effecter_pdr_len(
+    const uint16_t pdr_len,
+    const struct pldm_numeric_effecter_value_pdr *effecter_pdr_in)
+{
+
+	assert(effecter_pdr_in != NULL);
+	size_t min_pdr_size = PLDM_NUMERIC_EFFECTER_PDR_MIN_LENGTH;
+	// first possible location will be 2 bytes after max_set_table
+	const uint8_t *range_field_format_pos =
+	    (const uint8_t *)(&effecter_pdr_in->max_set_table.value_u8 + 2);
+
+	switch (effecter_pdr_in->effecter_data_size) {
+	case PLDM_EFFECTER_DATA_SIZE_UINT8:
+	case PLDM_EFFECTER_DATA_SIZE_SINT8:
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_UINT16:
+	case PLDM_EFFECTER_DATA_SIZE_SINT16:
+		// Increase length by 2 for the extra byte in 2 fields
+		min_pdr_size += 2;
+		range_field_format_pos += 2;
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_UINT32:
+	case PLDM_EFFECTER_DATA_SIZE_SINT32:
+		// Increase length by 6 for the extra 3 byte in 2 fields
+		min_pdr_size += 6;
+		range_field_format_pos += 6;
+		break;
+	default:
+		return false;
+	}
+
+	if (pdr_len < min_pdr_size) {
+		return false;
+	}
+
+	switch (*range_field_format_pos) {
+	case PLDM_RANGE_FIELD_FORMAT_UINT8:
+	case PLDM_RANGE_FIELD_FORMAT_SINT8:
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT16:
+	case PLDM_RANGE_FIELD_FORMAT_SINT16:
+		// Increase length by 5 for the extra byte in 5 fields
+		min_pdr_size += 5;
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT32:
+	case PLDM_RANGE_FIELD_FORMAT_SINT32:
+	case PLDM_RANGE_FIELD_FORMAT_REAL32:
+		// Increase length by 15 for the extra 3 byte in 5
+		// fields
+		min_pdr_size += 15;
+		break;
+	default:
+		return false;
+	}
+
+	if (pdr_len < min_pdr_size) {
+		return false;
+	}
+	return true;
+}
+
+static bool numeric_effecter_pdr_effecter_data_size_parse(
+    struct pldm_numeric_effecter_value_pdr *effecter_pdr_out,
+    const uint8_t **iter, const uint16_t pdr_len)
+{
+	assert(effecter_pdr_out != NULL);
+	assert(*iter != NULL);
+
+	switch (effecter_pdr_out->effecter_data_size) {
+	case PLDM_EFFECTER_DATA_SIZE_UINT8:
+		memcpy(&effecter_pdr_out->max_set_table.value_u8, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_u8));
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_u8);
+		memcpy(&effecter_pdr_out->min_set_table.value_u8, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_u8));
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_u8);
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_SINT8:
+		memcpy(&effecter_pdr_out->max_set_table.value_s8, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_s8));
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_s8);
+		memcpy(&effecter_pdr_out->min_set_table.value_s8, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_s8));
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_s8);
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_UINT16:
+		memcpy(&effecter_pdr_out->max_set_table.value_u16, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_u16));
+		LE16TOH(effecter_pdr_out->max_set_table.value_u16);
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_u16);
+		memcpy(&effecter_pdr_out->min_set_table.value_u16, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_u16));
+		LE16TOH(effecter_pdr_out->min_set_table.value_u16);
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_u16);
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_SINT16:
+		memcpy(&effecter_pdr_out->max_set_table.value_s16, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_s16));
+		LE16TOH(effecter_pdr_out->max_set_table.value_s16);
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_s16);
+		memcpy(&effecter_pdr_out->min_set_table.value_s16, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_s16));
+		LE16TOH(effecter_pdr_out->min_set_table.value_s16);
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_s16);
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_UINT32:
+		memcpy(&effecter_pdr_out->max_set_table.value_u32, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_u32));
+		LE32TOH(effecter_pdr_out->max_set_table.value_u32);
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_u32);
+		memcpy(&effecter_pdr_out->min_set_table.value_u32, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_u32));
+		LE32TOH(effecter_pdr_out->min_set_table.value_u32);
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_u32);
+		break;
+	case PLDM_EFFECTER_DATA_SIZE_SINT32:
+		memcpy(&effecter_pdr_out->max_set_table.value_s32, *iter,
+		       sizeof(effecter_pdr_out->max_set_table.value_s32));
+		LE32TOH(effecter_pdr_out->max_set_table.value_s32);
+		*iter += sizeof(effecter_pdr_out->max_set_table.value_s32);
+		memcpy(&effecter_pdr_out->min_set_table.value_s32, *iter,
+		       sizeof(effecter_pdr_out->min_set_table.value_s32));
+		LE32TOH(effecter_pdr_out->min_set_table.value_s32);
+		*iter += sizeof(effecter_pdr_out->min_set_table.value_s32);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+static bool numeric_effecter_pdr_range_field_format_parse(
+    struct pldm_numeric_effecter_value_pdr *effecter_pdr_out,
+    const uint8_t **iter, const uint16_t pdr_len)
+{
+	assert(effecter_pdr_out != NULL);
+	assert(*iter != NULL);
+
+	switch (effecter_pdr_out->range_field_format) {
+	case PLDM_RANGE_FIELD_FORMAT_UINT8:
+		memcpy(&effecter_pdr_out->nominal_value.value_u8, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_u8));
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_u8);
+		memcpy(&effecter_pdr_out->normal_max.value_u8, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_u8));
+		*iter += sizeof(effecter_pdr_out->normal_max.value_u8);
+		memcpy(&effecter_pdr_out->normal_min.value_u8, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_u8));
+		*iter += sizeof(effecter_pdr_out->normal_min.value_u8);
+		memcpy(&effecter_pdr_out->rated_max.value_u8, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_u8));
+		*iter += sizeof(effecter_pdr_out->rated_max.value_u8);
+		memcpy(&effecter_pdr_out->rated_min.value_u8, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_u8));
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT8:
+		memcpy(&effecter_pdr_out->nominal_value.value_s8, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_s8));
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_s8);
+		memcpy(&effecter_pdr_out->normal_max.value_s8, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_s8));
+		*iter += sizeof(effecter_pdr_out->normal_max.value_s8);
+		memcpy(&effecter_pdr_out->normal_min.value_s8, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_s8));
+		*iter += sizeof(effecter_pdr_out->normal_min.value_s8);
+		memcpy(&effecter_pdr_out->rated_max.value_s8, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_s8));
+		*iter += sizeof(effecter_pdr_out->rated_max.value_s8);
+		memcpy(&effecter_pdr_out->rated_min.value_s8, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_s8));
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT16:
+		memcpy(&effecter_pdr_out->nominal_value.value_u16, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_u16));
+		LE16TOH(effecter_pdr_out->nominal_value.value_u16);
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_u16);
+		memcpy(&effecter_pdr_out->normal_max.value_u16, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_u16));
+		LE16TOH(effecter_pdr_out->normal_max.value_u16);
+		*iter += sizeof(effecter_pdr_out->normal_max.value_u16);
+		memcpy(&effecter_pdr_out->normal_min.value_u16, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_u16));
+		LE16TOH(effecter_pdr_out->normal_min.value_u16);
+		*iter += sizeof(effecter_pdr_out->normal_min.value_u16);
+		memcpy(&effecter_pdr_out->rated_max.value_u16, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_u16));
+		LE16TOH(effecter_pdr_out->rated_max.value_u16);
+		*iter += sizeof(effecter_pdr_out->rated_max.value_u16);
+		memcpy(&effecter_pdr_out->rated_min.value_u16, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_u16));
+		LE16TOH(effecter_pdr_out->rated_min.value_u16);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT16:
+		memcpy(&effecter_pdr_out->nominal_value.value_s16, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_s16));
+		LE16TOH(effecter_pdr_out->nominal_value.value_s16);
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_s16);
+		memcpy(&effecter_pdr_out->normal_max.value_s16, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_s16));
+		LE16TOH(effecter_pdr_out->normal_max.value_s16);
+		*iter += sizeof(effecter_pdr_out->normal_max.value_s16);
+		memcpy(&effecter_pdr_out->normal_min.value_s16, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_s16));
+		LE16TOH(effecter_pdr_out->normal_min.value_s16);
+		*iter += sizeof(effecter_pdr_out->normal_min.value_s16);
+		memcpy(&effecter_pdr_out->rated_max.value_s16, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_s16));
+		LE16TOH(effecter_pdr_out->rated_max.value_s16);
+		*iter += sizeof(effecter_pdr_out->rated_max.value_s16);
+		memcpy(&effecter_pdr_out->rated_min.value_s16, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_s16));
+		LE16TOH(effecter_pdr_out->rated_min.value_s16);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT32:
+		memcpy(&effecter_pdr_out->nominal_value.value_u32, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_u32));
+		LE32TOH(effecter_pdr_out->nominal_value.value_u32);
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_u32);
+		memcpy(&effecter_pdr_out->normal_max.value_u32, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_u32));
+		LE32TOH(effecter_pdr_out->normal_max.value_u32);
+		*iter += sizeof(effecter_pdr_out->normal_max.value_u32);
+		memcpy(&effecter_pdr_out->normal_min.value_u32, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_u32));
+		LE32TOH(effecter_pdr_out->normal_min.value_u32);
+		*iter += sizeof(effecter_pdr_out->normal_min.value_u32);
+		memcpy(&effecter_pdr_out->rated_max.value_u32, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_u32));
+		LE32TOH(effecter_pdr_out->rated_max.value_u32);
+		*iter += sizeof(effecter_pdr_out->rated_max.value_u32);
+		memcpy(&effecter_pdr_out->rated_min.value_u32, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_u32));
+		LE32TOH(effecter_pdr_out->rated_min.value_u32);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_SINT32:
+		memcpy(&effecter_pdr_out->nominal_value.value_s32, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_s32));
+		LE32TOH(effecter_pdr_out->nominal_value.value_s32);
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_s32);
+		memcpy(&effecter_pdr_out->normal_max.value_s32, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_s32));
+		LE32TOH(effecter_pdr_out->normal_max.value_s32);
+		*iter += sizeof(effecter_pdr_out->normal_max.value_s32);
+		memcpy(&effecter_pdr_out->normal_min.value_s32, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_s32));
+		LE32TOH(effecter_pdr_out->normal_min.value_s32);
+		*iter += sizeof(effecter_pdr_out->normal_min.value_s32);
+		memcpy(&effecter_pdr_out->rated_max.value_s32, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_s32));
+		LE32TOH(effecter_pdr_out->rated_max.value_s32);
+		*iter += sizeof(effecter_pdr_out->rated_max.value_s32);
+		memcpy(&effecter_pdr_out->rated_min.value_s32, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_s32));
+		LE32TOH(effecter_pdr_out->rated_min.value_s32);
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_REAL32:
+		memcpy(&effecter_pdr_out->nominal_value.value_f32, *iter,
+		       sizeof(effecter_pdr_out->nominal_value.value_f32));
+		LE32TOH(effecter_pdr_out->nominal_value.value_f32);
+		*iter += sizeof(effecter_pdr_out->nominal_value.value_f32);
+		memcpy(&effecter_pdr_out->normal_max.value_f32, *iter,
+		       sizeof(effecter_pdr_out->normal_max.value_f32));
+		LE32TOH(effecter_pdr_out->normal_max.value_f32);
+		*iter += sizeof(effecter_pdr_out->normal_max.value_f32);
+		memcpy(&effecter_pdr_out->normal_min.value_f32, *iter,
+		       sizeof(effecter_pdr_out->normal_min.value_f32));
+		LE32TOH(effecter_pdr_out->normal_min.value_f32);
+		*iter += sizeof(effecter_pdr_out->normal_min.value_f32);
+		memcpy(&effecter_pdr_out->rated_max.value_f32, *iter,
+		       sizeof(effecter_pdr_out->rated_max.value_f32));
+		LE32TOH(effecter_pdr_out->rated_max.value_f32);
+		*iter += sizeof(effecter_pdr_out->rated_max.value_f32);
+		memcpy(&effecter_pdr_out->rated_min.value_f32, *iter,
+		       sizeof(effecter_pdr_out->rated_min.value_f32));
+		LE32TOH(effecter_pdr_out->rated_min.value_f32);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+bool pldm_numeric_effecter_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
+				     uint8_t *numeric_effecter_pdr)
+{
+	assert(pdr != NULL);
+	assert(numeric_effecter_pdr != NULL);
+	if (pdr_len < PLDM_NUMERIC_EFFECTER_PDR_MIN_LENGTH) {
+		return false;
+	}
+	struct pldm_pdr_hdr *hdr = (struct pldm_pdr_hdr *)pdr;
+	if (hdr->type != PLDM_NUMERIC_EFFECTER_PDR) {
+		return false;
+	}
+
+	const struct pldm_numeric_effecter_value_pdr *effecter_pdr_in =
+	    (const struct pldm_numeric_effecter_value_pdr *)pdr;
+
+	if (!validate_numeric_effecter_pdr_len(pdr_len, effecter_pdr_in)) {
+		return false;
+	}
+
+	struct pldm_numeric_effecter_value_pdr *effecter_pdr_out =
+	    (struct pldm_numeric_effecter_value_pdr *)numeric_effecter_pdr;
+	memcpy(effecter_pdr_out, effecter_pdr_in,
+	       &effecter_pdr_in->max_set_table.value_u8 - pdr);
+	LE32TOH(effecter_pdr_out->hdr.record_handle);
+	LE16TOH(effecter_pdr_out->hdr.record_change_num);
+	LE16TOH(effecter_pdr_out->hdr.length);
+	LE16TOH(effecter_pdr_out->terminus_handle);
+	LE16TOH(effecter_pdr_out->effecter_id);
+	LE16TOH(effecter_pdr_out->entity_type);
+	LE16TOH(effecter_pdr_out->entity_instance);
+	LE16TOH(effecter_pdr_out->container_id);
+	LE16TOH(effecter_pdr_out->effecter_semantic_id);
+	LE32TOH(effecter_pdr_out->resolution);
+	LE32TOH(effecter_pdr_out->offset);
+	LE16TOH(effecter_pdr_out->accuracy);
+	LE32TOH(effecter_pdr_out->state_transition_interval);
+	LE32TOH(effecter_pdr_out->transition_interval);
+
+	const uint8_t *iter =
+	    (const uint8_t *)(&effecter_pdr_in->transition_interval +
+			      sizeof(effecter_pdr_in->transition_interval));
+	if (!numeric_effecter_pdr_effecter_data_size_parse(effecter_pdr_out,
+							   &iter, pdr_len)) {
+		return false;
+	}
+
+	size_t len_after_min_settable =
+	    sizeof(effecter_pdr_out->range_field_format) +
+	    sizeof(effecter_pdr_out->range_field_support);
+	memcpy(&effecter_pdr_out->range_field_format, iter,
+	       len_after_min_settable);
+	iter += len_after_min_settable;
+
+	if (!numeric_effecter_pdr_range_field_format_parse(effecter_pdr_out,
+							   &iter, pdr_len)) {
+		return false;
+	}
+	return true;
+}

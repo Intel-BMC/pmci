@@ -314,6 +314,19 @@ void pldm_entity_association_pdr_extract(const uint8_t *pdr, uint16_t pdr_len,
 bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
 				   uint8_t *numeric_sensor_pdr);
 
+/** @brief Parse Numeric Effecter PDR
+ *
+ *	@param[in] pdr - Numeric Effecter PDR
+ *	@param[in] pdr_len - size of Numeric Effecter PDR in bytes
+ *	@param[out] numeric_effecter_pdr - parsed PDR will be writted to this
+ *
+ *	@return bool true if the parsing success
+ *	@note caller is responsible for alloc/dealloc of *pdr and
+ * *numeric_effecter_pdr
+ */
+bool pldm_numeric_effecter_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
+				     uint8_t *numeric_effecter_pdr);
+
 #ifdef __cplusplus
 }
 #endif
