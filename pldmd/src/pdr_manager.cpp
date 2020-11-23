@@ -1095,6 +1095,67 @@ void PDRManager::parseNumericEffecterPDR(std::vector<uint8_t>& pdrData)
     _numericEffecterPDR.emplace(effecterID, *effecterPDR);
 }
 
+static void populateStateEffecter(DBusInterfacePtr& effecterIntf,
+                                  const DBusObjectPath& path)
+{
+    const std::string effecterInterface =
+        "xyz.openbmc_project.PLDM.StateEffecter";
+
+    auto objServer = getObjServer();
+
+    effecterIntf = objServer->add_interface(path, effecterInterface);
+    // TODO: Expose more state effecter info from PDR
+    effecterIntf->initialize();
+}
+
+void PDRManager::parseStateEffecterPDR(std::vector<uint8_t>& pdrData)
+{
+    // Without composite effecter support there is only one instance of effecter
+    // possible states
+    if (pdrData.size() < sizeof(pldm_state_effecter_pdr) +
+                             sizeof(state_effecter_possible_states))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "State effecter PDR length invalid or effecter disabled",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+
+    pldm_state_effecter_pdr* effecterPDR =
+        reinterpret_cast<pldm_state_effecter_pdr*>(pdrData.data());
+    LE16TOH(effecterPDR->effecter_id);
+    LE16TOH(effecterPDR->entity_type);
+    LE16TOH(effecterPDR->entity_instance);
+    LE16TOH(effecterPDR->container_id);
+
+    uint16_t effecterID = effecterPDR->effecter_id;
+
+    // TODO: Composite effecter support
+    constexpr uint8_t supportedEffecterCount = 0x01;
+    if (effecterPDR->composite_effecter_count > supportedEffecterCount)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Composite state effecter not supported",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("EFFECTER_ID=0x%x", effecterID));
+    }
+
+    pldm_entity entity = {effecterPDR->entity_type,
+                          effecterPDR->entity_instance,
+                          effecterPDR->container_id};
+    std::optional<DBusObjectPath> effecterPath = createEffecterObjPath(
+        entity, effecterID, effecterPDR->has_description_pdr);
+    if (!effecterPath)
+    {
+        return;
+    }
+
+    DBusInterfacePtr effecterIntf;
+    populateStateEffecter(effecterIntf, *effecterPath);
+    _effecterIntf.emplace(effecterID,
+                          std::make_pair(effecterIntf, *effecterPath));
+}
+
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
@@ -1126,6 +1187,10 @@ void PDRManager::parsePDR()
         else if constexpr (pdrType == PLDM_NUMERIC_EFFECTER_PDR)
         {
             parseNumericEffecterPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_STATE_EFFECTER_PDR)
+        {
+            parseStateEffecterPDR(pdrVec);
         }
         else
         {
@@ -1170,6 +1235,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     parsePDR<PLDM_NUMERIC_SENSOR_PDR>();
     parsePDR<PLDM_STATE_SENSOR_PDR>();
     parsePDR<PLDM_NUMERIC_EFFECTER_PDR>();
+    parsePDR<PLDM_STATE_EFFECTER_PDR>();
 
     return true;
 }

@@ -149,6 +149,9 @@ class PDRManager
     /** @brief Parse Numeric Effecter PDR */
     void parseNumericEffecterPDR(std::vector<uint8_t>& pdrData);
 
+    /** @brief Parse State Effecter PDR */
+    void parseStateEffecterPDR(std::vector<uint8_t>& pdrData);
+
     /**@brief General parser to each PDR type*/
     template <pldm_pdr_types pdrType>
     void parsePDR();
