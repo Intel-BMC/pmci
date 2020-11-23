@@ -110,6 +110,27 @@ enum pldm_fwu_verify_result {
 	PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX = 0xAF
 };
 
+/**@brief PLDM FWU result of the Apply Result
+ */
+enum pldm_fwu_apply_result {
+	PLDM_FWU_APPLY_SUCCESS = 0x00,
+	PLDM_FWU_APPLY_SUCCESS_WITH_ACTIVATION_METHOD = 0x01,
+	PLDM_FWU_APPLY_COMPLETED_WITH_FAILURE = 0x02,
+	PLDM_FWU_VENDOR_APPLY_RESULT_RANGE_MIN = 0xB0,
+	PLDM_FWU_VENDOR_APPLY_RESULT_RANGE_MAX = 0xCF
+};
+
+/** @brief PLDM FWU values for Component Activation Methods Modification
+ */
+enum comp_activation_methods_modification {
+	APPLY_AUTOMATIC = 0,
+	APPLY_SELF_CONTAINED = 1,
+	APPLY_MEDIUM_SPECIFIC_RESET = 2,
+	APPLY_SYSTEM_REBOOT = 3,
+	APPLY_DC_POWER_CYCLE = 4,
+	APPLY_AC_POWER_CYCLE = 5
+};
+
 /** @brief PLDM FWU values for Component Classification
  */
 enum comp_classification {
@@ -926,6 +947,49 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 			   uint8_t *aux_state_status, uint8_t *progress_percent,
 			   uint8_t *reason_code,
 			   bitfield32_t *update_option_flags_enabled);
+/*ApplyComplete*/
+
+/** @struct apply_complete_req
+ *
+ *  Structure representing Apply Complete request.
+ */
+struct apply_complete_req {
+	uint8_t apply_result;
+	uint16_t comp_activation_methods_modification;
+} __attribute__((packed));
+
+/** @brief Create a PLDM response message for ApplyComplete
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] completion_code - completion code
+ *  @param[in,out] msg - Message will be written to this
+ *  @return pldm_completion_codes
+ *  @note  Caller is responsible for memory alloc and dealloc of param
+ *         'msg.payload'
+ */
+int encode_apply_complete_resp(const uint8_t instance_id,
+			       const uint8_t completion_code,
+			       struct pldm_msg *msg);
+
+/** @brief Decode ApplyComplete request message
+ *
+ *  Note:
+ *  * If the return value is not PLDM_SUCCESS, it represents a
+ * transport layer error.
+ *  * If the completion_code value is not PLDM_SUCCESS, it represents a
+ * protocol layer error and all the out-parameters are invalid.
+ *
+ *  @param[in] msg - Response message
+ *  @param[in] payload_length - Length of request message payload
+ *  @param[in] apply_result - pointer to ApplyResult from FD
+ *  @param[in] comp_activation_methods_modification - pointer to Component
+ * Activation Methods Modification
+ *  @return pldm_completion_codes
+ */
+int decode_apply_complete_req(const struct pldm_msg *msg,
+			      const size_t payload_length,
+			      uint8_t *apply_result,
+			      uint16_t *comp_activation_methods_modification);
 
 #ifdef __cplusplus
 }
