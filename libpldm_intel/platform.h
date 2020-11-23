@@ -361,7 +361,7 @@ struct pldm_effecter_auxiliary_names_pdr {
 
 /** @struct pldm_pdr_fru_record_set
  *
- *  Structure representing PLDM FRU record set PDR
+ *  Structure representing PLDM FRU record set
  */
 struct pldm_pdr_fru_record_set {
 	uint16_t terminus_handle;
@@ -369,6 +369,15 @@ struct pldm_pdr_fru_record_set {
 	uint16_t entity_type;
 	uint16_t entity_instance_num;
 	uint16_t container_id;
+} __attribute__((packed));
+
+/** @struct pldm_fru_record_set_pdr
+ *
+ *  Structure representing PLDM FRU record set PDR
+ */
+struct pldm_fru_record_set_pdr {
+	struct pldm_pdr_hdr hdr;
+	struct pldm_pdr_fru_record_set fru_record_set;
 } __attribute__((packed));
 
 /** @struct pldm_state_sensor_pdr
