@@ -1004,6 +1004,97 @@ void PDRManager::parseStateSensorPDR(std::vector<uint8_t>& pdrData)
     _sensorIntf.emplace(sensorID, std::make_pair(sensorIntf, *sensorPath));
 }
 
+std::optional<std::string>
+    PDRManager::getEffecterAuxNames(const EffecterID& effecterID)
+{
+    auto iter = _effecterAuxNames.find(effecterID);
+    if (iter != _effecterAuxNames.end())
+    {
+        return iter->second;
+    }
+    return std::nullopt;
+}
+
+static void populateNumericEffecter(DBusInterfacePtr& effecterIntf,
+                                    const DBusObjectPath& path)
+{
+    const std::string effecterInterface =
+        "xyz.openbmc_project.PLDM.NumericEffecter";
+
+    auto objServer = getObjServer();
+
+    effecterIntf = objServer->add_interface(path, effecterInterface);
+    // TODO: Expose more numeric effecter info from PDR
+    effecterIntf->initialize();
+}
+
+std::optional<DBusObjectPath>
+    PDRManager::createEffecterObjPath(const pldm_entity& entity,
+                                      const EffecterID& effecterID,
+                                      const bool8_t auxNamePDR)
+{
+    std::optional<DBusObjectPath> entityPath = getEntityObjectPath(entity);
+    if (!entityPath)
+    {
+        // Discard the effecter if there is no entity info matching with Entity
+        // Association PDR
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to find Entity Associated with Effecter ID",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("EFFECTER_ID=0x%x", effecterID));
+        return std::nullopt;
+    }
+
+    // Find effecter name
+    std::optional<std::string> effecterName;
+    if (auxNamePDR)
+    {
+        effecterName = getEffecterAuxNames(effecterID);
+    }
+    if (!effecterName)
+    {
+        // Dummy name if no effecter Name found
+        *effecterName = "Effecter_" + std::to_string(effecterID);
+    }
+
+    return *entityPath + "/" + *effecterName;
+}
+
+void PDRManager::parseNumericEffecterPDR(std::vector<uint8_t>& pdrData)
+{
+    std::vector<uint8_t> pdrOut(sizeof(pldm_numeric_effecter_value_pdr), 0);
+
+    if (!pldm_numeric_effecter_pdr_parse(pdrData.data(),
+                                         static_cast<uint16_t>(pdrData.size()),
+                                         pdrOut.data()))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Numeric effecter PDR parsing failed",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+    pldm_numeric_effecter_value_pdr* effecterPDR =
+        reinterpret_cast<pldm_numeric_effecter_value_pdr*>(pdrOut.data());
+
+    uint16_t effecterID = effecterPDR->effecter_id;
+    pldm_entity entity = {effecterPDR->entity_type,
+                          effecterPDR->entity_instance,
+                          effecterPDR->container_id};
+    std::optional<DBusObjectPath> effecterPath = createEffecterObjPath(
+        entity, effecterID, effecterPDR->effecter_auxiliary_names);
+    if (!effecterPath)
+    {
+        return;
+    }
+
+    DBusInterfacePtr effecterIntf;
+    populateNumericEffecter(effecterIntf, *effecterPath);
+    _effecterIntf.emplace(effecterID,
+                          std::make_pair(effecterIntf, *effecterPath));
+
+    _numericEffecterPDR.emplace(effecterID, *effecterPDR);
+}
+
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
@@ -1031,6 +1122,10 @@ void PDRManager::parsePDR()
         else if constexpr (pdrType == PLDM_STATE_SENSOR_PDR)
         {
             parseStateSensorPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_NUMERIC_EFFECTER_PDR)
+        {
+            parseNumericEffecterPDR(pdrVec);
         }
         else
         {
@@ -1074,6 +1169,7 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     parsePDR<PLDM_EFFECTER_AUXILIARY_NAMES_PDR>();
     parsePDR<PLDM_NUMERIC_SENSOR_PDR>();
     parsePDR<PLDM_STATE_SENSOR_PDR>();
+    parsePDR<PLDM_NUMERIC_EFFECTER_PDR>();
 
     return true;
 }

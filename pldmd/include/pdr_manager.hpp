@@ -136,6 +136,19 @@ class PDRManager
     /** @brief Parse State Sensor PDR */
     void parseStateSensorPDR(std::vector<uint8_t>& pdrData);
 
+    /** @brief get Effecter Auxiliary name*/
+    std::optional<std::string>
+        getEffecterAuxNames(const EffecterID& effecterID);
+
+    /** @brief Create effecter object path from entity path and effecter name*/
+    std::optional<DBusObjectPath>
+        createEffecterObjPath(const pldm_entity& entity,
+                              const EffecterID& effecterID,
+                              const bool8_t auxNamePDR);
+
+    /** @brief Parse Numeric Effecter PDR */
+    void parseNumericEffecterPDR(std::vector<uint8_t>& pdrData);
+
     /**@brief General parser to each PDR type*/
     template <pldm_pdr_types pdrType>
     void parsePDR();
@@ -177,6 +190,13 @@ class PDRManager
 
     /** @brief Holds Numeric Sensor D-Bus interfaces and Object paths */
     std::map<SensorID, std::pair<DBusInterfacePtr, DBusObjectPath>> _sensorIntf;
+
+    /** @brief Holds Effecter D-Bus interfaces and Object paths */
+    std::map<EffecterID, std::pair<DBusInterfacePtr, DBusObjectPath>>
+        _effecterIntf;
+
+    /** @brief Holds Numeric Effecter PDR */
+    std::map<EffecterID, pldm_numeric_effecter_value_pdr> _numericEffecterPDR;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
