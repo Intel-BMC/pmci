@@ -41,6 +41,9 @@ struct EndpointProperties
     mctp_server::BindingModeTypes mode;
     uint16_t networkId;
     MsgTypes endpointMsgTypes;
+    // Vendor PCI ID Support
+    std::vector<uint16_t> vendorIdCapabilitySets;
+    std::string vendorIdFormat;
 };
 
 struct MsgTypeSupportCtrlResp
@@ -57,6 +60,17 @@ struct MctpVersionSupportCtrlResp
     uint8_t completionCode;
     uint8_t verNoEntryCount;
     std::vector<std::vector<uint8_t>> verNoEntry;
+};
+
+// VendorPCI ID Support Structure
+struct MctpVendIdMsgSupportResp
+{
+    mctp_ctrl_msg_hdr ctrlMsgHeader;
+    uint8_t completionCode;
+    uint8_t vendorIdSet;
+    uint8_t vendorIdFormat;
+    uint16_t vendorIdFormatData;
+    uint16_t vendorIdSetCmdType;
 };
 
 enum class PacketState : uint8_t
@@ -152,6 +166,9 @@ class MctpBinding
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
 
+    // vendor PCI Msg Interface
+    std::vector<std::shared_ptr<dbus_interface>> vendorIdInterface;
+
     void initializeMctp();
     void initializeLogging(void);
     virtual std::optional<std::vector<uint8_t>>
@@ -209,6 +226,12 @@ class MctpBinding
                                      std::vector<uint8_t>& list);
     bool manageVersionInfo(uint8_t typeNo, std::vector<uint8_t>& list);
 
+    // vendor PCI ID Function
+    bool getPCIVDMessageSupportCtrlCmd(
+        boost::asio::yield_context& yield,
+        const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+        std::vector<uint16_t>& vendorSetIdList, std::string& venformat);
+
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,
                                 const mctp_eid_t destEid);
@@ -254,6 +277,7 @@ class MctpBinding
     std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
     std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
     std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
+
     boost::asio::steady_timer ctrlTxTimer;
 
     // map<EID, assigned>

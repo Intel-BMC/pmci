@@ -11,6 +11,9 @@
 #include "libmctp-msgtypes.h"
 #include "libmctp.h"
 
+constexpr int noMoreSet = 0xFF;
+static std::string vendIdFormat = "0x8086";
+
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
 constexpr unsigned int ctrlTxPollInterval = 5;
@@ -1504,6 +1507,100 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
     return true;
 }
 
+bool MctpBinding::getPCIVDMessageSupportCtrlCmd(
+    boost::asio::yield_context& yield,
+    const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
+    std::vector<uint16_t>& vendorSetIdList, std::string& venFormatData)
+{
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "getPCIVendorIdMessageSupportCtrlCmd called...");
+    std::vector<uint8_t> req = {};
+    std::vector<uint8_t> resp = {};
+    uint8_t vendorIdSet = 0;
+    venFormatData.clear();
+    // local structure to receive the vendor ID response
+    MctpVendIdMsgSupportResp pciVendIdMsgSupportResp;
+    // cannot be sure of the count, so processing from 0 ~ 255
+    while (vendorIdSet < 255)
+    {
+        // format the data as per the request msg format
+        if (!getFormattedReq<MCTP_CTRL_CMD_GET_VENDOR_MESSAGE_SUPPORT>(
+                req, vendorIdSet))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get MCTP Vendor Id Support: Request formatting failed");
+            return false;
+        }
+
+        if (PacketState::receivedResponse !=
+            sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get MCTP Vendor Id Support: sending & receiving failed");
+            return false;
+        }
+
+        // total resp size(including ctrl header) '10'
+        // ctrlheader  Compl.Code  VendIdSet  VendIdFmt  VendorFrmtData
+        // vendIdSetType
+        //     3           1          1          1             2             2
+        //     (bytes)
+        const ssize_t pciVDMessageSupportCmdRespSize =
+            sizeof(MctpVendIdMsgSupportResp);
+
+        if (!checkMinRespSize(resp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get MCTP Vendor Id Support: Invalid Response Length");
+            return false;
+        }
+
+        // assuming 1st byte after ctrl header is completion code index
+        uint8_t completionCode = resp[completionCodeIndex];
+        if ((completionCode != MCTP_CTRL_CC_SUCCESS) ||
+            (resp.size() < pciVDMessageSupportCmdRespSize))
+        {
+
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get MCTP Vendor Id Support: Invalid response",
+                phosphor::logging::entry("CC=0x%02X", completionCode),
+                phosphor::logging::entry("LEN=0x%02X", resp.size()));
+            return false;
+        }
+
+        pciVendIdMsgSupportResp = {};
+
+        // copy the response onto local structure
+        std::copy_n(resp.begin(), pciVDMessageSupportCmdRespSize,
+                    reinterpret_cast<uint8_t*>(&pciVendIdMsgSupportResp));
+
+        uint16_t venid = htobe16(pciVendIdMsgSupportResp.vendorIdFormatData);
+        std::stringstream op_str;
+        op_str << std::hex << venid;
+        venFormatData = op_str.str();
+
+        if (pciVendIdMsgSupportResp.vendorIdSet == noMoreSet)
+        {
+            // break the loop once 0xFF is found in set.
+            vendorIdSet = 0;
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Vendor Id Set-Selector loop Break");
+            break;
+        }
+        vendorIdSet++;
+        if (vendorIdSet == 255 &&
+            pciVendIdMsgSupportResp.vendorIdSet != noMoreSet)
+        { // invalid scenario iteration
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Invalid vendor ID set iteration");
+            return false;
+        }
+        vendorSetIdList.push_back(
+            htobe16(pciVendIdMsgSupportResp.vendorIdSetCmdType));
+    }
+    return true;
+}
+
 bool MctpBinding::discoveryNotifyCtrlCmd(
     boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid)
@@ -1628,6 +1725,18 @@ void MctpBinding::populateEndpointProperties(
     uuidIntf->register_property("UUID", epProperties.uuid);
     uuidIntf->initialize();
     uuidInterface.push_back(uuidIntf);
+    if (epProperties.endpointMsgTypes.vdpci)
+    {
+        std::shared_ptr<dbus_interface> vendorIdIntf;
+        vendorIdIntf = objectServer->add_interface(
+            mctpEpObj, "xyz.openbmc_project.MCTP.PCIVendorDefined");
+        vendorIdIntf->register_property("MessageTypeProperty",
+                                        epProperties.vendorIdCapabilitySets);
+        vendorIdIntf->register_property("VendorID",
+                                        epProperties.vendorIdFormat);
+        vendorIdIntf->initialize();
+        vendorIdInterface.push_back(vendorIdIntf);
+    }
 }
 
 mctp_server::BindingModeTypes MctpBinding::getEndpointType(const uint8_t types)
@@ -1827,8 +1936,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         return std::nullopt;
     }
 
-    // TODO: Get Vendor ID command
-
     // Expose interface as per the result
     EndpointProperties epProperties;
     epProperties.endpointEid = destEid;
@@ -1847,6 +1954,30 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     // Keep Network ID as zero and update it later if a change happend.
     epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+
+    // vendor ID message support...
+    // if its true get VDPCIMT capabilities
+    std::vector<uint16_t> vendorSetIdList = {};
+    std::string vendorFormat;
+    if (epProperties.endpointMsgTypes.vdpci)
+    {
+        if (!getPCIVDMessageSupportCtrlCmd(yield, bindingPrivate, destEid,
+                                           vendorSetIdList, vendorFormat))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get Vendor Id Support failed");
+            /*
+              If this command fails, still go ahead with endpoint
+              registration since this is an optional command
+            */
+        }
+        epProperties.vendorIdCapabilitySets.assign(vendorSetIdList.begin(),
+                                                   vendorSetIdList.end());
+
+        epProperties.vendorIdFormat = "0x";
+        epProperties.vendorIdFormat.append(vendorFormat);
+    }
+
     populateEndpointProperties(epProperties);
 
     return destEid;
@@ -1927,4 +2058,6 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
     removeInterface(mctpEpObj, endpointInterface);
     removeInterface(mctpEpObj, msgTypeInterface);
     removeInterface(mctpEpObj, uuidInterface);
+    // Vendor ID set Support
+    removeInterface(mctpEpObj, vendorIdInterface);
 }

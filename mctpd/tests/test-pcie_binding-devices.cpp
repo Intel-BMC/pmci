@@ -4,6 +4,9 @@
 
 #include <gtest/gtest.h>
 
+constexpr unsigned MIN_IFACES_PER_DEVICE = 3;
+constexpr unsigned MAX_IFACES_PER_DEVICE = 4;
+
 class PCIeEndpointIfacesTest
     : public PCIeDiscoveredTestBase,
       public ::testing::TestWithParam<
@@ -284,8 +287,6 @@ TEST_P(PCIeDevicePopulationTest, AllDevicesRemoved)
 
 TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
 {
-    constexpr unsigned IFACES_PER_DEVICE = 3;
-
     removeOddDevicesFromNetwork();
 
     // Verify that proper EIDs are left
@@ -296,7 +297,8 @@ TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
             [&](auto& iface) { return endpoint.path == iface->path; });
 
         // Each object spawns 3 interfaces
-        EXPECT_EQ(IFACES_PER_DEVICE, ifacesCount);
+        EXPECT_TRUE((ifacesCount >= MIN_IFACES_PER_DEVICE) &&
+                    (ifacesCount <= MAX_IFACES_PER_DEVICE));
     }
 
     // Check that amount is expected (no extra interfaces found)
@@ -306,7 +308,11 @@ TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
             return std::string::npos !=
                    iface->path.find("/xyz/openbmc_project/mctp/device/");
         });
-    EXPECT_EQ(deviceIfacesCount, endpoints.size() * IFACES_PER_DEVICE);
+
+    EXPECT_TRUE((deviceIfacesCount >=
+                 static_cast<int>(endpoints.size() * MIN_IFACES_PER_DEVICE)) &&
+                (deviceIfacesCount <=
+                 static_cast<int>(endpoints.size() * MAX_IFACES_PER_DEVICE)));
 }
 
 INSTANTIATE_TEST_SUITE_P(AddRemovalTests, PCIeDevicePopulationTest,
