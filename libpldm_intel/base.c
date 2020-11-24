@@ -272,12 +272,13 @@ int encode_get_version_resp(const uint8_t instance_id,
 			    const uint8_t completion_code,
 			    const uint32_t next_transfer_handle,
 			    const uint8_t transfer_flag,
-			    const ver32_t *version_data,
-			    const size_t version_size, struct pldm_msg *msg)
+			    const struct variable_field *version_data,
+			    struct pldm_msg *msg)
 {
 	if (NULL == version_data || NULL == msg) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	int rc = PLDM_SUCCESS;
 	struct pldm_header_info header = {0};
 	header.msg_type = PLDM_RESPONSE;
@@ -300,11 +301,13 @@ int encode_get_version_resp(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
+	if (version_data->ptr == NULL || version_data->length == 0) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	response->next_transfer_handle = htole32(next_transfer_handle);
 	response->transfer_flag = transfer_flag;
-	memcpy(response->version_data, (uint8_t *)version_data, version_size);
-	uint32_t crc = htole32(crc32(response->version_data, version_size));
-	memcpy(response->version_data + version_size, &crc, sizeof(uint32_t));
+	memcpy(response->version_data, version_data->ptr, version_data->length);
 
 	return PLDM_SUCCESS;
 }
@@ -350,7 +353,7 @@ int decode_get_version_resp(const struct pldm_msg *msg, size_t payload_length,
 		return PLDM_SUCCESS;
 	}
 
-	if (payload_length < PLDM_GET_VERSION_RESP_MIN_BYTES) {
+	if (payload_length < PLDM_GET_VERSION_RESP_FIXED_BYTES) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
@@ -363,17 +366,9 @@ int decode_get_version_resp(const struct pldm_msg *msg, size_t payload_length,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	version->length = payload_length - PLDM_GET_VERSION_RESP_FIXED_BYTES -
-			  sizeof(uint32_t);
-	uint32_t *response_crc =
-	    (uint32_t *)(response->version_data + version->length);
-	uint32_t expected_crc = crc32(response->version_data, version->length);
-
-	if (le32toh(*response_crc) != expected_crc) {
-		return PLDM_ERROR_INVALID_DATA;
-	}
-
+	version->length = payload_length - PLDM_GET_VERSION_RESP_FIXED_BYTES;
 	version->ptr = response->version_data;
+
 	return PLDM_SUCCESS;
 }
 

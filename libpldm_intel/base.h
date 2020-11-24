@@ -79,8 +79,7 @@ typedef uint8_t pldm_type_t;
 #define PLDM_GET_TID_RESP_BYTES 2
 #define PLDM_GET_COMMANDS_RESP_BYTES 33
 
-/* Response data has minimum one version and its checksum */
-#define PLDM_GET_VERSION_RESP_MIN_BYTES 14
+/* Fixed bytes in GetVersion response not including verison data*/
 #define PLDM_GET_VERSION_RESP_FIXED_BYTES 6
 
 #define PLDM_VERSION_0 0
@@ -356,10 +355,13 @@ int encode_get_version_req(uint8_t instance_id, uint32_t transfer_handle,
  *  @param[out] next_transfer_handle - the next handle for the next part of data
  *  @param[out] transfer_flag - flag to indicate the part of data
  *  @param[out] version - variable field structure in which ptr will be pointing
- *    to version data and length will contain size of version data in bytes
+ *    to version data and length will contain size of version data in bytes.
+ *    length will include last 4 bytes crc field also.
  *  @return pldm_completion_codes
  *  @note data pointed by version->ptr will be a portion of msg and need not
  *   be freed
+ *  @note crc integrity check is not handled here and should be handled
+ *  by caller
  */
 int decode_get_version_resp(const struct pldm_msg *msg,
 			    const size_t payload_length,
@@ -441,8 +443,9 @@ int encode_get_commands_resp(uint8_t instance_id, uint8_t completion_code,
  *  @param[in] next_transfer_handle - Handle to identify next portion of
  *              data transfer
  *  @param[in] transfer_flag - Represents the part of transfer
- *  @param[in] version_data - the version data
- *  @param[in] version_size - size of version data in bytes
+ *  @param[in] version_data - the version data. last 4 bytes
+ *      will be crc32 of versions also including previously transfered
+ *      versions if it was a multipart response
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
@@ -452,8 +455,8 @@ int encode_get_version_resp(const uint8_t instance_id,
 			    const uint8_t completion_code,
 			    const uint32_t next_transfer_handle,
 			    const uint8_t transfer_flag,
-			    const ver32_t *version_data,
-			    const size_t version_size, struct pldm_msg *msg);
+			    const struct variable_field *version_data,
+			    struct pldm_msg *msg);
 
 /** @brief Decode a GetPLDMVersion request message
  *
