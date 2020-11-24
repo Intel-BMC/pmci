@@ -37,9 +37,9 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     platformDestroy(tid);
 
     auto& platformMC = platforms[tid];
-    platformMC.pdrManager = std::make_unique<PDRManager>(yield, tid);
+    platformMC.pdrManager = std::make_unique<PDRManager>(tid);
 
-    if (!platformMC.pdrManager->pdrManagerInit())
+    if (!platformMC.pdrManager->pdrManagerInit(yield))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "PDR Manager Init failed",

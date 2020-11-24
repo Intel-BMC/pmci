@@ -26,14 +26,12 @@ namespace pldm
 namespace platform
 {
 
-PDRManager::PDRManager(boost::asio::yield_context& yield,
-                       const pldm_tid_t tid) :
-    _yield(yield),
-    _tid(tid)
+PDRManager::PDRManager(const pldm_tid_t tid) : _tid(tid)
 {
 }
 
-std::optional<pldm_pdr_repository_info> PDRManager::getPDRRepositoryInfo()
+std::optional<pldm_pdr_repository_info>
+    PDRManager::getPDRRepositoryInfo(boost::asio::yield_context& yield)
 {
     int rc;
     std::vector<uint8_t> req(sizeof(PLDMEmptyRequest));
@@ -46,7 +44,7 @@ std::optional<pldm_pdr_repository_info> PDRManager::getPDRRepositoryInfo()
     }
 
     std::vector<uint8_t> resp;
-    if (!sendReceivePldmMessage(_yield, _tid, commandTimeout, commandRetryCount,
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -72,9 +70,10 @@ std::optional<pldm_pdr_repository_info> PDRManager::getPDRRepositoryInfo()
     return pdrInfo.pdr_repo_info;
 }
 
-bool PDRManager::pdrManagerInit()
+bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
 {
-    std::optional<pldm_pdr_repository_info> pdrInfo = getPDRRepositoryInfo();
+    std::optional<pldm_pdr_repository_info> pdrInfo =
+        getPDRRepositoryInfo(yield);
     if (!pdrInfo)
     {
         return false;

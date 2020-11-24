@@ -36,17 +36,19 @@ class PDRManager
     PDRManager& operator=(PDRManager&&) = delete;
     ~PDRManager() = default;
 
-    PDRManager(boost::asio::yield_context& yield, const pldm_tid_t tid);
+    PDRManager(const pldm_tid_t tid);
 
-    bool pdrManagerInit();
+    bool pdrManagerInit(boost::asio::yield_context& yield);
 
   private:
-    std::optional<pldm_pdr_repository_info> getPDRRepositoryInfo();
+    /** @brief fetch PDR Repository Info from terminus*/
+    std::optional<pldm_pdr_repository_info>
+        getPDRRepositoryInfo(boost::asio::yield_context& yield);
 
+    /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
-    boost::asio::yield_context _yield;
-
+    /** @brief Terminus ID*/
     pldm_tid_t _tid;
 };
 
