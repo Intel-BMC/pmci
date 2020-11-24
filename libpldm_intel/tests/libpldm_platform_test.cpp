@@ -2042,6 +2042,66 @@ TEST(GetTerminusUID, DecodeResponseBad)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 }
 
+TEST(SetNumericSensorEnable, testGoodEncodeRequest)
+{
+    std::array<uint8_t, hdrSize + sizeof(pldm_set_numeric_sensor_enable_req)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t sensorID = 0x1123;
+    constexpr uint8_t sensorOperationalState = PLDM_SENSOR_UNAVAILABLE;
+    constexpr uint8_t sensorEventMessageEnable = PLDM_STATE_EVENTS_ONLY_ENABLED;
+
+    auto rc = encode_set_numeric_sensor_enable_req(
+        instanceID, sensorID, sensorOperationalState, sensorEventMessageEnable,
+        msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_SET_NUMERIC_SENSOR_ENABLE);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+
+    struct pldm_set_numeric_sensor_enable_req* sensorEnableReq =
+        reinterpret_cast<struct pldm_set_numeric_sensor_enable_req*>(
+            msg->payload);
+
+    EXPECT_EQ(sensorEnableReq->sensor_id, sensorID);
+    EXPECT_EQ(sensorEnableReq->sensor_operational_state,
+              sensorOperationalState);
+    EXPECT_EQ(sensorEnableReq->sensor_event_message_enable,
+              sensorEventMessageEnable);
+}
+
+TEST(SetNumericSensorEnable, testBadEncodeRequest)
+{
+    std::array<uint8_t, hdrSize + sizeof(pldm_set_numeric_sensor_enable_req)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t sensorID = 0x1123;
+    uint8_t sensorOperationalState = PLDM_SENSOR_UNAVAILABLE;
+    uint8_t sensorEventMessageEnable = PLDM_STATE_EVENTS_ONLY_ENABLED;
+
+    int rc = encode_set_numeric_sensor_enable_req(
+        instanceID, sensorID, sensorOperationalState, sensorEventMessageEnable,
+        NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    sensorOperationalState = PLDM_SENSOR_UNAVAILABLE + 1;
+    rc = encode_set_numeric_sensor_enable_req(instanceID, sensorID,
+                                              sensorOperationalState,
+                                              sensorEventMessageEnable, msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    sensorEventMessageEnable = PLDM_STATE_EVENTS_ONLY_ENABLED + 1;
+    rc = encode_set_numeric_sensor_enable_req(instanceID, sensorID,
+                                              sensorOperationalState,
+                                              sensorEventMessageEnable, msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

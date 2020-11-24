@@ -120,6 +120,7 @@ enum pldm_effecter_oper_state {
 
 enum pldm_platform_commands {
 	PLDM_GET_TERMINUS_UID = 0x03,
+	PLDM_SET_NUMERIC_SENSOR_ENABLE = 0x10,
 	PLDM_GET_SENSOR_READING = 0x11,
 	PLDM_GET_STATE_SENSOR_READINGS = 0x21,
 	PLDM_SET_NUMERIC_EFFECTER_VALUE = 0x31,
@@ -810,6 +811,16 @@ struct pldm_get_numeric_effecter_value_resp {
 	uint8_t effecter_data_size;
 	uint8_t effecter_oper_state;
 	uint8_t pending_and_present_values[1];
+} __attribute__((packed));
+
+/** @struct pldm_set_numeric_sensor_enable_req
+ *
+ *  Structure representing PLDM SetNumericSensorEnable request
+ */
+struct pldm_set_numeric_sensor_enable_req {
+	uint16_t sensor_id;
+	uint8_t sensor_operational_state;
+	uint8_t sensor_event_message_enable;
 } __attribute__((packed));
 
 /** @struct pldm_get_sensor_reading_req
@@ -1660,6 +1671,25 @@ inline int encode_get_terminus_uid_req(const uint8_t instance_id,
 int decode_get_terminus_uid_resp(const struct pldm_msg *msg,
 				 const size_t payload_length,
 				 uint8_t *completion_code, uint8_t *uuid);
+
+/** @brief Encode SetNumericSensorEnable request
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] sensor_id - A handle that is used to identify and access the
+ *         sensor
+ *  @param[in] sensor_operational_state - The state of the sensor itself
+ *  @param[in] sensor_event_message_enable - value: { noEventGeneration,
+ *         eventsDisabled, eventsEnabled, opEventsOnlyEnabled,
+ *         stateEventsOnlyEnabled }
+ *  @param[out] msg - Response message
+ *
+ *  @return pldm_completion_codes
+ */
+int encode_set_numeric_sensor_enable_req(
+    const uint8_t instance_id, const uint16_t sensor_id,
+    const uint8_t sensor_operational_state,
+    const uint8_t sensor_event_message_enable, struct pldm_msg *msg);
+
 #ifdef __cplusplus
 }
 #endif

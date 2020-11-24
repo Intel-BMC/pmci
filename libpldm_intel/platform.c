@@ -1606,3 +1606,32 @@ int decode_get_terminus_uid_resp(const struct pldm_msg *msg,
 
 	return PLDM_SUCCESS;
 }
+
+int encode_set_numeric_sensor_enable_req(
+    const uint8_t instance_id, const uint16_t sensor_id,
+    const uint8_t sensor_operational_state,
+    const uint8_t sensor_event_message_enable, struct pldm_msg *msg)
+{
+	if (msg == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (sensor_event_message_enable > PLDM_STATE_EVENTS_ONLY_ENABLED ||
+	    sensor_operational_state > PLDM_SENSOR_UNAVAILABLE) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	int rc = PLDM_SUCCESS;
+	if ((rc = encode_pldm_header(instance_id, PLDM_PLATFORM,
+				     PLDM_SET_NUMERIC_SENSOR_ENABLE,
+				     PLDM_REQUEST, msg)) != PLDM_SUCCESS) {
+		return rc;
+	}
+
+	struct pldm_set_numeric_sensor_enable_req *request =
+	    (struct pldm_set_numeric_sensor_enable_req *)msg->payload;
+	request->sensor_id = htole16(sensor_id);
+	request->sensor_operational_state = sensor_operational_state;
+	request->sensor_event_message_enable = sensor_event_message_enable;
+	return PLDM_SUCCESS;
+}
