@@ -212,6 +212,10 @@ class FWUpdate
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
     uint8_t deviceIDRecord;
+    const uint16_t timeout = 100;
+    const size_t retryCount = 3;
+    bool updateMode = false;
+    uint8_t fdState = FD_IDLE;
     pldm_firmware_update_state state;
     uint16_t packageDataLength = 0;
     uint16_t fwDeviceMetaDataLen = 0;
@@ -220,6 +224,16 @@ class FWUpdate
     uint8_t fdWillSendGetPkgDataCmd = 0;
     uint16_t estimatedTimeForSelfContainedActivation = 0;
     uint64_t applicableComponentsVal = 0;
+    uint8_t currentState = 0;
+    uint8_t previousState = 0;
+    uint8_t auxState = 0;
+    uint8_t auxStateStatus = 0;
+    uint8_t progressPercent = 0;
+    uint8_t reasonCode = 0;
+    bitfield32_t updateOptionFlagsEnabled = {0};
+    uint8_t completionCode = PLDM_SUCCESS;
+    bool8_t nonFunctioningComponentIndication = false;
+    uint64_t nonFunctioningComponentBitmap = {0};
     boost::asio::steady_timer timer;
     FDProperties targetFDProperties;
 };

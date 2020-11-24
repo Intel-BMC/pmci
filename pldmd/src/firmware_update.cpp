@@ -1268,9 +1268,38 @@ int FWUpdate::activateFirmware(const boost::asio::yield_context& /*yield*/)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::getStatus(const boost::asio::yield_context& /*yield*/)
+int FWUpdate::getStatus(const boost::asio::yield_context& yield)
 {
-    // TODO implement the command code
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+    int retVal = encode_get_status_req(instanceID, msgReq);
+    if (!validatePLDMReqEncode(currentTid, retVal, std::string("GetStatus")))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetStatus: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    size_t payloadLen = pldmResp.size() - hdrSize;
+    retVal = decode_get_status_resp(msgResp, payloadLen, &completionCode,
+                                    &currentState, &previousState, &auxState,
+                                    &auxStateStatus, &progressPercent,
+                                    &reasonCode, &updateOptionFlagsEnabled);
+    // TODO: need to add the GetStatus response data to D-Bus interface
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                std::string("GetStatus")))
+    {
+        return retVal;
+    }
+
     return PLDM_SUCCESS;
 }
 
@@ -1322,7 +1351,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     {
         return ALREADY_IN_UPDATE_MODE;
     }
-
     // send requestUpdate command
     int retVal = requestUpdate(yield);
 
