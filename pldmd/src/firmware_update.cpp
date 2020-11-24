@@ -1303,6 +1303,67 @@ int FWUpdate::getStatus(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
+int FWUpdate::doCancelUpdate(const boost ::asio ::yield_context& yield,
+                             bool8_t& nonFunctioningComponentIndication,
+                             bitfield64_t& nonFunctioningComponentBitmap)
+{
+    if (!updateMode)
+    {
+        return PLDM_ERROR;
+    }
+    if ((fdState == FD_IDLE) || (fdState == FD_ACTIVATE))
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    // TODO:Need to provide D-Bus interface to invoke cancelUpdate
+    int retVal = cancelUpdate(yield, nonFunctioningComponentIndication,
+                              nonFunctioningComponentBitmap);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    fdState = FD_IDLE;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to IDLE");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::cancelUpdate(const boost::asio::yield_context& yield,
+                           bool8_t& nonFunctioningComponentIndication,
+                           bitfield64_t& nonFunctioningComponentBitmap)
+
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+    int retVal = encode_cancel_update_req(instanceID, msgReq);
+    if (!validatePLDMReqEncode(currentTid, retVal, "CancelUpdate"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "CancelUpdate: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    size_t payloadLen = pldmResp.size() - hdrSize;
+    retVal = decode_cancel_update_resp(msgResp, payloadLen, &completionCode,
+                                       &nonFunctioningComponentIndication,
+                                       &nonFunctioningComponentBitmap);
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                std::string("CancelUpdate")))
+    {
+        return retVal;
+    }
+    return PLDM_SUCCESS;
+}
+
 uint64_t FWUpdate::getApplicableComponents()
 {
     // TODO implement actual code.

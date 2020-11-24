@@ -203,7 +203,12 @@ class FWUpdate
     int activateFirmware(const boost::asio::yield_context& yield);
     int getStatus(const boost::asio::yield_context& yield);
     int cancelUpdateComponent(const boost::asio::yield_context& yield);
-    int cancelUpdate(const boost::asio::yield_context& yield);
+    int doCancelUpdate(const boost::asio::yield_context& yield,
+                       bool8_t& nonFunctioningComponentIndication,
+                       bitfield64_t& nonFunctioningComponentBitmap);
+    int cancelUpdate(const boost::asio::yield_context& yield,
+                     bool8_t& nonFunctioningComponentIndication,
+                     bitfield64_t& nonFunctioningComponentBitmap);
 
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
@@ -232,8 +237,6 @@ class FWUpdate
     uint8_t reasonCode = 0;
     bitfield32_t updateOptionFlagsEnabled = {0};
     uint8_t completionCode = PLDM_SUCCESS;
-    bool8_t nonFunctioningComponentIndication = false;
-    uint64_t nonFunctioningComponentBitmap = {0};
     boost::asio::steady_timer timer;
     FDProperties targetFDProperties;
 };
