@@ -202,6 +202,7 @@ class FWUpdate
     int sendMetaData(const boost::asio::yield_context& yield);
     int activateFirmware(const boost::asio::yield_context& yield);
     int getStatus(const boost::asio::yield_context& yield);
+    int doCancelUpdateComponent(const boost::asio::yield_context& yield);
     int cancelUpdateComponent(const boost::asio::yield_context& yield);
     int doCancelUpdate(const boost::asio::yield_context& yield,
                        bool8_t& nonFunctioningComponentIndication,
@@ -239,6 +240,8 @@ class FWUpdate
     uint8_t completionCode = PLDM_SUCCESS;
     boost::asio::steady_timer timer;
     FDProperties targetFDProperties;
+    std::set<uint8_t> cancelUpdateComponentState = {FD_DOWNLOAD, FD_VERIFY,
+                                                    FD_APPLY};
 };
 
 class PLDMImg

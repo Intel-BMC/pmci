@@ -1303,6 +1303,60 @@ int FWUpdate::getStatus(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
+int FWUpdate::doCancelUpdateComponent(const boost::asio::yield_context& yield)
+{
+    if (!updateMode)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    if (!cancelUpdateComponentState.count(fdState))
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = cancelUpdateComponent(yield);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+
+    fdState = FD_READY_XFER;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to READY XFER");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context& yield)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+    int retVal = encode_cancel_update_component_req(instanceID, msgReq);
+    if (!validatePLDMReqEncode(currentTid, retVal, "CancelUpdateComponent"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "CancelUpdateComponent: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    size_t payloadLen = pldmResp.size() - hdrSize;
+    retVal = decode_cancel_update_component_resp(msgResp, payloadLen,
+                                                 &completionCode);
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                "CancelUpdateComponent"))
+    {
+        return retVal;
+    }
+    return PLDM_SUCCESS;
+}
+
 int FWUpdate::doCancelUpdate(const boost ::asio ::yield_context& yield,
                              bool8_t& nonFunctioningComponentIndication,
                              bitfield64_t& nonFunctioningComponentBitmap)
