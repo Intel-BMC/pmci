@@ -1262,9 +1262,67 @@ int FWUpdate::updateComponent(const boost::asio::yield_context& /*yield*/)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::activateFirmware(const boost::asio::yield_context& /*yield*/)
+int FWUpdate::doActivateFirmware(
+    const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
+    uint16_t& estimatedTimeForSelfContainedActivation)
 {
-    // TODO implement the command code
+    if (!updateMode)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    if (fdState != FD_READY_XFER)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = activateFirmware(yield, selfContainedActivationReq,
+                                  estimatedTimeForSelfContainedActivation);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    fdState = FD_ACTIVATE;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to ACTIVATE");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::activateFirmware(
+    const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
+    uint16_t& estimatedTimeForSelfContainedActivation)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest) +
+                                 sizeof(struct activate_firmware_req));
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+    int retVal = encode_activate_firmware_req(
+        instanceID, msgReq, sizeof(struct activate_firmware_req),
+        selfContainedActivationReq);
+
+    if (!validatePLDMReqEncode(currentTid, retVal, "ActivateFirmware"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "ActivateFirmware: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    size_t payloadLen = pldmResp.size() - hdrSize;
+    retVal =
+        decode_activate_firmware_resp(msgResp, payloadLen, &completionCode,
+                                      &estimatedTimeForSelfContainedActivation);
+
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                "ActivateFirmware"))
+    {
+        return retVal;
+    }
     return PLDM_SUCCESS;
 }
 
@@ -1544,7 +1602,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     }
 
     // send ActivateFirmware command
-    retVal = activateFirmware(yield);
+    bool8_t selfContainedActivationReq = true;
+    uint16_t estimatedTimeForSelfContainedActivation = 0;
+    retVal = doActivateFirmware(yield, selfContainedActivationReq,
+                                estimatedTimeForSelfContainedActivation);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(

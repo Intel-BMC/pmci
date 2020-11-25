@@ -200,7 +200,12 @@ class FWUpdate
     int verifyComplete(const boost::asio::yield_context& yield);
     int applyComplete(const boost::asio::yield_context& yield);
     int sendMetaData(const boost::asio::yield_context& yield);
-    int activateFirmware(const boost::asio::yield_context& yield);
+    int doActivateFirmware(const boost::asio::yield_context& yield,
+                           bool8_t selfContainedActivationReq,
+                           uint16_t& estimatedTimeForSelfContainedActivation);
+    int activateFirmware(const boost::asio::yield_context& yield,
+                         bool8_t selfContainedActivationReq,
+                         uint16_t& estimatedTimeForSelfContainedActivation);
     int getStatus(const boost::asio::yield_context& yield);
     int doCancelUpdateComponent(const boost::asio::yield_context& yield);
     int cancelUpdateComponent(const boost::asio::yield_context& yield);
@@ -228,7 +233,6 @@ class FWUpdate
     uint16_t currentComp = 0;
     uint16_t compCount = 0;
     uint8_t fdWillSendGetPkgDataCmd = 0;
-    uint16_t estimatedTimeForSelfContainedActivation = 0;
     uint64_t applicableComponentsVal = 0;
     uint8_t currentState = 0;
     uint8_t previousState = 0;
