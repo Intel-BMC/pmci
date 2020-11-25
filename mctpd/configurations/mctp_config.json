@@ -8,9 +8,7 @@
       "ARPMasterSupport": false,
       "BMCSlaveAddress":18,
       "ReqToRespTimeMs":100,
-      "ReqRetryCount":2,
-      "TopMostBusOwner":false,
-      "OwnEidPool":true
+      "ReqRetryCount":2
   },
   "pcie": {
       "role": "endpoint",
