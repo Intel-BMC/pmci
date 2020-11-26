@@ -203,7 +203,20 @@ class FWUpdate
         const struct pass_component_table_req& componentTable,
         struct variable_field& compImgSetVerStr, uint8_t& compResp,
         uint8_t& compRespCode);
-    int updateComponent(const boost::asio::yield_context& yield);
+    int doUpdateComponent(const boost::asio::yield_context& yield,
+                          const struct update_component_req& component,
+                          variable_field& compVerStr,
+                          uint8_t& compCompatabilityResp,
+                          uint8_t& compCompatabilityRespCode,
+                          bitfield32_t& updateOptFlagsEnabled,
+                          uint16_t& estimatedTimeReqFd);
+    int updateComponent(const boost::asio::yield_context& yield,
+                        const struct update_component_req& component,
+                        variable_field& compVerStr,
+                        uint8_t& compCompatabilityResp,
+                        uint8_t& compCompatabilityRespCode,
+                        bitfield32_t& updateOptFlagsEnabled,
+                        uint16_t& estimatedTimeReqFd);
     int requestFirmwareData(const boost::asio::yield_context& yield);
     int transferComplete(const boost::asio::yield_context& yield);
     int verifyComplete(const boost::asio::yield_context& yield);

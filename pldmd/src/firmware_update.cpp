@@ -1332,9 +1332,78 @@ int FWUpdate::passComponentTable(
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::updateComponent(const boost::asio::yield_context& /*yield*/)
+int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
+                                const struct update_component_req& component,
+                                variable_field& compVerStr,
+                                uint8_t& compCompatabilityResp,
+                                uint8_t& compCompatabilityRespCode,
+                                bitfield32_t& updateOptFlagsEnabled,
+                                uint16_t& estimatedTimeReqFd)
 {
-    // TODO implement the command code
+    if (!updateMode)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    if (fdState != FD_READY_XFER)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = updateComponent(
+        yield, component, compVerStr, compCompatabilityResp,
+        compCompatabilityRespCode, updateOptFlagsEnabled, estimatedTimeReqFd);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    fdState = FD_DOWNLOAD;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to DOWNLOAD");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::updateComponent(const boost::asio::yield_context& yield,
+                              const struct update_component_req& component,
+                              variable_field& compVerStr,
+                              uint8_t& compCompatabilityResp,
+                              uint8_t& compCompatabilityRespCode,
+                              bitfield32_t& updateOptFlagsEnabled,
+                              uint16_t& estimatedTimeReqFd)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest) +
+                                 sizeof(struct update_component_req) +
+                                 compVerStr.length);
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+
+    int retVal = encode_update_component_req(
+        instanceID, msgReq,
+        sizeof(struct update_component_req) + compVerStr.length, &component,
+        &compVerStr);
+    if (!validatePLDMReqEncode(currentTid, retVal, "UpdateComponent"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "updateComponent: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = decode_update_component_resp(
+        msgResp, pldmResp.size() - hdrSize, &completionCode,
+        &compCompatabilityResp, &compCompatabilityRespCode,
+        &updateOptFlagsEnabled, &estimatedTimeReqFd);
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                "UpdateComponent"))
+    {
+        return retVal;
+    }
+
     return PLDM_SUCCESS;
 }
 
@@ -1655,8 +1724,17 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 phosphor::logging::entry("COMPONENT=%d", currentComp));
             return retVal;
         }
+        // TODO: values need to be filled
+        struct update_component_req component = {};
+        uint8_t compCompatabilityResp = 0;
+        uint8_t compCompatabilityRespCode = 0;
+        bitfield32_t updateOptFlagsEnabled = {};
+        uint16_t estimatedTimeReqFd = 0;
         // send UpdateComponent command
-        retVal = updateComponent(yield);
+        retVal =
+            doUpdateComponent(yield, component, compImgSetVerStr,
+                              compCompatabilityResp, compCompatabilityRespCode,
+                              updateOptFlagsEnabled, estimatedTimeReqFd);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
