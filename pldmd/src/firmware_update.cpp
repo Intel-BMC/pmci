@@ -1258,9 +1258,77 @@ int FWUpdate::requestUpdate(const boost::asio::yield_context& /*yield*/)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::passComponentTable(const boost::asio::yield_context& /*yield*/)
+int FWUpdate::doPassComponentTable(
+    const boost::asio::yield_context& yield,
+    const struct pass_component_table_req& componentTable,
+    struct variable_field& compImgSetVerStr, uint8_t& compResp,
+    uint8_t& compRespCode)
 {
-    // TODO implement the command code
+    if (!updateMode)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    if (fdState != FD_LEARN_COMPONENTS)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = passComponentTable(yield, componentTable, compImgSetVerStr,
+                                    compResp, compRespCode);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    if (componentTable.transfer_flag == PLDM_END ||
+        componentTable.transfer_flag == PLDM_START_AND_END)
+    {
+        fdState = FD_READY_XFER;
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "FD changed state to READY XFER");
+    }
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::passComponentTable(
+    const boost::asio::yield_context& yield,
+    const struct pass_component_table_req& componentTable,
+    struct variable_field& compImgSetVerStr, uint8_t& compResp,
+    uint8_t& compRespCode)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest) +
+                                 sizeof(struct pass_component_table_req) +
+                                 compImgSetVerStr.length);
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+
+    int retVal = encode_pass_component_table_req(
+        instanceID, msgReq,
+        sizeof(struct pass_component_table_req) + compImgSetVerStr.length,
+        &componentTable, &compImgSetVerStr);
+    if (!validatePLDMReqEncode(currentTid, retVal,
+                               std::string("PassComponentTable")))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "passComponentTable: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = decode_pass_component_table_resp(
+        msgResp, pldmResp.size() - hdrSize, &completionCode, &compResp,
+        &compRespCode);
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                std::string("PassComponentTable")))
+    {
+        return retVal;
+    }
+
     return PLDM_SUCCESS;
 }
 
@@ -1571,8 +1639,14 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         {
             continue;
         }
+        // TODO: values need to be filled
+        struct pass_component_table_req componentTable = {};
+        uint8_t compResp = 0;
+        uint8_t compRespCode = 0;
+        struct variable_field compImgSetVerStr = {};
         // send PassComponentTable command
-        retVal = passComponentTable(yield);
+        retVal = doPassComponentTable(yield, componentTable, compImgSetVerStr,
+                                      compResp, compRespCode);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
