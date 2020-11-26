@@ -94,6 +94,18 @@ int encode_get_types_req(uint8_t instance_id, struct pldm_msg *msg)
 	return PLDM_SUCCESS;
 }
 
+static bool8_t convert_version(const ver32_t *version_src, ver32_t *version_dst)
+{
+	if (version_src == NULL || version_dst == NULL) {
+		return false;
+	}
+	version_dst->major = version_src->alpha;
+	version_dst->minor = version_src->update;
+	version_dst->update = version_src->minor;
+	version_dst->alpha = version_src->major;
+	return true;
+}
+
 int encode_get_commands_req(uint8_t instance_id, uint8_t type, ver32_t version,
 			    struct pldm_msg *msg)
 {
@@ -111,7 +123,11 @@ int encode_get_commands_req(uint8_t instance_id, uint8_t type, ver32_t version,
 	    (struct pldm_get_commands_req *)msg->payload;
 
 	request->type = type;
-	request->version = version;
+	// Version in packet is LE and struct ver32_t is reverse order and hence
+	// BE.
+	if (!convert_version(&version, &request->version)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	return PLDM_SUCCESS;
 }
@@ -157,7 +173,12 @@ int decode_get_commands_req(const struct pldm_msg *msg, size_t payload_length,
 	struct pldm_get_commands_req *request =
 	    (struct pldm_get_commands_req *)msg->payload;
 	*type = request->type;
-	*version = request->version;
+	// Version in packet is LE and struct ver32_t is reverse order and hence
+	// BE
+	if (!convert_version(&request->version, version)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	return PLDM_SUCCESS;
 }
 
