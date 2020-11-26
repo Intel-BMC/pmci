@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "platform.hpp"
 #include "pldm.hpp"
 
+#include <numeric>
 #include <phosphor-logging/log.hpp>
 #include <unordered_map>
 #include <unordered_set>
@@ -35,12 +37,24 @@ struct hash<ver32_t>
                std::hash<uint8_t>{}(ver.alpha);
     }
 };
+template <>
+struct hash<pldm::platform::UUID>
+{
+    std::size_t operator()(const pldm::platform::UUID& uuid) const
+    {
+        return std::accumulate(std::begin(uuid), std::end(uuid), 0,
+                               [](size_t prevHash, uint8_t byte) {
+                                   return prevHash ^ std::hash<uint8_t>{}(byte);
+                               });
+    }
+};
 bool operator==(const ver32_t& v1, const ver32_t& v2)
 {
     return v1.major == v2.major && v1.minor == v2.minor &&
            v1.update == v2.update && v1.alpha == v2.alpha;
 }
 } // namespace std
+
 namespace pldm
 {
 namespace base
@@ -344,6 +358,38 @@ static std::unordered_set<uint8_t>
     return types;
 }
 
+bool setTID(boost::asio::yield_context yield, const mctpw_eid_t eid,
+            const pldm_tid_t tid)
+{
+    uint8_t instanceID = createInstanceId(defaultTID);
+    std::vector<uint8_t> setTIDRequest(hdrSize + sizeof(pldm_set_tid_req),
+                                       0x00);
+    auto msg = reinterpret_cast<pldm_msg*>(setTIDRequest.data());
+    std::vector<uint8_t> setTIDResponse;
+
+    int rc = encode_set_tid_req(instanceID, tid, msg);
+    if (!validateBaseReqEncode(eid, rc, "SetTID"))
+    {
+        return false;
+    }
+
+    if (!sendReceivePldmMessage(yield, defaultTID, timeOut, retryCount,
+                                setTIDRequest, setTIDResponse, eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Send receive error during SetTID request");
+        return false;
+    }
+
+    uint8_t completionCode;
+    rc = decode_set_tid_resp(reinterpret_cast<pldm_msg*>(setTIDResponse.data()),
+                             setTIDResponse.size() - hdrSize, &completionCode);
+    if (!validateBaseRespDecode(eid, rc, completionCode, "SetTID"))
+    {
+        return false;
+    }
+    return true;
+}
 VersionSupportTable
     createVersionSupportTable(boost::asio::yield_context yield,
                               const mctpw_eid_t eid,
@@ -404,8 +450,30 @@ CommandSupportTable
     return cmdSupportTable;
 }
 
+static bool isSupported(const CommandSupportTable& cmdSupportTable,
+                        const pldm_type_t type, const uint8_t cmd)
+{
+    auto itCmd = cmdSupportTable.find(type);
+    if (cmdSupportTable.end() == itCmd)
+    {
+        return false;
+    }
+
+    using VersionCommandTable = CommandSupportTable::mapped_type::value_type;
+    // To check if any version support cmd
+    auto checkCmdBit = [cmd](const VersionCommandTable& table) {
+        // table.second will be 32 byte array representing support for each
+        // command. First [] operator will fetch the support byte for the
+        // command. [0..7] => 0;[8..15] -> 1 etc. & operator checks if bit
+        // for the command is set. counting bits from right to left.
+        return table.second[cmd / 8].byte & (0x01 << (cmd % 8));
+    };
+    return std::any_of(std::begin(itCmd->second), std::end(itCmd->second),
+                       checkCmdBit);
+}
+
 bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
-              pldm_tid_t& /*tid*/)
+              pldm_tid_t& tid)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Base initialisation", phosphor::logging::entry("EID=%d", eid));
@@ -440,39 +508,53 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             "TID already exists",
             phosphor::logging::entry("TID=0x%X", existingTID.value()));
     }
-    bool terminusUUIDSupport = false;
-    try
-    {
-        // at() will throw error if PLDM_PLATFORM is not supported. means no
-        // command from platform is supported.
-        auto& pmcTable = commandSupportTable.at(PLDM_PLATFORM);
 
-        using VersionCommandTable =
-            CommandSupportTable::mapped_type::value_type;
-        // To check if any version support GetTerminusUID command
-        auto checkCmdBit = [](const VersionCommandTable& table) {
-            // table.second will be 32 byte array representing support for each
-            // command. First [] operator will fetch the support byte for the
-            // command. [0..7] => 0;[8..15] -> 1 etc. & operator checks if bit
-            // for the command is set. counting bits from left to right.
-            return table.second[PLDM_GET_TERMINUS_UID / 8].byte &
-                   (0x01 << (PLDM_GET_TERMINUS_UID % 8));
-        };
-        terminusUUIDSupport =
-            std::any_of(std::begin(pmcTable), std::end(pmcTable), checkCmdBit);
-    }
-    catch (const std::out_of_range&)
+    static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
+    bool prevTIDExists = false;
+    std::optional<pldm::platform::UUID> uuid;
+    if (isSupported(commandSupportTable, PLDM_PLATFORM, PLDM_GET_TERMINUS_UID))
     {
-        terminusUUIDSupport = false;
+        uuid = pldm::platform::getTerminusUID(yield, eid);
+        if (uuid)
+        {
+            auto itTID = uuidMapping.find(uuid.value());
+            if (uuidMapping.end() != itTID)
+            {
+                tid = itTID->second;
+                prevTIDExists = true;
+            }
+        }
     }
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        (std::string("GetTerminusUID Support ") +
-         (terminusUUIDSupport ? "true" : "false"))
-            .c_str(),
-        phosphor::logging::entry("EID=0x%X", eid));
-    // TODO Map UUID -> TID.
-    // TODO Reuse TID if UUID exists
-    // Assign new TID
+    if (!prevTIDExists)
+    {
+        // device doesnot support GetTerminusUID or didnt respond correctly to
+        // GetTerminusUID request or its UUID is appearing for the first time
+        auto newTID = getFreeTid();
+        if (!newTID)
+        {
+            // Log already in getFreeTID
+            return false;
+        }
+        tid = newTID.value();
+        if (uuid)
+        {
+            uuidMapping.emplace(uuid.value(), tid);
+        }
+    }
+    if (isSupported(commandSupportTable, PLDM_BASE, PLDM_SET_TID) &&
+        !setTID(yield, eid, tid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SetTID failed", phosphor::logging::entry("EID=0x%X", eid));
+        // TODO. tid allocated from getFreeTid() is unused now and need to be
+        // freed
+        if (uuid)
+        {
+            uuidMapping.erase(uuid.value());
+        }
+        return false;
+    }
+    addToMapper(tid, eid);
     return true;
 }
 

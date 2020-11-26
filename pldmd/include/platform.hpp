@@ -32,6 +32,11 @@ namespace platform
 constexpr uint16_t commandTimeout = 100;
 constexpr size_t commandRetryCount = 3;
 
+using UUID = std::array<uint8_t, 16>;
+
+std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
+                                   const mctpw_eid_t eid);
+
 struct PlatformMonitoringControl
 {
     std::unique_ptr<PDRManager> pdrManager;

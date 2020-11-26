@@ -455,9 +455,6 @@ int main(void)
     auto tid = pldm::getFreeTid();
     if (tid)
     {
-        // TODO: Add TID to mapper only if setTID/getTID success
-        pldm::addToMapper(*tid, dummyEid);
-
         // TODO: Assign TID and find supported PLDM type and execute
         // corresponding init methods
 

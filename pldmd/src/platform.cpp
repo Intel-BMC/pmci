@@ -231,6 +231,44 @@ bool initPDRs(boost::asio::yield_context& yield, const pldm_tid_t tid)
     return true;
 }
 
+// TODO Add support to accept eid or tid.
+std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
+                                   const mctpw_eid_t eid)
+{
+    static constexpr pldm_tid_t defaultTID = 0x00;
+    static constexpr size_t hdrSize = sizeof(PLDMEmptyRequest);
+    uint8_t instanceID = createInstanceId(defaultTID);
+    std::vector<uint8_t> getUIDRequest(hdrSize, 0x00);
+    auto msg = reinterpret_cast<pldm_msg*>(getUIDRequest.data());
+
+    int rc = encode_get_terminus_uid_req(instanceID, msg);
+    if (!validatePLDMReqEncode(eid, rc, "GetTerminusUUID"))
+    {
+        return std::nullopt;
+    }
+
+    std::vector<uint8_t> getUIDResponse;
+    if (!sendReceivePldmMessage(yield, defaultTID, commandTimeout,
+                                commandRetryCount, getUIDRequest,
+                                getUIDResponse, eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Send receive error during GetTerminusUUID request");
+        return std::nullopt;
+    }
+
+    uint8_t completionCode;
+    UUID uuid;
+    rc = decode_get_terminus_uid_resp(
+        reinterpret_cast<pldm_msg*>(getUIDResponse.data()),
+        getUIDResponse.size() - hdrSize, &completionCode, uuid.data());
+    if (!validatePLDMRespDecode(eid, rc, completionCode, "GetTerminusUUID"))
+    {
+        return std::nullopt;
+    }
+    return uuid;
+}
+
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const PLDMCommandTable& /*commandTable*/)
 {
