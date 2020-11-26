@@ -32,6 +32,7 @@ set (
     -Wno-strict-aliasing \
     -Wno-cast-align \
     -Wformat=2 \
+    -Wno-reorder \
 "
 )
 
@@ -42,6 +43,8 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/platform.cpp
                ${PROJECT_SOURCE_DIR}/src/pdr_manager.cpp
                ${PROJECT_SOURCE_DIR}/src/sensor_manager.cpp
+               ${PROJECT_SOURCE_DIR}/src/sensor.cpp
+               ${PROJECT_SOURCE_DIR}/src/thresholds.cpp
                ${PROJECT_SOURCE_DIR}/src/sdbus-asio.cpp
                ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
                ${PROJECT_SOURCE_DIR}/src/fru.cpp
