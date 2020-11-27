@@ -57,7 +57,11 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/main.cpp
     ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
     ${PROJECT_SOURCE_DIR}/src/SMBusBinding.cpp
-    ${PROJECT_SOURCE_DIR}/src/PCIeBinding.cpp)
+    ${PROJECT_SOURCE_DIR}/src/PCIeBinding.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/DeviceMonitor.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/PCIeDriver.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeMonitor.cpp
+    ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeDriver.cpp)
 
 set(HEADER_FILES
     ${PROJECT_SOURCE_DIR}/include/MCTPBinding.hpp

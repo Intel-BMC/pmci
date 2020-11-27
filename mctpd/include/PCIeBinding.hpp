@@ -1,10 +1,11 @@
 #pragma once
 
 #include "MCTPBinding.hpp"
+#include "hw/DeviceMonitor.hpp"
+#include "hw/PCIeDriver.hpp"
 
 #include <libmctp-astpcie.h>
 #include <libmctp-cmds.h>
-#include <libudev.h>
 
 #include <boost/asio/deadline_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/PCIe/server.hpp>
@@ -21,14 +22,18 @@ struct InternalVdmSetDatabase
 using pcie_binding =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::PCIe;
 
-class PCIeBinding : public MctpBinding
+class PCIeBinding : public MctpBinding,
+                    public hw::DeviceObserver,
+                    public std::enable_shared_from_this<hw::DeviceObserver>
 {
   public:
     PCIeBinding() = delete;
     PCIeBinding(std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, const PcieConfiguration& conf,
-                boost::asio::io_context& ioc);
-    virtual ~PCIeBinding();
+                boost::asio::io_context& ioc,
+                std::shared_ptr<hw::PCIeDriver>&& hw,
+                std::shared_ptr<hw::DeviceMonitor>&& hwMonitor);
+    virtual ~PCIeBinding() = default;
     virtual void initializeBinding() override;
 
   protected:
@@ -58,21 +63,18 @@ class PCIeBinding : public MctpBinding
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response) override;
 
+    virtual void deviceReadyNotify(bool ready) override;
+
+    std::shared_ptr<hw::PCIeDriver> hw;
+    std::shared_ptr<hw::DeviceMonitor> hwMonitor;
+
   private:
     using routingTableEntry_t =
         std::tuple<uint8_t /*eid*/, uint16_t /*bdf*/, uint8_t /*entryType*/>;
     uint16_t bdf;
     uint16_t busOwnerBdf;
     std::shared_ptr<dbus_interface> pcieInterface;
-    udev* udevContext;
-    udev_device* udevice;
-    udev_monitor* umonitor;
-    static constexpr const char* astUdevPath =
-        "/sys/devices/platform/ahb/ahb:apb/1e6e8000.mctp/misc/aspeed-mctp";
     pcie_binding::DiscoveryFlags discoveredFlag{};
-    struct mctp_binding_astpcie* pcie = nullptr;
-    boost::asio::posix::stream_descriptor streamMonitor;
-    boost::asio::posix::stream_descriptor ueventMonitor;
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTable;
@@ -82,7 +84,6 @@ class PCIeBinding : public MctpBinding
         const std::vector<routingTableEntry_t>& newTable,
         boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
     bool setDriverEndpointMap();
-    void readResponse();
     std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid) override;
     bool isReceivedPrivateDataCorrect(const void* bindingPrivate) override;
@@ -90,7 +91,4 @@ class PCIeBinding : public MctpBinding
     mctp_server::BindingModeTypes
         getBindingMode(const routingTableEntry_t& routingEntry);
     void changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag);
-    bool initializeUdev();
-    void monitorUdevEvents();
-    void ueventHandlePcieReady(udev_device* dev);
 };

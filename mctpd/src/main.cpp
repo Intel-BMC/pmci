@@ -1,6 +1,8 @@
 #include "MCTPBinding.hpp"
 #include "PCIeBinding.hpp"
 #include "SMBusBinding.hpp"
+#include "hw/aspeed/PCIeDriver.hpp"
+#include "hw/aspeed/PCIeMonitor.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/algorithm/string.hpp>
@@ -400,8 +402,10 @@ std::shared_ptr<MctpBinding>
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
     {
-        return std::make_shared<PCIeBinding>(objectServer, mctpBaseObj,
-                                             *pcieConfig, ioc);
+        return std::make_shared<PCIeBinding>(
+            objectServer, mctpBaseObj, *pcieConfig, ioc,
+            std::make_unique<hw::aspeed::PCIeDriver>(ioc),
+            std::make_unique<hw::aspeed::PCIeMonitor>(ioc));
     }
 
     return nullptr;
