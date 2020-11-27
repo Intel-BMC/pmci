@@ -218,6 +218,18 @@ enum pldm_sensor_operational_state {
 	PLDM_SENSOR_INTEST
 };
 
+/** @brief PLDM NumericSensorUnits enumeration
+ */
+enum pldm_sensor_unit {
+	PLDM_SENSOR_UNIT_DEGREES_C = 2,
+	PLDM_SENSOR_UNIT_VOLTS = 5,
+	PLDM_SENSOR_UNIT_AMPS = 6,
+	PLDM_SENSOR_UNIT_WATTS = 7,
+	PLDM_SENSOR_UNIT_RPM = 19,
+	PLDM_SENSOR_UNIT_SECONDS = 21
+	// TODO: Add other sensor units
+};
+
 /** @brief PLDM pldmPDRRepositoryChgEvent class eventData format
  */
 enum pldm_pdr_repository_chg_event_data_format {
