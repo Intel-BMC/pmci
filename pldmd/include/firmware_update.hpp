@@ -232,7 +232,12 @@ class FWUpdate
                         bitfield32_t& updateOptFlagsEnabled,
                         uint16_t& estimatedTimeReqFd);
     int requestFirmwareData(const boost::asio::yield_context& yield);
-    int transferComplete(const boost::asio::yield_context& yield);
+    uint8_t validateTransferComplete(const uint8_t transferResult);
+    int processTransferComplete(const std::vector<uint8_t>& pldmReq,
+                                uint8_t& transferResult);
+    int transferComplete(const std::vector<uint8_t>& pldmReq,
+                         uint8_t& transferResult);
+
     int verifyComplete(const boost::asio::yield_context& yield);
     int applyComplete(const boost::asio::yield_context& yield);
     int sendMetaData(const boost::asio::yield_context& yield);
@@ -251,6 +256,9 @@ class FWUpdate
     int cancelUpdate(const boost::asio::yield_context& yield,
                      bool8_t& nonFunctioningComponentIndication,
                      bitfield64_t& nonFunctioningComponentBitmap);
+    bool sendErrorCompletionCode(const uint8_t fdInstanceId,
+                                 const uint8_t complCode,
+                                 const uint8_t command);
 
     pldm_tid_t currentTid;
     uint8_t expectedCmd;

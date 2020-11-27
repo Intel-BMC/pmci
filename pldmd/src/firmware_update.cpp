@@ -35,6 +35,7 @@ const std::array<uint8_t, pkgHeaderIdentifierSize> pkgHdrIdentifier = {
     0x98, 0x00, 0xA0, 0x2F, 0x05, 0x9A, 0xCA, 0x02};
 
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
+constexpr size_t PLDMCCOnlyResponse = sizeof(struct PLDMEmptyRequest) + 1;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
 std::unique_ptr<PLDMImg> pldmImg = nullptr;
 
@@ -51,7 +52,6 @@ void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
     }
     const struct pldm_msg_hdr* msgHdr =
         reinterpret_cast<const pldm_msg_hdr*>(req.data());
-
     if (tid != currentTid || msgHdr->command != expectedCmd)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -1262,6 +1262,33 @@ bool PLDMImg::getPkgProperty(T& value, const std::string& name)
     return false;
 }
 
+bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
+                                       const uint8_t complCode,
+                                       const uint8_t command)
+{
+
+    std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    int retVal = encode_cc_only_resp(fdInstanceId, PLDM_FWU, command, complCode,
+                                     msgResp);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "sendError: encode response failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return false;
+    }
+    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "sendError: Failed to send PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return false;
+    }
+    return true;
+}
+
 int FWUpdate::doRequestUpdate(const boost::asio::yield_context& yield,
                               struct variable_field& compImgSetVerStrn)
 {
@@ -1559,6 +1586,86 @@ int FWUpdate::updateComponent(const boost::asio::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
+uint8_t FWUpdate::validateTransferComplete(const uint8_t transferResult)
+{
+    return (transferResult == PLDM_FWU_TRASFER_SUCCESS)
+               ? PLDM_SUCCESS
+               : PLDM_ERROR_INVALID_DATA;
+}
+
+int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
+                                      uint8_t& transferResult)
+{
+    if (!updateMode || fdState != FD_DOWNLOAD)
+    {
+        const struct pldm_msg* msgReq =
+            reinterpret_cast<const pldm_msg*>(pldmReq.data());
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     COMMAND_NOT_EXPECTED,
+                                     PLDM_TRANSFER_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "TransferComplete: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = transferComplete(pldmReq, transferResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    fdState = FD_VERIFY;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to VERIFY");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
+                               uint8_t& transferResult)
+{
+    const struct pldm_msg* msgReq =
+        reinterpret_cast<const pldm_msg*>(pldmReq.data());
+    auto retVal = decode_transfer_complete_req(msgReq, &transferResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "TransferComplete: decode request failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_TRANSFER_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "TransferComplete: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    uint8_t compCode = validateTransferComplete(transferResult);
+    retVal = encode_transfer_complete_resp(msgReq->hdr.instance_id, compCode,
+                                           msgResp);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "TransferComplete: encode response failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "TransferComplete: Failed to send PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    return PLDM_SUCCESS;
+}
+
 int FWUpdate::doActivateFirmware(
     const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
@@ -1841,7 +1948,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         pldmImg->getPkgProperty<uint16_t>(packageDataLength, "FWDevPkgDataLen");
         if (packageDataLength)
         {
-            // TODO wait for FD to send GetPackageData and respond back to it.
+            // TODO wait for FD to send GetPackageData and respond back to
+            // it.
         }
     }
 
@@ -1873,7 +1981,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "passComponentTable: Failed to send passComponentTable command",
+                "passComponentTable: Failed to send passComponentTable "
+                "command",
                 phosphor::logging::entry("RETVAL=%d", retVal),
                 phosphor::logging::entry("COMPONENT=%d", currentComp));
             return retVal;
@@ -1912,7 +2021,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
 
     if (fwDeviceMetaDataLen)
     {
-        // TODO wait for FD to send GetMetaData command and respond back to it.
+        // TODO wait for FD to send GetMetaData command and respond back to
+        // it.
     }
 
     // send ActivateFirmware command
@@ -1929,8 +2039,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     }
     if (estimatedTimeForSelfContainedActivation)
     {
-        // TODO UA should wait until estimatedTimeForSelfContainedActivation is
-        // elapsed.
+        // TODO UA should wait until estimatedTimeForSelfContainedActivation
+        // is elapsed.
     }
     return PLDM_SUCCESS;
 }
