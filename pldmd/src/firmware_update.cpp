@@ -163,6 +163,16 @@ static void processDescriptor(const DescriptorHeader& /*header*/,
     // sizes(Eg: UUID 16 bytes)
 }
 
+static void createAsyncDelay(boost::asio::yield_context yield,
+                             const uint16_t delay)
+{
+    boost::asio::steady_timer timer(*getIoContext());
+    boost::system::error_code ec;
+
+    timer.expires_after(std::chrono::milliseconds(delay));
+    timer.async_wait(yield[ec]);
+}
+
 static void unpackDescriptors(const uint8_t count,
                               const std::vector<uint8_t>& data,
                               uint16_t& initialDescriptorType,
@@ -1252,9 +1262,82 @@ bool PLDMImg::getPkgProperty(T& value, const std::string& name)
     return false;
 }
 
-int FWUpdate::requestUpdate(const boost::asio::yield_context& /*yield*/)
+int FWUpdate::doRequestUpdate(const boost::asio::yield_context& yield,
+                              struct variable_field& compImgSetVerStrn)
 {
-    // TODO implement the command code
+    if (updateMode)
+    {
+        return ALREADY_IN_UPDATE_MODE;
+    }
+    if (fdState != FD_IDLE)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    int retVal = requestUpdate(yield, compImgSetVerStrn);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    updateMode = true;
+    fdState = FD_LEARN_COMPONENTS;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to LEARN COMPONENTS");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::requestUpdate(const boost::asio::yield_context& yield,
+                            struct variable_field& compImgSetVerStrn)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest) +
+                                 sizeof(struct request_update_req) +
+                                 compImgSetVerStrn.length);
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+
+    int retVal = encode_request_update_req(
+        instanceID, msgReq,
+        sizeof(struct request_update_req) + compImgSetVerStrn.length,
+        &updateProperties, &compImgSetVerStrn);
+    if (!validatePLDMReqEncode(currentTid, retVal, "RequestUpdate"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    size_t count = 0;
+    do
+    {
+        if (retVal == RETRY_REQUEST_UPDATE)
+        {
+            createAsyncDelay(yield, retryRequestForUpdateDelay);
+        }
+        if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount,
+                                    pldmReq, pldmResp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "requestUpdate: Failed to send or receive PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+            return PLDM_ERROR;
+        }
+        auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+        retVal = decode_request_update_resp(
+            msgResp, pldmResp.size() - hdrSize, &completionCode,
+            &fwDeviceMetaDataLen, &fdWillSendGetPkgDataCmd);
+    } while ((retVal == RETRY_REQUEST_UPDATE) && (++count < retryCount));
+    if (retVal == RETRY_REQUEST_UPDATE)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "requestUpdate: FD is not able to enter update mode immediately, "
+            "requests for retry",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETRY_COUNT=%d", ++count));
+        return retVal;
+    }
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                "RequestUpdate"))
+    {
+        return retVal;
+    }
     return PLDM_SUCCESS;
 }
 
@@ -1738,8 +1821,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     {
         return ALREADY_IN_UPDATE_MODE;
     }
+    // TODO: values need to be filled
+    struct variable_field compImgSetVerStrn = {};
     // send requestUpdate command
-    int retVal = requestUpdate(yield);
+    int retVal = doRequestUpdate(yield, compImgSetVerStrn);
 
     if (retVal != PLDM_SUCCESS)
     {

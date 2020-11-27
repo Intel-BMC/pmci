@@ -190,7 +190,10 @@ class FWUpdate
     int startTimer(const uint16_t interval);
     uint64_t getApplicableComponents();
 
-    int requestUpdate(const boost::asio::yield_context& yield);
+    int doRequestUpdate(const boost::asio::yield_context& yield,
+                        struct variable_field& compImgSetVerStrn);
+    int requestUpdate(const boost::asio::yield_context& yield,
+                      struct variable_field& compImgSetVerStrn);
     int sendPackageData(const boost::asio::yield_context& yield);
     int doGetDeviceMetaData(const boost::asio::yield_context& yield,
                             const uint32_t dataTransferHandle,
@@ -258,6 +261,7 @@ class FWUpdate
     uint8_t deviceIDRecord;
     const uint16_t timeout = 100;
     const size_t retryCount = 3;
+    const uint16_t retryRequestForUpdateDelay = 5000;
     bool updateMode = false;
     uint8_t fdState = FD_IDLE;
     pldm_firmware_update_state state;
@@ -275,6 +279,7 @@ class FWUpdate
     uint8_t reasonCode = 0;
     bitfield32_t updateOptionFlagsEnabled = {0};
     uint8_t completionCode = PLDM_SUCCESS;
+    struct request_update_req updateProperties = {};
     boost::asio::steady_timer timer;
     FDProperties targetFDProperties;
     std::set<uint8_t> cancelUpdateComponentState = {FD_DOWNLOAD, FD_VERIFY,
