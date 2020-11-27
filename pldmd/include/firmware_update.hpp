@@ -101,6 +101,9 @@ class FWInventoryInfo
      */
     std::optional<FDProperties>
         runInventoryCommands(boost::asio::yield_context yield);
+    /** @brief API that adds inventory info to D-Bus
+     */
+    void addInventoryInfoToDBus();
 
   private:
     /** @brief run query device identifiers command
@@ -135,8 +138,28 @@ class FWInventoryInfo
                       const struct component_parameter_table* componentData,
                       struct variable_field* activeCompVerStr,
                       struct variable_field* pendingCompVerStr);
+    /** @brief API that adds component image set info to D-Bus
+     */
+    void addCompImgSetDataToDBus();
+
+    /** @brief API that adds descriptor data to D-Bus
+     */
+    void addDescriptorsToDBus();
+
+    /** @brief API that adds component info to D-Bus
+     */
+    void addCompDataToDBus();
+
+    /** @brief API that adds pci descriptors to D-Bus
+     */
+    void addPCIDescriptorsToDBus(const std::string& objPath);
+
+    /** @brief API that gets auto apply property
+     */
+    bool getCompAutoApply(const uint32_t capabilitiesDuringUpdate);
 
     pldm_tid_t tid;
+    std::shared_ptr<sdbusplus::asio::object_server> objServer;
     const uint16_t timeout = 100;
     const size_t retryCount = 3;
     // map that holds the component properties of a terminus
@@ -146,6 +169,8 @@ class FWInventoryInfo
     // map that holds the descriptors of a terminus
     DescriptorsMap descriptors;
     uint16_t initialDescriptorType;
+    std::string activeCompImgSetVerStr;
+    std::string pendingCompImgSetVerStr;
 };
 
 class PLDMImg

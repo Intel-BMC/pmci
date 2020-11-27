@@ -259,6 +259,18 @@ int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
     return PLDM_SUCCESS;
 }
 
+static std::string toString(const struct variable_field& var)
+{
+    if (var.ptr == NULL || var.length == 0)
+    {
+        return "";
+    }
+    std::string str(reinterpret_cast<const char*>(var.ptr), var.length);
+    std::replace_if(
+        str.begin(), str.end(), [](const char& c) { return !isprint(c); }, ' ');
+    return str;
+}
+
 void FWInventoryInfo::copyCompImgSetData(
     const struct get_firmware_parameters_resp& respData,
     const struct variable_field& activeCompImgSetVerData,
@@ -267,16 +279,12 @@ void FWInventoryInfo::copyCompImgSetData(
     fwuProperties["CapabilitiesDuringUpdate"] =
         htole32(respData.capabilities_during_update);
     fwuProperties["ComponentCount"] = htole16(respData.comp_count);
-    std::string activeCompImgSetVerStr(
-        reinterpret_cast<const char*>(activeCompImgSetVerData.ptr),
-        activeCompImgSetVerData.length);
+    activeCompImgSetVerStr = toString(activeCompImgSetVerData);
     fwuProperties["ActiveCompImgSetVerStr"] = activeCompImgSetVerStr;
 
     if (pendingCompImgSetVerData.length != 0)
     {
-        std::string pendingCompImgSetVerStr(
-            reinterpret_cast<const char*>(pendingCompImgSetVerData.ptr),
-            pendingCompImgSetVerData.length);
+        pendingCompImgSetVerStr = toString(pendingCompImgSetVerData);
         fwuProperties["PendingCompImgSetVerStr"] = pendingCompImgSetVerStr;
     }
 }
@@ -450,7 +458,8 @@ int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
     return PLDM_SUCCESS;
 }
 
-FWInventoryInfo::FWInventoryInfo(const pldm_tid_t _tid) : tid(_tid)
+FWInventoryInfo::FWInventoryInfo(const pldm_tid_t _tid) :
+    tid(_tid), objServer(getObjServer())
 {
 }
 
@@ -501,6 +510,167 @@ static void initializeFWUBase()
         });
     fwuBaseIface->initialize();
     fwuBaseInitialized = true;
+}
+
+void FWInventoryInfo::addPCIDescriptorsToDBus(const std::string& objPath)
+{
+    auto pciDevIntf = objServer->add_interface(
+        objPath, "xyz.openbmc_project.PLDM.FWU.PCIDescriptor");
+    for (auto& it : descriptors)
+    {
+        std::replace_if(
+            it.second.begin(), it.second.end(),
+            [](const char& c) { return !isprint(c); }, ' ');
+        pciDevIntf->register_property(it.first, it.second);
+    }
+    pciDevIntf->initialize();
+}
+
+void FWInventoryInfo::addDescriptorsToDBus()
+{
+    const std::string objPath = "/xyz/openbmc_project/pldm/fwu/" +
+                                std::to_string(tid) + "/deviceDescriptors";
+
+    switch (
+        static_cast<pldm::fwu::DescriptorIdentifierType>(initialDescriptorType))
+    {
+        case pldm::fwu::DescriptorIdentifierType::pciVendorID: {
+            addPCIDescriptorsToDBus(objPath);
+            break;
+        }
+        // TODO Add cases for other Descriptor Identifier Types
+        default: {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "addDescriptorsToDBus: Descriptor identifier type not matched",
+                phosphor::logging::entry("TID=%d", tid));
+            break;
+        }
+    }
+}
+
+void FWInventoryInfo::addCompImgSetDataToDBus()
+{
+    const std::string compImgSetPath = "/xyz/openbmc_project/pldm/fwu/" +
+                                       std::to_string(tid) +
+                                       "/componentImageSetInfo";
+    auto activeCompImgSetInfoIntf = objServer->add_interface(
+        compImgSetPath,
+        "xyz.openbmc_project.PLDM.FWU.ActiveComponentImageSetInfo");
+    activeCompImgSetInfoIntf->register_property(
+        "ActiveComponentImageSetVersionString", activeCompImgSetVerStr);
+    activeCompImgSetInfoIntf->initialize();
+
+    auto pendingCompImgSetInfoIntf = objServer->add_interface(
+        compImgSetPath,
+        "xyz.openbmc_project.PLDM.FWU.PendingComponentImageSetInfo");
+    pendingCompImgSetInfoIntf->register_property(
+        "PendingComponentImageSetVersionString", pendingCompImgSetVerStr);
+    pendingCompImgSetInfoIntf->initialize();
+}
+
+void FWInventoryInfo::addInventoryInfoToDBus()
+{
+    try
+    {
+        addCompImgSetDataToDBus();
+    }
+    catch (const std::exception&)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to add component image set info to D-Bus",
+            phosphor::logging::entry("TID=%d", tid));
+    }
+    try
+    {
+        addDescriptorsToDBus();
+    }
+    catch (const std::exception&)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to add descriptor data to D-Bus",
+            phosphor::logging::entry("TID=%d", tid));
+    }
+    try
+    {
+        addCompDataToDBus();
+    }
+    catch (const std::exception&)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to add component info to D-Bus",
+            phosphor::logging::entry("TID=%d", tid));
+    }
+}
+
+void FWInventoryInfo::addCompDataToDBus()
+{
+    const std::string objPath = "/xyz/openbmc_project/pldm/fwu/" +
+                                std::to_string(tid) +
+                                "/componentImageSetInfo/component_";
+    for (auto& itr : compPropertiesMap)
+    {
+        const std::string compPath = objPath + std::to_string(itr.first);
+        auto compProps = itr.second;
+        auto activeCompInfoIntf = objServer->add_interface(
+            compPath, "xyz.openbmc_project.PLDM.FWU.ActiveComponentInfo");
+        activeCompInfoIntf->register_property(
+            "ComponentClassification",
+            std::get<uint16_t>(compProps["ComponentClassification"]));
+        activeCompInfoIntf->register_property(
+            "ComponentIdentifier",
+            std::get<uint16_t>(compProps["ComponentIdentifier"]));
+        activeCompInfoIntf->register_property(
+            "ComponentClassificationIndex",
+            std::get<uint8_t>(compProps["ComponentClassificationIndex"]));
+        activeCompInfoIntf->register_property(
+            "ActiveComponentComparisonStamp",
+            std::get<uint32_t>(compProps["ActiveComponentComparisonStamp"]));
+        activeCompInfoIntf->register_property(
+            "ActiveComponentReleaseDate",
+            std::get<uint64_t>(compProps["ActiveComponentReleaseDate"]));
+        activeCompInfoIntf->register_property(
+            "ComponentAutoApply", getCompAutoApply(std::get<uint32_t>(
+                                      compProps["CapabilitiesDuringUpdate"])));
+        std::string activeCompStr =
+            std::get<std::string>(compProps["ActiveComponentVersionString"]);
+        std::replace_if(
+            activeCompStr.begin(), activeCompStr.end(),
+            [](const char& c) { return !isprint(c); }, ' ');
+        activeCompInfoIntf->register_property("ActiveComponentVersionString",
+                                              activeCompStr);
+        // TODO expose ComponentActivationMethods and CapabilitiesDuringUpdate
+        // to separate interfaces.
+        activeCompInfoIntf->register_property(
+            "ComponentActivationMethods",
+            std::get<uint16_t>(compProps["ComponentActivationMethods"]));
+        activeCompInfoIntf->register_property(
+            "CapabilitiesDuringUpdate",
+            std::get<uint32_t>(compProps["CapabilitiesDuringUpdate"]));
+        activeCompInfoIntf->initialize();
+
+        auto pendingCompInfoIntf = objServer->add_interface(
+            compPath, "xyz.openbmc_project.PLDM.FWU.PendingComponentInfo");
+        pendingCompInfoIntf->register_property(
+            "PendingComponentComparisonStamp",
+            std::get<uint32_t>(compProps["PendingComponentComparisonStamp"]));
+        pendingCompInfoIntf->register_property(
+            "PendingComponentReleaseDate",
+            std::get<uint64_t>(compProps["PendingComponentReleaseDate"]));
+        std::string pendingCompSrt =
+            std::get<std::string>(compProps["PendingComponentVersionString"]);
+        std::replace_if(
+            pendingCompSrt.begin(), pendingCompSrt.end(),
+            [](const char& c) { return !isprint(c); }, ' ');
+        pendingCompInfoIntf->register_property("PendingComponentVersionString",
+                                               pendingCompSrt);
+        pendingCompInfoIntf->initialize();
+    }
+}
+
+bool FWInventoryInfo::getCompAutoApply(const uint32_t capabilitiesDuringUpdate)
+{
+    constexpr size_t capabilitiesDuringUpdateMask = 0xFFFE;
+    return capabilitiesDuringUpdate & capabilitiesDuringUpdateMask;
 }
 
 std::optional<FDProperties>
@@ -960,6 +1130,7 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
         return false;
     }
 
+    inventoryInfo.addInventoryInfoToDBus();
     return true;
 }
 } // namespace fwu
