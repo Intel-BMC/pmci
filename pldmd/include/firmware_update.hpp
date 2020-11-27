@@ -238,7 +238,11 @@ class FWUpdate
     int transferComplete(const std::vector<uint8_t>& pldmReq,
                          uint8_t& transferResult);
 
-    int verifyComplete(const boost::asio::yield_context& yield);
+    uint8_t validateVerifyComplete(const uint8_t verifyResult);
+    int processVerifyComplete(const std::vector<uint8_t>& pldmReq,
+                              uint8_t& verifyResult);
+    int verifyComplete(const std::vector<uint8_t>& pldmReq,
+                       uint8_t& verifyResult);
     int applyComplete(const boost::asio::yield_context& yield);
     int sendMetaData(const boost::asio::yield_context& yield);
     int doActivateFirmware(const boost::asio::yield_context& yield,

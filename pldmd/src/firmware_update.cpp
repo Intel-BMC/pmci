@@ -1666,6 +1666,84 @@ int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
+uint8_t FWUpdate::validateVerifyComplete(const uint8_t verifyResult)
+{
+    return (verifyResult == PLDM_FWU_VERIFY_SUCCESS) ? PLDM_SUCCESS
+                                                     : PLDM_ERROR_INVALID_DATA;
+}
+
+int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
+                                    uint8_t& verifyResult)
+{
+    if (!updateMode || fdState != FD_VERIFY)
+    {
+        auto msgReq = reinterpret_cast<const pldm_msg*>(pldmReq.data());
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     COMMAND_NOT_EXPECTED,
+                                     PLDM_VERIFY_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "VerifyComplete: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = verifyComplete(pldmReq, verifyResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    fdState = FD_APPLY;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to APPLY");
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
+                             uint8_t& verifyResult)
+{
+
+    auto msgReq = reinterpret_cast<const pldm_msg*>(pldmReq.data());
+    int retVal = decode_verify_complete_req(msgReq, &verifyResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "VerifyComplete: decode request failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_VERIFY_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "VerifyComplete: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    uint8_t compCode = validateVerifyComplete(verifyResult);
+    retVal = encode_transfer_complete_resp(msgReq->hdr.instance_id, compCode,
+                                           msgResp);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "VerifyComplete: encode response failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "VerifyComplete: Failed to send PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    return PLDM_SUCCESS;
+}
+
 int FWUpdate::doActivateFirmware(
     const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
