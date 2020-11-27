@@ -243,7 +243,12 @@ class FWUpdate
                               uint8_t& verifyResult);
     int verifyComplete(const std::vector<uint8_t>& pldmReq,
                        uint8_t& verifyResult);
-    int applyComplete(const boost::asio::yield_context& yield);
+    uint8_t validateApplyComplete(const uint8_t applyResult);
+    int processApplyComplete(const std::vector<uint8_t>& pldmReq,
+                             uint8_t& applyResult,
+                             bitfield16_t& compActivationMethodsModification);
+    int applyComplete(const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
+                      bitfield16_t& compActivationMethodsModification);
     int sendMetaData(const boost::asio::yield_context& yield);
     int doActivateFirmware(const boost::asio::yield_context& yield,
                            bool8_t selfContainedActivationReq,
