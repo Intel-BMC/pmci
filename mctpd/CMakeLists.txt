@@ -125,12 +125,13 @@ if(${MCTPD_BUILD_UT})
   include(CTest)
 
   set(SRC src/SMBusBinding.cpp src/MCTPBinding.cpp src/utils/Configuration.cpp)
-  set(TEST_FILES tests/test-mctpd.cpp)
+  set(TEST_FILES tests/test-mctpd.cpp tests/test-binding.cpp)
 
   enable_testing()
 
   add_executable(test-mctpd ${SRC} ${TEST_FILES})
   target_compile_definitions(test-mctpd PRIVATE "USE_MOCK")
+  include_directories(${PROJECT_SOURCE_DIR}/tests)
 
   find_package(GTest REQUIRED CONFIG)
   target_link_libraries(
