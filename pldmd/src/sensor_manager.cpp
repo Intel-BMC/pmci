@@ -16,6 +16,7 @@
 
 #include "sensor_manager.hpp"
 
+#include "pdr_utils.hpp"
 #include "platform.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -105,9 +106,137 @@ bool SensorManager::setNumericSensorEnable(boost::asio::yield_context& yield)
     return true;
 }
 
+void SensorManager::getSupportedThresholds(
+    std::vector<thresholds::Threshold>& thresholdData)
+{
+    if (_pdr.supported_thresholds.bits.bit0)
+    {
+        if (auto rangeFieldValue =
+                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_high))
+        {
+            thresholdData.emplace_back(
+                thresholds::Level::warning, thresholds::Direction::high,
+                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "WarningHigh Supported",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+        }
+    }
+
+    if (_pdr.supported_thresholds.bits.bit1 &&
+        _pdr.range_field_support.bits.bit3)
+    {
+        if (auto rangeFieldValue =
+                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_high))
+        {
+            thresholdData.emplace_back(
+                thresholds::Level::critical, thresholds::Direction::high,
+                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "CriticalHigh Supported",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+        }
+    }
+
+    if (_pdr.supported_thresholds.bits.bit3 &&
+        _pdr.range_field_support.bits.bit3)
+    {
+        if (auto rangeFieldValue =
+                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_low))
+        {
+            thresholdData.emplace_back(
+                thresholds::Level::warning, thresholds::Direction::low,
+                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "WarningLow Supported",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+        }
+    }
+
+    if (_pdr.supported_thresholds.bits.bit4 &&
+        _pdr.range_field_support.bits.bit4)
+    {
+        if (auto rangeFieldValue =
+                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_low))
+        {
+            thresholdData.emplace_back(
+                thresholds::Level::critical, thresholds::Direction::low,
+                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "CriticalLow Supported",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+        }
+    }
+    // Note:- Fatal values are not supported
+}
+
+bool SensorManager::initSensor()
+{
+    std::optional<double> maxVal =
+        pdr::sensor::fetchSensorValue(_pdr, _pdr.max_readable);
+    if (maxVal == std::nullopt)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to decode maxReadable",
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    std::optional<double> minVal =
+        pdr::sensor::fetchSensorValue(_pdr, _pdr.min_readable);
+    if (minVal == std::nullopt)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to decode minReadable",
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    std::optional<SensorUnit> baseUnit = pdr::sensor::getSensorUnit(_pdr);
+    if (baseUnit == std::nullopt)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to decode sensor unit",
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    std::vector<thresholds::Threshold> thresholdData;
+    getSupportedThresholds(thresholdData);
+
+    try
+    {
+        _sensor = std::make_shared<Sensor>(
+            _name, thresholdData,
+            pdr::sensor::calculateSensorValue(_pdr, *maxVal),
+            pdr::sensor::calculateSensorValue(_pdr, *minVal), *baseUnit);
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            e.what(), phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Sensor Init success",
+        phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
 bool SensorManager::sensorManagerInit(boost::asio::yield_context& yield)
 {
     if (!setNumericSensorEnable(yield))
+    {
+        return false;
+    }
+
+    if (!initSensor())
     {
         return false;
     }

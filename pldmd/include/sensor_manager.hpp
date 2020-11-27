@@ -17,6 +17,7 @@
 #pragma once
 
 #include "pdr_manager.hpp"
+#include "sensor.hpp"
 
 #include <boost/asio.hpp>
 
@@ -60,6 +61,13 @@ class SensorManager
     /** @brief  Enable sensor*/
     bool setNumericSensorEnable(boost::asio::yield_context& yield);
 
+    /** @brief  Get supported thresholds from PDR*/
+    void getSupportedThresholds(
+        std::vector<thresholds::Threshold>& thresholdData);
+
+    /** @brief Init sensor*/
+    bool initSensor();
+
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
 
@@ -71,6 +79,9 @@ class SensorManager
 
     /** @brief Sensor PDR*/
     pldm_numeric_sensor_value_pdr _pdr;
+
+    /** @brief Sensor*/
+    std::shared_ptr<Sensor> _sensor;
 };
 
 } // namespace platform
