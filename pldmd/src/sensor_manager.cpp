@@ -229,6 +229,107 @@ bool SensorManager::initSensor()
     return true;
 }
 
+bool SensorManager::getSensorReading(boost::asio::yield_context& yield)
+{
+    int rc;
+    std::vector<uint8_t> req(pldmMsgHdrSize +
+                             sizeof(pldm_get_sensor_reading_req));
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+
+    // PLDM events are not supported
+    constexpr uint8_t rearmEventState = 0x00;
+    rc = encode_get_sensor_reading_req(createInstanceId(_tid), _sensorID,
+                                       rearmEventState, reqMsg);
+    if (!validatePLDMReqEncode(_tid, rc, "GetSensorReading"))
+    {
+        return false;
+    }
+
+    std::vector<uint8_t> resp;
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
+                                req, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to send GetSensorReading request",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+        return false;
+    }
+
+    uint8_t completionCode;
+    uint8_t sensorDataSize;
+    uint8_t sensorOperationalState;
+    uint8_t sensorEventMessageEnable;
+    uint8_t presentState;
+    uint8_t previousState;
+    uint8_t eventState;
+    union_sensor_data_size presentReading;
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+
+    rc = decode_get_sensor_reading_resp(
+        rspMsg, resp.size() - pldmMsgHdrSize, &completionCode, &sensorDataSize,
+        &sensorOperationalState, &sensorEventMessageEnable, &presentState,
+        &previousState, &eventState,
+        reinterpret_cast<uint8_t*>(&presentReading));
+    if (!validatePLDMRespDecode(_tid, rc, completionCode, "GetSensorReading"))
+    {
+        return false;
+    }
+
+    if (sensorOperationalState != PLDM_SENSOR_ENABLED)
+    {
+        _sensor->markFunctional(false);
+
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Sensor is not enabled",
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    if (_pdr.sensor_data_size != sensorDataSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid sensor reading. Sensor data size missmatch",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
+        return false;
+    }
+
+    std::optional<double> sensorReading =
+        pdr::sensor::fetchSensorValue(_pdr, presentReading);
+    if (sensorReading == std::nullopt)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Sensor value decode failed",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+            phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
+        return false;
+    }
+
+    _sensor->updateValue(
+        pdr::sensor::calculateSensorValue(_pdr, *sensorReading));
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "GetSensorReading success",
+        phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+        phosphor::logging::entry("TID=%d", _tid),
+        phosphor::logging::entry("VALUE=%lf", *sensorReading));
+    return true;
+}
+
+bool SensorManager::populateSensorValue(boost::asio::yield_context& yield)
+{
+    if (!getSensorReading(yield))
+    {
+        _sensor->incrementError();
+        return false;
+    }
+    return true;
+}
+
 bool SensorManager::sensorManagerInit(boost::asio::yield_context& yield)
 {
     if (!setNumericSensorEnable(yield))

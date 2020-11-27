@@ -57,6 +57,9 @@ class SensorManager
     /** @brief Init Sensor Manager*/
     bool sensorManagerInit(boost::asio::yield_context& yield);
 
+    /** @brief Read sensor value and update interfaces*/
+    bool populateSensorValue(boost::asio::yield_context& yield);
+
   private:
     /** @brief  Enable sensor*/
     bool setNumericSensorEnable(boost::asio::yield_context& yield);
@@ -67,6 +70,9 @@ class SensorManager
 
     /** @brief Init sensor*/
     bool initSensor();
+
+    /** @brief fetch the sensor value*/
+    bool getSensorReading(boost::asio::yield_context& yield);
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
