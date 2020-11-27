@@ -192,7 +192,18 @@ class FWUpdate
 
     int requestUpdate(const boost::asio::yield_context& yield);
     int sendPackageData(const boost::asio::yield_context& yield);
-    int getDeviceMetaData(const boost::asio::yield_context& yield);
+    int doGetDeviceMetaData(const boost::asio::yield_context& yield,
+                            const uint32_t dataTransferHandle,
+                            const uint8_t transferOperationFlag,
+                            uint32_t& nextDataTransferHandle,
+                            uint8_t& transferFlag,
+                            std::vector<uint8_t>& portionOfMetaData);
+    int getDeviceMetaData(const boost::asio::yield_context& yield,
+                          const uint32_t dataTransferHandle,
+                          const uint8_t transferOperationFlag,
+                          uint32_t& nextDataTransferHandle,
+                          uint8_t& transferFlag,
+                          std::vector<uint8_t>& portionOfMetaData);
     int doPassComponentTable(
         const boost::asio::yield_context& yield,
         const struct pass_component_table_req& componentTable,

@@ -1258,6 +1258,75 @@ int FWUpdate::requestUpdate(const boost::asio::yield_context& /*yield*/)
     return PLDM_SUCCESS;
 }
 
+int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context& yield,
+                                  const uint32_t dataTransferHandle,
+                                  const uint8_t transferOperationFlag,
+                                  uint32_t& nextDataTransferHandle,
+                                  uint8_t& transferFlag,
+                                  std::vector<uint8_t>& portionOfMetaData)
+{
+
+    if (!updateMode)
+    {
+        return NOT_IN_UPDATE_MODE;
+    }
+    if (fdState != FD_LEARN_COMPONENTS)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    int retVal = getDeviceMetaData(
+        yield, dataTransferHandle, transferOperationFlag,
+        nextDataTransferHandle, transferFlag, portionOfMetaData);
+    if (retVal != PLDM_SUCCESS)
+    {
+        return retVal;
+    }
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::getDeviceMetaData(const boost::asio::yield_context& yield,
+                                const uint32_t dataTransferHandle,
+                                const uint8_t transferOperationFlag,
+                                uint32_t& nextDataTransferHandle,
+                                uint8_t& transferFlag,
+                                std::vector<uint8_t>& portionOfMetaData)
+{
+
+    uint8_t instanceID = createInstanceId(currentTid);
+    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest) +
+                                 sizeof(struct get_device_meta_data_req));
+    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
+
+    int retVal = encode_get_device_meta_data_req(
+        instanceID, msgReq, sizeof(struct get_device_meta_data_req),
+        dataTransferHandle, transferOperationFlag);
+    if (!validatePLDMReqEncode(currentTid, retVal, "GetDeviceMetaData"))
+    {
+        return retVal;
+    }
+    std::vector<uint8_t> pldmResp;
+    if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
+                                pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetDeviceMetaData: Failed to send or receive PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+    struct variable_field metaData = {};
+    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = decode_get_device_meta_data_resp(
+        msgResp, pldmResp.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &metaData);
+    if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
+                                "GetDeviceMetaData"))
+    {
+        return retVal;
+    }
+    portionOfMetaData.assign(metaData.ptr, metaData.ptr + metaData.length);
+    return PLDM_SUCCESS;
+}
+
 int FWUpdate::doPassComponentTable(
     const boost::asio::yield_context& yield,
     const struct pass_component_table_req& componentTable,
