@@ -17,6 +17,7 @@
 
 #include "pdr_manager.hpp"
 #include "pldm.hpp"
+#include "sensor_manager.hpp"
 
 #include "platform.h"
 
@@ -31,7 +32,9 @@ constexpr size_t commandRetryCount = 3;
 struct PlatformMonitoringControl
 {
     std::unique_ptr<PDRManager> pdrManager;
-    // TODO: Adds sensor and effecter resources
+    std::unordered_map<SensorID, std::shared_ptr<SensorManager>>
+        sensorManagerMap;
+    // TODO: Add effecter resources
 };
 
 } // namespace platform

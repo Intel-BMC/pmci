@@ -17,6 +17,7 @@
 
 #include "pldm.hpp"
 
+#include <boost/asio/steady_timer.hpp>
 #include <phosphor-logging/log.hpp>
 
 namespace pldm
@@ -25,30 +26,148 @@ namespace platform
 {
 // Holds platform monitoring and control resources for each termini
 static std::map<pldm_tid_t, PlatformMonitoringControl> platforms{};
+// TODO: Optimize poll interval
+static constexpr const int pollIntervalMillisec = 10;
+std::shared_ptr<boost::asio::steady_timer> sensorTimer;
+static bool isSensorPollRunning = false;
+
+bool introduceDelayInPolling(boost::asio::yield_context& yield)
+{
+    boost::system::error_code ec;
+    sensorTimer->expires_after(
+        boost::asio::chrono::milliseconds(pollIntervalMillisec));
+    sensorTimer->async_wait(yield[ec]);
+    if (ec == boost::asio::error::operation_aborted)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Sensor poll timer aborted");
+        return false;
+    }
+    else if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Sensor poll timer failed");
+        return false;
+    }
+    return true;
+}
+
+// TODO: Dynamic sensor scanning
+// As of today, PLDM is majorly used in Add-on-cards which is behind mux.
+// There can be M number of Add-on-cards and each one can have N
+// associated sensors. Which will result in higher number(M*N) of PLDM
+// message traffic through mux. In this case mux switching is a constraint.
+// Thus poll sensors sequentially.
+void pollAllSensors(boost::asio::yield_context& yield)
+{
+    for (auto const& [tid, platformMC] : platforms)
+    {
+        for (auto const& [sensorID, sensorManager] :
+             platformMC.sensorManagerMap)
+        {
+            sensorManager->populateSensorValue(yield);
+            // TODO: Read state sensor
+            if (!introduceDelayInPolling(yield))
+            {
+                isSensorPollRunning = false;
+                return;
+            }
+            isSensorPollRunning = true;
+        }
+    }
+    if (isSensorPollRunning)
+    {
+        pollAllSensors(yield);
+    }
+}
+
+void initSensorPoll()
+{
+    if (isSensorPollRunning)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Sensor poll already running");
+        return;
+    }
+    sensorTimer = std::make_shared<boost::asio::steady_timer>(*getIoContext());
+    boost::asio::spawn(*getIoContext(), [](boost::asio::yield_context yield) {
+        pollAllSensors(yield);
+    });
+}
+
+void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
+{
+    PlatformMonitoringControl& platformMC = platforms[tid];
+    std::unordered_map<SensorID, std::string> sensorList =
+        platformMC.pdrManager->getSensors();
+
+    for (auto const& [sensorID, sensorName] : sensorList)
+    {
+        if (auto pdr = platformMC.pdrManager->getNumericSensorPDR(sensorID))
+        {
+            std::unique_ptr<SensorManager> sensorManager =
+                std::make_unique<SensorManager>(tid, sensorID, sensorName,
+                                                *pdr);
+            if (!sensorManager->sensorManagerInit(yield))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Sensor Manager Init failed",
+                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
+                    phosphor::logging::entry("TID=%d", tid));
+                continue;
+            }
+
+            platformMC.sensorManagerMap[sensorID] = std::move(sensorManager);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Sensor Manager Init Success",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
+                phosphor::logging::entry("TID=%d", tid));
+        }
+        // TODO: Init state sensor
+    }
+}
+
+bool initPDRs(boost::asio::yield_context& yield, const pldm_tid_t tid)
+{
+    std::unique_ptr<PDRManager> pdrManager = std::make_unique<PDRManager>(tid);
+    if (!pdrManager->pdrManagerInit(yield))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PDR Manager Init failed", phosphor::logging::entry("TID=%d", tid));
+        return false;
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "PDR Manager Init Success", phosphor::logging::entry("TID=%d", tid));
+
+    PlatformMonitoringControl& platformMC = platforms[tid];
+    platformMC.pdrManager = std::move(pdrManager);
+
+    return true;
+}
 
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const PLDMCommandTable& /*commandTable*/)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Platform Monitoring and Control initialisation",
-        phosphor::logging::entry("TID=0x%X", tid));
+        phosphor::logging::entry("TID=%d", tid));
 
     // Destroy previous resources if any
     platformDestroy(tid);
 
-    std::unique_ptr<PDRManager> pdrManager = std::make_unique<PDRManager>(tid);
-    if (!pdrManager->pdrManagerInit(yield))
+    if (!initPDRs(yield, tid))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "PDR Manager Init failed",
-            phosphor::logging::entry("TID=0x%X", tid));
         return false;
     }
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "PDR Manager Init Success", phosphor::logging::entry("TID=0x%X", tid));
 
-    PlatformMonitoringControl& platformMC = platforms[tid];
-    platformMC.pdrManager = std::move(pdrManager);
+    initSensors(yield, tid);
+
+    initSensorPoll();
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        " Platform Monitoring and Control initialisation success",
+        phosphor::logging::entry("TID=%d", tid));
 
     return true;
 }

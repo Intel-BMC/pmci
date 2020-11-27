@@ -71,6 +71,16 @@ class PDRManager
 
     bool pdrManagerInit(boost::asio::yield_context& yield);
 
+    /** @brief Get Sensors list*/
+    const std::unordered_map<SensorID, std::string>& getSensors()
+    {
+        return _sensorAuxNames;
+    };
+
+    /** @brief Get numeric sensor PDR*/
+    std::optional<pldm_numeric_sensor_value_pdr>
+        getNumericSensorPDR(const SensorID& sensorID);
+
   private:
     /** @brief fetch PDR Repository Info from terminus*/
     std::optional<pldm_pdr_repository_info>
@@ -159,6 +169,12 @@ class PDRManager
     /**@brief General parser to each PDR type*/
     template <pldm_pdr_types pdrType>
     void parsePDR();
+
+    /** @brief Create sensor name with sensor ID*/
+    std::string createSensorName(const SensorID sensorID);
+
+    /** @brief Create effecter name with effecter ID*/
+    std::string createEffecterName(const EffecterID effecterID);
 
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;

@@ -317,8 +317,6 @@ bool PDRManager::addDevicePDRToRepo(
                     pdrRecord.second.data());
             if (tLocatorPDR->validity == PLDM_TL_PDR_VALID)
             {
-                // Discard the terminus if multiple valid Terminus Locator PDRs
-                // are found
                 if (terminusLPDRFound)
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -333,6 +331,11 @@ bool PDRManager::addDevicePDRToRepo(
         }
         pldm_pdr_add(_pdrRepo.get(), pdrRecord.second.data(),
                      pdrRecord.second.size(), pdrRecord.first, true);
+    }
+    if (!terminusLPDRFound)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Terminus Locator PDR not found");
     }
     return true;
 }
@@ -582,7 +585,6 @@ static EntityNode::NodePtr getContainedNode(EntityNode::NodePtr& root,
             return node;
         }
 
-        // Dequeue from queue
         containedEntityQueue.pop();
 
         // Enqueue all child node of the dequeued entity
@@ -862,6 +864,14 @@ std::optional<std::string>
     return std::nullopt;
 }
 
+std::string PDRManager::createSensorName(const SensorID sensorID)
+{
+    std::string sensorName =
+        "Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
+    _sensorAuxNames[sensorID] = sensorName;
+    return sensorName;
+}
+
 std::optional<DBusObjectPath>
     PDRManager::createSensorObjPath(const pldm_entity& entity,
                                     const SensorID& sensorID,
@@ -897,8 +907,7 @@ std::optional<DBusObjectPath>
     if (sensorName.empty())
     {
         // Dummy name if no Sensor Name found
-        sensorName =
-            "Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
+        sensorName = createSensorName(sensorID);
     }
 
     DBusInterfacePtr sensorIntf;
@@ -1015,6 +1024,13 @@ std::optional<std::string>
     return std::nullopt;
 }
 
+std::string PDRManager::createEffecterName(const EffecterID effecterID)
+{
+    std::string effecterName = "Effecter_" + std::to_string(effecterID);
+    _effecterAuxNames[effecterID] = effecterName;
+    return effecterName;
+}
+
 static void populateNumericEffecter(DBusInterfacePtr& effecterIntf,
                                     const DBusObjectPath& path)
 {
@@ -1054,7 +1070,7 @@ std::optional<DBusObjectPath>
     if (!effecterName)
     {
         // Dummy name if no effecter Name found
-        *effecterName = "Effecter_" + std::to_string(effecterID);
+        effecterName = createEffecterName(effecterID);
     }
 
     return *entityPath + "/" + *effecterName;
@@ -1264,6 +1280,17 @@ void PDRManager::parsePDR()
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Type " + std::to_string(pdrType) + " PDR parsing complete").c_str());
+}
+
+std::optional<pldm_numeric_sensor_value_pdr>
+    PDRManager::getNumericSensorPDR(const SensorID& sensorID)
+{
+    auto iter = _numericSensorPDR.find(sensorID);
+    if (iter != _numericSensorPDR.end())
+    {
+        return iter->second;
+    }
+    return std::nullopt;
 }
 
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
