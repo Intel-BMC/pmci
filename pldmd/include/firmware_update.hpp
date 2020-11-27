@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <fstream>
 #include <sdbusplus/asio/object_server.hpp>
 #include <vector>
 
@@ -20,11 +21,16 @@ namespace pldm
 {
 namespace fwu
 {
-using FWUVariantType =
-    std::variant<uint8_t, uint16_t, uint32_t, uint64_t, std::string>;
+using FWUVariantType = std::variant<uint8_t, uint16_t, uint32_t, uint64_t,
+                                    std::string, std::vector<uint8_t>>;
 using FWUProperties = std::map<std::string, FWUVariantType>;
+using DescriptorsMap = std::map<std::string, std::string>;
+using DevIDRecordsMap =
+    std::map<uint8_t, std::pair<FWUProperties, DescriptorsMap>>;
 using CompPropertiesMap = std::map<uint16_t, FWUProperties>;
-using FDProperties = std::pair<FWUProperties, CompPropertiesMap>;
+using FDProperties =
+    std::tuple<FWUProperties, DescriptorsMap, CompPropertiesMap>;
+constexpr size_t pkgHeaderIdentifierSize = 16;
 
 enum class DescriptorIdentifierType : uint16_t
 {
@@ -46,6 +52,43 @@ struct DescriptorHeader
     DescriptorIdentifierType type;
     uint16_t size;
 };
+
+struct PLDMPkgHeaderInfo
+{
+    uint8_t packageHeaderIdentifier[pkgHeaderIdentifierSize];
+    uint8_t pkgHeaderFormatRevision;
+    uint16_t pkgHeaderSize;
+    uint8_t
+        pkgReleaseDateTime[13]; // size of PackageReleaseDateTime is 13 bytes.
+    uint16_t compBitmapBitLength;
+    uint8_t pkgVersionStringType;
+    uint8_t pkgVersionStringLen;
+} __attribute__((packed));
+
+// As per spec 1.0.1
+struct FWDevIdRecord
+{
+    uint16_t recordLength;
+    uint8_t descriptorCount;
+    uint32_t deviceUpdateOptionFlags;
+    uint8_t comImgSetVerStrType;
+    uint8_t comImgSetVerStrLen;
+    uint16_t fwDevPkgDataLen;
+} __attribute__((packed));
+
+// As per spec 1.0.1
+struct CompImgInfo
+{
+    uint16_t compClassification;
+    uint16_t compIdentifier;
+    uint32_t compComparisonStamp;
+    uint16_t compOptions;
+    uint16_t requestedCompActivationMethod;
+    uint32_t compLocationOffset;
+    uint32_t compSize;
+    uint8_t compVerStrType;
+    uint8_t compVerStrLen;
+} __attribute__((packed));
 
 class FWInventoryInfo
 {
@@ -98,6 +141,107 @@ class FWInventoryInfo
     const size_t retryCount = 3;
     // map that holds the component properties of a terminus
     CompPropertiesMap compPropertiesMap;
+    // map that holds the general properties of a terminus
+    FWUProperties fwuProperties;
+    // map that holds the descriptors of a terminus
+    DescriptorsMap descriptors;
+    uint16_t initialDescriptorType;
+};
+
+class PLDMImg
+{
+  public:
+    PLDMImg() = delete;
+    PLDMImg(const std::string& pldmImgPath);
+    ~PLDMImg();
+    /** @brief API that process PLDM firmware update package header
+     */
+    bool processPkgHdr();
+
+    /** @brief API that runs PLDM firmware package update
+     */
+    int runPkgUpdate(const boost::asio::yield_context& yield);
+
+  private:
+    /** @brief API that is used to read raw bytes from pldm firmware update
+     * image
+     */
+    bool readData(const size_t startAddr, std::vector<uint8_t>& data,
+                  const size_t dataLen);
+
+    /** @brief API that gets descriptor identifiers data length
+     */
+    size_t getDescriptorDataLen(const FWDevIdRecord& data,
+                                const size_t applicableComponentsLen);
+
+    /** @brief API that gets pldm firmware update package header length
+     */
+    uint16_t getHdrLen();
+
+    /** @brief API that verifys package header checksum
+     */
+    bool verifyPkgHdrChecksum();
+
+    /** @brief API that validates package header data
+     */
+    inline bool validateHdrDataLen(const size_t bytesLeft,
+                                   const size_t nextDataSize);
+
+    /** @brief API that matches package header identifier
+     */
+    bool matchPkgHdrIdentifier(const uint8_t* packageHeaderIdentifier);
+
+    /** @brief API that advance package header iterator
+     */
+    bool advanceHdrItr(const size_t dataSize, const size_t nextDataSize);
+
+    /** @brief API that process a postion PLDM firmware update package header
+     */
+    bool processPkgHdrInfo();
+
+    /** @brief API that process device identification info in the pldm package
+     * header
+     */
+    bool processDevIdentificationInfo();
+
+    /** @brief API that process component data from PLDM firmware update package
+     * header
+     */
+    bool processCompImgInfo();
+
+    /** @brief API that copies package header info to firmware update properties
+     * map.
+     */
+    void copyPkgHdrInfoToMap(const struct PLDMPkgHeaderInfo* headerInfo,
+                             const std::string& pkgVersionString);
+
+    /** @brief API that copies device identification info to firmware update
+     * properties map.
+     */
+    void copyDevIdentificationInfoToMap(
+        const uint8_t deviceIDRecord, const uint16_t initialDescriptorType,
+        const FWDevIdRecord* devIdentificationInfo,
+        const std::vector<uint8_t>& applicableComponents,
+        const std::string& compImgSetVerStr,
+        const std::vector<uint8_t>& fwDevPkgData,
+        DescriptorsMap& pkgDescriptorRecords);
+
+    /** @brief API that copies component data to firmware update properties map.
+     */
+    void copyCompImgInfoToMap(const uint16_t count, const CompImgInfo* compInfo,
+                              const std::string& compVerStr);
+
+    std::streamoff pldmImgSize;
+    std::ifstream pldmImg;
+    uint16_t pkgHdrLen = 0;
+    std::vector<uint8_t> hdrData;
+    std::vector<uint8_t>::iterator hdrItr;
+    uint8_t pkgVersionStringLen = 0;
+    uint16_t compBitmapBitLength = 0;
+    uint16_t fwDevPkgDataLen = 0;
+    FWUProperties pkgFWUProperties;
+    DevIDRecordsMap pkgDevIDRecords;
+    CompPropertiesMap pkgCompProperties;
 };
 } // namespace fwu
 } // namespace pldm

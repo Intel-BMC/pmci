@@ -21,17 +21,22 @@
 #include <phosphor-logging/log.hpp>
 #include <xyz/openbmc_project/PLDM/FWU/FWUBase/server.hpp>
 
+#include "utils.h"
+
 namespace pldm
 {
 namespace fwu
 {
 // map that holds the properties of all terminus
 std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
-// map that holds the general properties of a terminus
-FWUProperties fwuProperties;
+
+const std::array<uint8_t, pkgHeaderIdentifierSize> pkgHdrIdentifier = {
+    0xF0, 0x18, 0x87, 0x8C, 0xCB, 0x7D, 0x49, 0x43,
+    0x98, 0x00, 0xA0, 0x2F, 0x05, 0x9A, 0xCA, 0x02};
 
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
+std::unique_ptr<PLDMImg> pldmImg = nullptr;
 
 void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
                          const bool /*tagOwner*/,
@@ -68,9 +73,8 @@ bool deleteFWDevice(const pldm_tid_t tid)
 }
 
 template <typename T>
-static void
-    processDescriptor(const DescriptorHeader& header, const T& data,
-                      std::map<std::string, FWUVariantType>& descriptorData)
+static void processDescriptor(const DescriptorHeader& header, const T& data,
+                              DescriptorsMap& descriptorData)
 
 {
     std::string value;
@@ -115,19 +119,18 @@ static void
     }
 }
 
-static void
-    processDescriptor(const DescriptorHeader& /*header*/,
-                      const std::vector<uint8_t>& /*data*/,
-                      std::map<std::string, FWUVariantType>& /*descriptorData*/)
+static void processDescriptor(const DescriptorHeader& /*header*/,
+                              const std::vector<uint8_t>& /*data*/,
+                              DescriptorsMap& /*descriptorData*/)
 {
-
     // TODO process non-standard descriptor sizes(Eg: PnP 3 byes) and bigger
     // sizes(Eg: UUID 16 bytes)
 }
 
-static void
-    unpackDescriptors(const uint8_t count, const std::vector<uint8_t>& data,
-                      std::map<std::string, FWUVariantType>& descriptorData)
+static void unpackDescriptors(const uint8_t count,
+                              const std::vector<uint8_t>& data,
+                              uint16_t& initialDescriptorType,
+                              DescriptorsMap& descriptorData)
 {
     size_t found = 0;
     auto it = std::begin(data);
@@ -155,7 +158,10 @@ static void
                 "Invalid descriptor data size");
             break;
         }
-
+        if (!found)
+        {
+            initialDescriptorType = static_cast<uint16_t>(hdr->type);
+        }
         // Unpack data
         if (hdr->size == sizeof(uint8_t))
         {
@@ -221,11 +227,8 @@ int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
             phosphor::logging::entry("TID=%d", tid));
         return PLDM_ERROR;
     }
-
     auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
-
     size_t payloadLen = pldmResp.size() - hdrSize;
-
     uint8_t completionCode = PLDM_SUCCESS;
     uint32_t deviceIdentifiersLen = 0;
     uint8_t descriptorCount = 0;
@@ -251,8 +254,8 @@ int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
         return retVal;
     }
 
-    unpackDescriptors(descriptorCount, descriptorDataVect, fwuProperties);
-
+    unpackDescriptors(descriptorCount, descriptorDataVect,
+                      initialDescriptorType, descriptors);
     return PLDM_SUCCESS;
 }
 
@@ -404,13 +407,6 @@ int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
             phosphor::logging::entry("TID=%d", tid));
         return PLDM_ERROR;
     }
-
-    if (pldmResp.size() < hdrSize)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: Response lenght is invalid");
-        return PLDM_ERROR_INVALID_LENGTH;
-    }
     auto respMsg = reinterpret_cast<pldm_msg*>(pldmResp.data());
     size_t payloadLen = pldmResp.size() - hdrSize;
 
@@ -443,7 +439,7 @@ int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
     if (pldmResp.size() < compDataOffset)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: Response lenght is invalid");
+            "GetFirmwareParameters: Response length is invalid");
         return PLDM_ERROR_INVALID_LENGTH;
     }
 
@@ -470,9 +466,38 @@ static void initializeFWUBase()
     auto objServer = getObjServer();
     auto fwuBaseIface = objServer->add_interface(objPath, FWUBase::interface);
     fwuBaseIface->register_method(
-        "StartFWUpdate", []([[maybe_unused]] std::string filePath) {
+        "StartFWUpdate",
+        [](const boost::asio::yield_context yield, const std::string filePath) {
+            int rc = -1;
+            if (pldmImg)
+            {
+                return rc;
+            }
             phosphor::logging::log<phosphor::logging::level::INFO>(
                 "StartFWUpdate is called");
+            try
+            {
+                pldmImg = std::make_unique<PLDMImg>(filePath);
+                if (!pldmImg->processPkgHdr())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "processPkgHdr: Failed");
+                }
+                else
+                {
+                    rc = 0;
+                }
+            }
+            catch (const std::exception&)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to process pldm image",
+                    phosphor::logging::entry("PLDM_IMAGE=%s",
+                                             filePath.c_str()));
+            }
+            pldmImg->runPkgUpdate(yield);
+            pldmImg = nullptr;
+            return rc;
         });
     fwuBaseIface->initialize();
     fwuBaseInitialized = true;
@@ -498,8 +523,421 @@ std::optional<FDProperties>
             "Failed to run GetFirmwareParameters command");
         return std::nullopt;
     }
-    FDProperties fdProperties(fwuProperties, compPropertiesMap);
+    FDProperties fdProperties =
+        std::make_tuple(fwuProperties, descriptors, compPropertiesMap);
     return fdProperties;
+}
+
+PLDMImg::PLDMImg(const std::string& pldmImgPath)
+{
+    pldmImg.open(pldmImgPath, std::ios::in | std::ios::binary | std::ios::ate);
+    if (!pldmImg.is_open())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to open pldm image");
+        throw std::errc::no_such_file_or_directory;
+    }
+    pldmImg.seekg(0, pldmImg.end);
+    pldmImgSize = pldmImg.tellg();
+    pldmImg.seekg(0, pldmImg.beg);
+}
+
+PLDMImg::~PLDMImg()
+{
+    pldmImg.close();
+}
+
+bool PLDMImg::readData(const size_t startAddr, std::vector<uint8_t>& data,
+                       const size_t dataLen)
+{
+    if (startAddr + dataLen > pldmImgSize + PLDM_FWU_BASELINE_TRANSFER_SIZE)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "readData: invalid start address or bytes to read is out of range");
+        return false;
+    }
+    pldmImg.seekg(startAddr, pldmImg.beg);
+    if (!pldmImg.good())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "readData: Failed to seek on pldm image.");
+        return false;
+    }
+
+    pldmImg.read(reinterpret_cast<char*>(&data[0]), dataLen);
+    if (!pldmImg.good())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "readData: Failed to read on pldm image.");
+        return false;
+    }
+
+    return true;
+}
+
+uint16_t PLDMImg::getHdrLen()
+{
+    constexpr size_t pkgHdroffSet = 17;
+    pldmImg.seekg(pkgHdroffSet, pldmImg.beg);
+    if (!pldmImg.good())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "getHdrLen: Failed to seek on pldm image.");
+
+        return 0;
+    }
+    pldmImg.read(reinterpret_cast<char*>(&pkgHdrLen), sizeof(pkgHdrLen));
+    if (!pldmImg.good())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "getHdrLen: Failed to read on pldm image.");
+        return 0;
+    }
+    return htole16(pkgHdrLen);
+}
+
+bool PLDMImg::matchPkgHdrIdentifier(const uint8_t* packageHeaderIdentifier)
+{
+    if (!packageHeaderIdentifier)
+    {
+        return false;
+    }
+
+    if (std::memcmp(packageHeaderIdentifier, pkgHdrIdentifier.data(),
+                    pkgHdrIdentifier.size()))
+    {
+        return false;
+    }
+    // TODO: return version number from this api.
+    return true;
+}
+
+inline bool PLDMImg::validateHdrDataLen(const size_t bytesLeft,
+                                        const size_t nextDataSize)
+{
+    return !(bytesLeft < nextDataSize);
+}
+
+bool PLDMImg::advanceHdrItr(const size_t dataSize, const size_t nextDataSize)
+{
+    std::advance(hdrItr, dataSize);
+    size_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
+    return validateHdrDataLen(bytesLeft, nextDataSize);
+}
+
+void PLDMImg::copyPkgHdrInfoToMap(const struct PLDMPkgHeaderInfo* headerInfo,
+                                  const std::string& pkgVersionString)
+{
+    pkgFWUProperties["PkgHeaderFormatRevision"] =
+        headerInfo->pkgHeaderFormatRevision;
+    pkgFWUProperties["PkgHeaderSize"] = htole16(headerInfo->pkgHeaderSize);
+    compBitmapBitLength = htole16(headerInfo->compBitmapBitLength);
+    pkgFWUProperties["CompBitmapBitLength"] = compBitmapBitLength;
+    pkgFWUProperties["PkgVersionStringType"] = headerInfo->pkgVersionStringType;
+    pkgFWUProperties["PkgVersionStringLen"] = headerInfo->pkgVersionStringLen;
+    pkgFWUProperties["PkgVersionString"] = pkgVersionString;
+}
+
+bool PLDMImg::processPkgHdrInfo()
+{
+    hdrItr = std::begin(hdrData);
+    if (hdrItr == std::end(hdrData))
+    {
+        return false;
+    }
+    size_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
+    if (bytesLeft < sizeof(PLDMPkgHeaderInfo))
+    {
+        return false;
+    }
+    PLDMPkgHeaderInfo* headerInfo =
+        reinterpret_cast<PLDMPkgHeaderInfo*>(&*hdrItr);
+
+    if (!matchPkgHdrIdentifier(headerInfo->packageHeaderIdentifier))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "packageHeaderIdentifier not matched");
+        return false;
+    }
+
+    if (!advanceHdrItr(sizeof(PLDMPkgHeaderInfo),
+                       static_cast<size_t>(headerInfo->pkgVersionStringLen)))
+    {
+        return false;
+    }
+    pkgVersionStringLen = headerInfo->pkgVersionStringLen;
+    std::string pkgVersionString(hdrItr,
+                                 hdrItr + headerInfo->pkgVersionStringLen);
+    copyPkgHdrInfoToMap(headerInfo, pkgVersionString);
+    return true;
+}
+
+int PLDMImg::runPkgUpdate(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO run firmware update for all matched terminus.
+    return PLDM_SUCCESS;
+}
+
+bool PLDMImg::verifyPkgHdrChecksum()
+{
+    constexpr size_t pkgHdrChecksumSize = 4;
+    uint32_t pkgHdrChecksum = 0;
+    std::vector<uint8_t> checksum(pkgHdrChecksumSize);
+
+    if (!readData(pkgHdrLen - pkgHdrChecksumSize, checksum, pkgHdrChecksumSize))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "failed to read pkgHdrChecksum");
+        return false;
+    }
+    pkgHdrChecksum = *reinterpret_cast<uint32_t*>(checksum.data());
+
+    if (pkgHdrChecksum !=
+        crc32(hdrData.data(), hdrData.size() - pkgHdrChecksumSize))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "verifyPkgHdrChecksum: checksum not macthed");
+        return false;
+    }
+    return true;
+}
+
+bool PLDMImg::processPkgHdr()
+{
+    constexpr size_t minPkgHeaderLen =
+        sizeof(PLDMPkgHeaderInfo) + sizeof(FWDevIdRecord) + sizeof(CompImgInfo);
+    pkgHdrLen = getHdrLen();
+    assert(pkgHdrLen != minPkgHeaderLen);
+    hdrData.resize(pkgHdrLen);
+
+    if (!readData(0, hdrData, pkgHdrLen))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("read failed ");
+        return false;
+    }
+
+    if (!verifyPkgHdrChecksum())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "verifyPkgHdrChecksum: Failed");
+        return false;
+    }
+
+    if (!processPkgHdrInfo())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "processPkgHdrInfo: Failed");
+        return false;
+    }
+
+    if (!processDevIdentificationInfo())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "processDevIdentificationInfo: Failed");
+        return false;
+    }
+    if (!processCompImgInfo())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "processCompImgInfo: Failed");
+        return false;
+    }
+    return true;
+}
+
+bool PLDMImg::processCompImgInfo()
+{
+    uint16_t compCount = 0;
+    uint16_t found = 0;
+
+    if (!advanceHdrItr(0, sizeof(compCount)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "no bytes left for deviceIDRecordCount");
+        return false;
+    }
+    compCount = *reinterpret_cast<const uint16_t*>(&*hdrItr);
+    std::advance(hdrItr, sizeof(compCount));
+
+    while (hdrItr < std::end(hdrData) && found != compCount)
+    {
+        size_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
+        if (bytesLeft <= sizeof(CompImgInfo))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for CompImgInfo");
+            break;
+        }
+        const auto compInfo = reinterpret_cast<const CompImgInfo*>(&*hdrItr);
+
+        if (!advanceHdrItr(sizeof(CompImgInfo), compInfo->compVerStrLen))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for compVerStr");
+            break;
+        }
+        std::string compVerStr(hdrItr, hdrItr + compInfo->compVerStrLen);
+        std::advance(hdrItr, compInfo->compVerStrLen);
+        copyCompImgInfoToMap(found, compInfo, compVerStr);
+        found++;
+    }
+    if (found != compCount)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Component count not matched",
+            phosphor::logging::entry("ACTUAL_COMP_COUNT=%d", found),
+            phosphor::logging::entry("EXPECTED_COMP_COUNT=%d", compCount));
+        return false;
+    }
+
+    return true;
+}
+
+bool PLDMImg::processDevIdentificationInfo()
+{
+    uint8_t deviceIDRecordCount = 0;
+    if (!advanceHdrItr(pkgVersionStringLen, sizeof(deviceIDRecordCount)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "no bytes left for deviceIDRecordCount");
+        return false;
+    }
+
+    deviceIDRecordCount = *hdrItr;
+    uint8_t found = 0;
+    constexpr size_t compBitmapBitLengthMultiplier = 8;
+    std::advance(hdrItr, sizeof(deviceIDRecordCount));
+
+    while (hdrItr < std::end(hdrData) && found < deviceIDRecordCount)
+    {
+        size_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
+        if (bytesLeft < sizeof(FWDevIdRecord))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for FWDevIdRecord");
+            break;
+        }
+        FWDevIdRecord* devIdentificationInfo =
+            reinterpret_cast<FWDevIdRecord*>(&*hdrItr);
+        size_t applicableComponentsLen =
+            compBitmapBitLength / compBitmapBitLengthMultiplier;
+        if (!advanceHdrItr(sizeof(FWDevIdRecord), applicableComponentsLen))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for applicableComponentsLen");
+            break;
+        }
+
+        std::vector<uint8_t> applicableComponents(
+            hdrItr, hdrItr + applicableComponentsLen);
+
+        if (!advanceHdrItr(applicableComponentsLen,
+                           devIdentificationInfo->comImgSetVerStrLen))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for comImgSetVerStr");
+            break;
+        }
+        std::string compImgSetVerStr(
+            hdrItr, hdrItr + devIdentificationInfo->comImgSetVerStrLen);
+        size_t descriptorDataLen = getDescriptorDataLen(
+            *devIdentificationInfo, applicableComponentsLen);
+
+        if (!advanceHdrItr(compImgSetVerStr.size(), descriptorDataLen))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for descriptorData");
+            break;
+        }
+        std::vector<uint8_t> descriptorData(hdrItr, hdrItr + descriptorDataLen);
+        uint16_t initialDescriptorType;
+        DescriptorsMap pkgDescriptorRecords;
+        unpackDescriptors(devIdentificationInfo->descriptorCount,
+                          descriptorData, initialDescriptorType,
+                          pkgDescriptorRecords);
+        // TODO match the descriptors from the query device identifiers info.
+        fwDevPkgDataLen = htole16(devIdentificationInfo->fwDevPkgDataLen);
+
+        if (!advanceHdrItr(descriptorData.size(), fwDevPkgDataLen))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "no bytes left for fwDevPkgData");
+            break;
+        }
+        std::vector<uint8_t> fwDevPkgData(hdrItr, hdrItr + fwDevPkgDataLen);
+        std::advance(hdrItr, fwDevPkgDataLen);
+        copyDevIdentificationInfoToMap(found, initialDescriptorType,
+                                       devIdentificationInfo,
+                                       applicableComponents, compImgSetVerStr,
+                                       fwDevPkgData, pkgDescriptorRecords);
+        found++;
+    }
+    if (found != deviceIDRecordCount)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Descriptor count not matched",
+            phosphor::logging::entry("ACTUAL_DEV_ID_RECORD_COUNT=%d", found),
+            phosphor::logging::entry("EXPECTED_DEV_ID_RECORD_COUNT=%d",
+                                     deviceIDRecordCount));
+        return false;
+    }
+
+    return true;
+}
+
+void PLDMImg::copyDevIdentificationInfoToMap(
+    const uint8_t deviceIDRecord, const uint16_t initialDescriptorType,
+    const FWDevIdRecord* devIdentificationInfo,
+    const std::vector<uint8_t>& applicableComponents,
+    const std::string& compImgSetVerStr,
+    const std::vector<uint8_t>& fwDevPkgData,
+    DescriptorsMap& pkgDescriptorRecords)
+{
+    FWUProperties devIdentificationProps;
+    devIdentificationProps["InitialDescriptorType"] = initialDescriptorType;
+    devIdentificationProps["DeviceIDRecordCount"] = deviceIDRecord;
+    devIdentificationProps["RecordLength"] =
+        htole16(devIdentificationInfo->recordLength);
+    devIdentificationProps["DescriptorCount"] =
+        devIdentificationInfo->descriptorCount;
+    devIdentificationProps["DeviceUpdateOptionFlags"] =
+        htole32(devIdentificationInfo->deviceUpdateOptionFlags);
+    devIdentificationProps["ComImgSetVerStrType"] =
+        devIdentificationInfo->comImgSetVerStrType;
+    devIdentificationProps["ComImgSetVerStrLen"] =
+        devIdentificationInfo->comImgSetVerStrLen;
+    devIdentificationProps["FWDevPkgDataLen"] =
+        htole16(devIdentificationInfo->fwDevPkgDataLen);
+    devIdentificationProps["ApplicableComponents"] = applicableComponents;
+    devIdentificationProps["CompImgSetVerStr"] = compImgSetVerStr;
+    devIdentificationProps["FirmwareDevicePackageData"] = fwDevPkgData;
+    pkgDevIDRecords[deviceIDRecord] =
+        std::make_pair(devIdentificationProps, pkgDescriptorRecords);
+}
+void PLDMImg::copyCompImgInfoToMap(const uint16_t count,
+                                   const CompImgInfo* compInfo,
+                                   const std::string& compVerStr)
+{
+    std::map<std::string, FWUVariantType> properties;
+    properties["CompClassification"] = htole16(compInfo->compClassification);
+    properties["CompIdentifier"] = htole16(compInfo->compIdentifier);
+    properties["CompComparisonStamp"] = htole32(compInfo->compComparisonStamp);
+    properties["CompOptions"] = htole16(compInfo->compOptions);
+    properties["RequestedCompActivationMethod"] =
+        htole16(compInfo->requestedCompActivationMethod);
+    properties["CompLocationOffset"] = htole32(compInfo->compLocationOffset);
+    properties["CompSize"] = htole32(compInfo->compSize);
+    properties["CmpVerStrType"] = compInfo->compVerStrType;
+    properties["CompVerStrLen"] = compInfo->compVerStrLen;
+    properties["CompVerStr"] = compVerStr;
+    pkgCompProperties[count] = properties;
+}
+size_t PLDMImg::getDescriptorDataLen(const FWDevIdRecord& data,
+                                     const size_t applicableComponentsLen)
+{
+    return (htole16(data.recordLength) - sizeof(FWDevIdRecord) -
+            applicableComponentsLen - data.comImgSetVerStrLen -
+            htole16(data.fwDevPkgDataLen));
 }
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
@@ -522,7 +960,6 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
         return false;
     }
 
-    fwuProperties.clear();
     return true;
 }
 } // namespace fwu
