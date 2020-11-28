@@ -1635,3 +1635,55 @@ int encode_set_numeric_sensor_enable_req(
 	request->sensor_event_message_enable = sensor_event_message_enable;
 	return PLDM_SUCCESS;
 }
+
+static bool is_state_sensor_op_field_valid(uint8_t sensor_operational_state,
+					   uint8_t event_message_enable)
+{
+	if ((event_message_enable > PLDM_ENABLE_EVENTS &&
+	     event_message_enable != PLDM_NO_CHANGE_EVENTS) ||
+	    sensor_operational_state > PLDM_SENSOR_UNAVAILABLE) {
+		return false;
+	}
+	return true;
+}
+
+int encode_set_state_sensor_enable_req(const uint8_t instance_id,
+				       const uint16_t sensor_id,
+				       const uint8_t composite_sensor_count,
+				       state_sensor_op_field *op_fields,
+				       struct pldm_msg *msg)
+{
+	uint8_t itr = 0;
+
+	if (msg == NULL || op_fields == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (composite_sensor_count < PLDM_COMPOSITE_EFFECTER_COUNT_MIN ||
+	    composite_sensor_count > PLDM_COMPOSITE_EFFECTER_COUNT_MAX) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	int rc =
+	    encode_pldm_header(instance_id, PLDM_PLATFORM,
+			       PLDM_SET_STATE_SENSOR_ENABLE, PLDM_REQUEST, msg);
+	if (rc != PLDM_SUCCESS) {
+		return rc;
+	}
+
+	struct pldm_set_state_sensor_enable_req *request =
+	    (struct pldm_set_state_sensor_enable_req *)msg->payload;
+	request->sensor_id = htole16(sensor_id);
+	request->composite_sensor_count = composite_sensor_count;
+
+	for (itr = 0; itr < composite_sensor_count; ++itr) {
+		if (!is_state_sensor_op_field_valid(
+			(op_fields + itr)->sensor_operational_state,
+			(op_fields + itr)->event_message_enable)) {
+			return PLDM_ERROR_INVALID_DATA;
+		}
+		memcpy(&request->op_field[itr], op_fields + itr,
+		       sizeof(state_sensor_op_field));
+	}
+	return PLDM_SUCCESS;
+}

@@ -2102,6 +2102,101 @@ TEST(SetNumericSensorEnable, testBadEncodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(SetStateSensorEnables, testGoodEncodeRequest)
+{
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t sensorID = 0x1123;
+    constexpr uint8_t compositeSensorCount = 2;
+    constexpr uint8_t sensorOperationalState = PLDM_SENSOR_UNAVAILABLE;
+    constexpr uint8_t sensorEventMessageEnable = PLDM_ENABLE_EVENTS;
+    state_sensor_op_field opField1 = {sensorOperationalState,
+                                      sensorEventMessageEnable};
+    std::array<state_sensor_op_field, 2> opFields = {opField1, opField1};
+    std::array<uint8_t,
+               hdrSize + sizeof(pldm_set_state_sensor_enable_req) -
+                   sizeof(state_sensor_op_field) +
+                   (sizeof(state_sensor_op_field) * compositeSensorCount)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+
+    auto rc = encode_set_state_sensor_enable_req(
+        instanceID, sensorID, compositeSensorCount, opFields.data(), msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_SET_STATE_SENSOR_ENABLE);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+
+    struct pldm_set_state_sensor_enable_req* sensorEnableReq =
+        reinterpret_cast<struct pldm_set_state_sensor_enable_req*>(
+            msg->payload);
+    state_sensor_op_field* opFieldsOut = sensorEnableReq->op_field;
+
+    EXPECT_EQ(sensorEnableReq->sensor_id, sensorID);
+    EXPECT_EQ(sensorEnableReq->composite_sensor_count, compositeSensorCount);
+    EXPECT_EQ(opFieldsOut[0].sensor_operational_state, sensorOperationalState);
+    EXPECT_EQ(opFieldsOut[0].event_message_enable, sensorEventMessageEnable);
+    EXPECT_EQ(opFieldsOut[1].sensor_operational_state, sensorOperationalState);
+    EXPECT_EQ(opFieldsOut[1].event_message_enable, sensorEventMessageEnable);
+}
+
+TEST(SetStateSensorEnables, testBadEncodeRequest)
+{
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t sensorID = 0x1123;
+    constexpr uint8_t compositeSensorCount = 2;
+    uint8_t sensorOperationalState = PLDM_SENSOR_UNAVAILABLE;
+    uint8_t sensorEventMessageEnable = PLDM_ENABLE_EVENTS;
+    state_sensor_op_field opField1 = {sensorOperationalState,
+                                      sensorEventMessageEnable};
+    state_sensor_op_field opField2 = {sensorOperationalState,
+                                      sensorEventMessageEnable};
+    std::array<state_sensor_op_field, 2> opFields = {opField1, opField2};
+    std::array<uint8_t,
+               hdrSize + sizeof(pldm_set_state_sensor_enable_req) -
+                   sizeof(state_sensor_op_field) +
+                   (sizeof(state_sensor_op_field) * compositeSensorCount)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+
+    int rc = encode_set_state_sensor_enable_req(
+        instanceID, sensorID, compositeSensorCount, opFields.data(), NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_set_state_sensor_enable_req(
+        instanceID, sensorID, PLDM_COMPOSITE_EFFECTER_COUNT_MAX + 1,
+        opFields.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    constexpr uint8_t compositeSensorCountInvalid = 0;
+    rc = encode_set_state_sensor_enable_req(instanceID, sensorID,
+                                            compositeSensorCountInvalid,
+                                            opFields.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    uint8_t sensorOperationalStateInvalid = PLDM_SENSOR_UNAVAILABLE + 1;
+    state_sensor_op_field opFieldInvalid1 = {sensorOperationalStateInvalid,
+                                             sensorEventMessageEnable};
+    std::array<state_sensor_op_field, 2> opFieldsInvalid = {opField1,
+                                                            opFieldInvalid1};
+    rc = encode_set_state_sensor_enable_req(instanceID, sensorID,
+                                            compositeSensorCount,
+                                            opFieldsInvalid.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    uint8_t sensorEventMessageEnableInvalid = PLDM_ENABLE_EVENTS + 1;
+    state_sensor_op_field opFieldInvalid2 = {sensorOperationalState,
+                                             sensorEventMessageEnableInvalid};
+    std::array<state_sensor_op_field, 2> opFieldsInvalid2 = {opField1,
+                                                             opFieldInvalid2};
+    rc = encode_set_state_sensor_enable_req(instanceID, sensorID,
+                                            compositeSensorCount,
+                                            opFieldsInvalid2.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);

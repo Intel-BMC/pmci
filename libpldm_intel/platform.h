@@ -55,6 +55,9 @@ extern "C" {
 #define PLDM_INVALID_EFFECTER_ID 0xFFFF
 #define PLDM_TID_RESERVED 0xFF
 
+#define PLDM_COMPOSITE_EFFECTER_COUNT_MIN 0x01
+#define PLDM_COMPOSITE_EFFECTER_COUNT_MAX 0x08
+
 enum pldm_pdr_repository_state {
 	PLDM_PDR_REPOSITORY_STATE_AVAILABLE,
 	PLDM_PDR_REPOSITORY_STATE_UPDATE_IN_PROGRESS,
@@ -106,6 +109,12 @@ enum pldm_sensor_event_message_enable {
 	PLDM_STATE_EVENTS_ONLY_ENABLED
 };
 
+enum pldm_state_event_message_enable {
+	PLDM_DISABLE_EVENTS,
+	PLDM_ENABLE_EVENTS,
+	PLDM_NO_CHANGE_EVENTS = 0xff
+};
+
 enum pldm_effecter_oper_state {
 	EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING,
 	EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING,
@@ -122,6 +131,7 @@ enum pldm_platform_commands {
 	PLDM_GET_TERMINUS_UID = 0x03,
 	PLDM_SET_NUMERIC_SENSOR_ENABLE = 0x10,
 	PLDM_GET_SENSOR_READING = 0x11,
+	PLDM_SET_STATE_SENSOR_ENABLE = 0x20,
 	PLDM_GET_STATE_SENSOR_READINGS = 0x21,
 	PLDM_SET_NUMERIC_EFFECTER_VALUE = 0x31,
 	PLDM_GET_NUMERIC_EFFECTER_VALUE = 0x32,
@@ -833,6 +843,25 @@ struct pldm_set_numeric_sensor_enable_req {
 	uint16_t sensor_id;
 	uint8_t sensor_operational_state;
 	uint8_t sensor_event_message_enable;
+} __attribute__((packed));
+
+/** @struct pldm_state_sensor_op_field
+ *
+ *  Structure representing PLDM SetStateSensorEnables opField format
+ */
+typedef struct pldm_state_sensor_op_field {
+	uint8_t sensor_operational_state;
+	uint8_t event_message_enable;
+} __attribute__((packed)) state_sensor_op_field;
+
+/** @struct pldm_set_state_sensor_enable_req
+ *
+ *  Structure representing PLDM SetStateSensorEnables request
+ */
+struct pldm_set_state_sensor_enable_req {
+	uint16_t sensor_id;
+	uint8_t composite_sensor_count;
+	state_sensor_op_field op_field[1];
 } __attribute__((packed));
 
 /** @struct pldm_get_sensor_reading_req
@@ -1701,6 +1730,25 @@ int encode_set_numeric_sensor_enable_req(
     const uint8_t instance_id, const uint16_t sensor_id,
     const uint8_t sensor_operational_state,
     const uint8_t sensor_event_message_enable, struct pldm_msg *msg);
+
+/** @brief Encode SetStateSensorEnables request
+ *
+ *  @param[in] instance_id - Message's instance id
+ *  @param[in] sensor_id - A handle that is used to identify and access the
+ *         sensor
+ *  @param[in] composite_sensor_count - Number of coposite sensors
+ *  @param[in] op_fields - SetStateSensorEnables opField - value:{{enabled,
+ * disabled, unavailable},{noChange, disableEvents, enableEvents,
+ * enableOpEventsOnly, enableStateEventsOnly}}
+ *  @param[out] msg - Encoded message
+ *
+ *  @return pldm_completion_codes
+ */
+int encode_set_state_sensor_enable_req(const uint8_t instance_id,
+				       const uint16_t sensor_id,
+				       const uint8_t composite_sensor_count,
+				       state_sensor_op_field *op_fields,
+				       struct pldm_msg *msg);
 
 #ifdef __cplusplus
 }
