@@ -41,11 +41,38 @@ class StateSensor
                 const std::shared_ptr<StateSensorPDR>& pdr);
 
     /** @brief Init StateSensor*/
-    bool StateSensorInit(boost::asio::yield_context& yield);
+    bool stateSensorInit(boost::asio::yield_context& yield);
+
+    /** @brief Read sensor value and update interfaces*/
+    bool populateSensorValue(boost::asio::yield_context& yield);
 
   private:
     /** @brief Enable/Disable sensor*/
     bool setStateSensorEnables(boost::asio::yield_context& yield);
+
+    /** @brief fetch the sensor value*/
+    bool getStateSensorReadings(boost::asio::yield_context& yield);
+
+    /** @brief Set initial D-Bus interfaces and properties*/
+    void setInitialProperties();
+
+    /** @brief Initialize D-Bus interfaces*/
+    void initializeInterface();
+
+    /** @brief Update the sensor functionality*/
+    void markFunctional(bool isFunctional);
+
+    /** @brief Update the sensor availability*/
+    void markAvailable(bool isAvailable);
+
+    /** @brief Increment the error count in case of failure*/
+    void incrementError();
+
+    /** @brief Update sensor state*/
+    void updateState(const uint8_t currentState, const uint8_t previousState);
+
+    /** @brief Handle sensor reading*/
+    void handleStateSensorReading(get_sensor_state_field& stateReading);
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
@@ -58,6 +85,22 @@ class StateSensor
 
     /** @brief Sensor PDR*/
     std::shared_ptr<StateSensorPDR> _pdr;
+
+    /** @brief Error counter*/
+    size_t errCount;
+
+    /** @brief Cache readings for later use*/
+    bool isAvailableReading = std::numeric_limits<bool>::min();
+    bool isFuntionalReading = std::numeric_limits<bool>::min();
+    uint8_t previousStateReading = std::numeric_limits<uint8_t>::max();
+    uint8_t currentStateReading = std::numeric_limits<uint8_t>::max();
+
+    /** @brief Sensor Interfaces*/
+    std::unique_ptr<sdbusplus::asio::dbus_interface> sensorInterface = nullptr;
+    std::unique_ptr<sdbusplus::asio::dbus_interface> availableInterface =
+        nullptr;
+    std::unique_ptr<sdbusplus::asio::dbus_interface> operationalInterface =
+        nullptr;
 };
 
 } // namespace platform
