@@ -967,9 +967,12 @@ static void populateStateSensor(DBusInterfacePtr& sensorIntf,
 void PDRManager::parseStateSensorPDR(std::vector<uint8_t>& pdrData)
 {
     // Without composite sensor support there is only one instance of sensor
-    // possible states
-    if (pdrData.size() <
-        sizeof(pldm_state_sensor_pdr) + sizeof(state_sensor_possible_states))
+    // possible states.
+    // pldm_state_sensor_pdr holds a `uint8 possible_states[1]` which points to
+    // state_sensor_possible_states. Subtract its size(1 byte) while calculating
+    // total size.
+    if (pdrData.size() < sizeof(pldm_state_sensor_pdr) - sizeof(uint8_t) +
+                             sizeof(state_sensor_possible_states))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "State Sensor PDR length invalid or sensor disabled",
@@ -997,6 +1000,49 @@ void PDRManager::parseStateSensorPDR(std::vector<uint8_t>& pdrData)
             phosphor::logging::entry("COMPOSITE_SENSOR_COUNT=%d",
                                      sensorPDR->composite_sensor_count));
     }
+
+    state_sensor_possible_states* possibleState =
+        reinterpret_cast<state_sensor_possible_states*>(
+            sensorPDR->possible_states);
+    LE16TOH(possibleState->state_set_id);
+
+    if (pdrData.size() < sizeof(pldm_state_sensor_pdr) - sizeof(uint8_t) +
+                             sizeof(state_sensor_possible_states) -
+                             sizeof(uint8_t) +
+                             possibleState->possible_states_size)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Invalid State Sensor PDR length",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+
+    PossibleStates possibleStates;
+    possibleStates.stateSetID = possibleState->state_set_id;
+    // Max possibleStateSize as per spec DSP0248 Table 81
+    constexpr uint8_t maxPossibleStatesSize = 0x20;
+    int position = 0;
+    for (uint8_t count = 0; count < possibleState->possible_states_size &&
+                            count < maxPossibleStatesSize;
+         count++)
+    {
+        for (uint8_t bits = 0; bits < 8; bits++)
+        {
+            if (possibleState->states[count].byte & (0x01 << bits))
+            {
+                possibleStates.possibleStateSetValues.emplace(position);
+            }
+            position++;
+        }
+    }
+
+    // Cache PDR for later use
+    std::shared_ptr<StateSensorPDR> stateSensorPDR =
+        std::make_shared<StateSensorPDR>();
+    stateSensorPDR->stateSensorData = *sensorPDR;
+    // TODO: Multiple state sets in case of composite state sensor
+    stateSensorPDR->possibleStates.emplace_back(std::move(possibleStates));
+    _stateSensorPDR.emplace(sensorID, std::move(stateSensorPDR));
 
     pldm_entity entity = {sensorPDR->entity_type, sensorPDR->entity_instance,
                           sensorPDR->container_id};
@@ -1052,8 +1098,8 @@ std::optional<DBusObjectPath>
     std::optional<DBusObjectPath> entityPath = getEntityObjectPath(entity);
     if (!entityPath)
     {
-        // Discard the effecter if there is no entity info matching with Entity
-        // Association PDR
+        // Discard the effecter if there is no entity info matching with
+        // Entity Association PDR
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Unable to find Entity Associated with Effecter ID",
             phosphor::logging::entry("TID=%d", _tid),
@@ -1126,8 +1172,8 @@ static void populateStateEffecter(DBusInterfacePtr& effecterIntf,
 
 void PDRManager::parseStateEffecterPDR(std::vector<uint8_t>& pdrData)
 {
-    // Without composite effecter support there is only one instance of effecter
-    // possible states
+    // Without composite effecter support there is only one instance of
+    // effecter possible states
     if (pdrData.size() < sizeof(pldm_state_effecter_pdr) +
                              sizeof(state_effecter_possible_states))
     {
@@ -1287,6 +1333,17 @@ std::optional<pldm_numeric_sensor_value_pdr>
 {
     auto iter = _numericSensorPDR.find(sensorID);
     if (iter != _numericSensorPDR.end())
+    {
+        return iter->second;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::shared_ptr<StateSensorPDR>>
+    PDRManager::getStateSensorPDR(const SensorID& sensorID)
+{
+    auto iter = _stateSensorPDR.find(sensorID);
+    if (iter != _stateSensorPDR.end())
     {
         return iter->second;
     }

@@ -57,6 +57,18 @@ struct EntityNode
     ContainedEntities containedEntities;
 };
 
+struct PossibleStates
+{
+    uint16_t stateSetID;
+    std::set<uint8_t> possibleStateSetValues;
+};
+
+struct StateSensorPDR
+{
+    pldm_state_sensor_pdr stateSensorData;
+    std::vector<PossibleStates> possibleStates;
+};
+
 class PDRManager
 {
   public:
@@ -80,6 +92,10 @@ class PDRManager
     /** @brief Get numeric sensor PDR*/
     std::optional<pldm_numeric_sensor_value_pdr>
         getNumericSensorPDR(const SensorID& sensorID);
+
+    /** @brief Get state sensor PDR*/
+    std::optional<std::shared_ptr<StateSensorPDR>>
+        getStateSensorPDR(const SensorID& sensorID);
 
   private:
     /** @brief fetch PDR Repository Info from terminus*/
@@ -225,6 +241,10 @@ class PDRManager
     std::map<FRURecordSetIdentifier,
              std::pair<DBusInterfacePtr, DBusObjectPath>>
         _fruRecordSetIntf;
+
+    /** @brief Holds State Sensor PDR */
+    std::unordered_map<SensorID, std::shared_ptr<StateSensorPDR>>
+        _stateSensorPDR;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
