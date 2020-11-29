@@ -66,7 +66,16 @@ void pollAllSensors(boost::asio::yield_context& yield)
              platformMC.sensorManagerMap)
         {
             sensorManager->populateSensorValue(yield);
-            // TODO: Read state sensor
+            if (!introduceDelayInPolling(yield))
+            {
+                isSensorPollRunning = false;
+                return;
+            }
+            isSensorPollRunning = true;
+        }
+        for (auto const& [sensorID, stateSensor] : platformMC.stateSensorMap)
+        {
+            stateSensor->populateSensorValue(yield);
             if (!introduceDelayInPolling(yield))
             {
                 isSensorPollRunning = false;
@@ -124,7 +133,40 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
                 phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
                 phosphor::logging::entry("TID=%d", tid));
         }
-        // TODO: Init state sensor
+
+        if (auto pdr = platformMC.pdrManager->getStateSensorPDR(sensorID))
+        {
+            std::unique_ptr<StateSensor> stateSensor;
+            try
+            {
+                stateSensor = std::make_unique<StateSensor>(tid, sensorID,
+                                                            sensorName, *pdr);
+            }
+            catch (const std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    e.what(),
+                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
+                    phosphor::logging::entry("TID=%d", tid));
+                continue;
+            }
+
+            if (!stateSensor->stateSensorInit(yield))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "State Sensor Init failed",
+                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
+                    phosphor::logging::entry("TID=%d", tid));
+                continue;
+            }
+
+            platformMC.stateSensorMap[sensorID] = std::move(stateSensor);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State Sensor Init Success",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
+                phosphor::logging::entry("TID=%d", tid));
+        }
     }
 }
 

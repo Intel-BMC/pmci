@@ -18,6 +18,7 @@
 #include "pdr_manager.hpp"
 #include "pldm.hpp"
 #include "sensor_manager.hpp"
+#include "state_sensor.hpp"
 
 #include "platform.h"
 
@@ -34,6 +35,7 @@ struct PlatformMonitoringControl
     std::unique_ptr<PDRManager> pdrManager;
     std::unordered_map<SensorID, std::shared_ptr<SensorManager>>
         sensorManagerMap;
+    std::unordered_map<SensorID, std::shared_ptr<StateSensor>> stateSensorMap;
     // TODO: Add effecter resources
 };
 
