@@ -45,6 +45,7 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/sensor_manager.cpp
                ${PROJECT_SOURCE_DIR}/src/sensor.cpp
                ${PROJECT_SOURCE_DIR}/src/thresholds.cpp
+               ${PROJECT_SOURCE_DIR}/src/state_sensor.cpp
                ${PROJECT_SOURCE_DIR}/src/pdr_utils.cpp
                ${PROJECT_SOURCE_DIR}/src/sdbus-asio.cpp
                ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
