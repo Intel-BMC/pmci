@@ -1206,7 +1206,10 @@ void PDRManager::parseStateEffecterPDR(std::vector<uint8_t>& pdrData)
 {
     // Without composite effecter support there is only one instance of
     // effecter possible states
-    if (pdrData.size() < sizeof(pldm_state_effecter_pdr) +
+    // pldm_state_effecter_pdr holds a `uint8 possible_states[1]` which points
+    // to state_effecter_possible_states. Subtract its size(1 byte) while
+    // calculating total size.
+    if (pdrData.size() < sizeof(pldm_state_effecter_pdr) - sizeof(uint8_t) +
                              sizeof(state_effecter_possible_states))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1233,6 +1236,48 @@ void PDRManager::parseStateEffecterPDR(std::vector<uint8_t>& pdrData)
             phosphor::logging::entry("TID=%d", _tid),
             phosphor::logging::entry("EFFECTER_ID=0x%x", effecterID));
     }
+
+    state_effecter_possible_states* possibleState =
+        reinterpret_cast<state_effecter_possible_states*>(
+            effecterPDR->possible_states);
+    LE16TOH(possibleState->state_set_id);
+
+    if (pdrData.size() < sizeof(pldm_state_effecter_pdr) - sizeof(uint8_t) +
+                             sizeof(state_effecter_possible_states) -
+                             sizeof(uint8_t) +
+                             possibleState->possible_states_size)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "State Effecter PDR length invalid",
+            phosphor::logging::entry("TID=%d", _tid));
+        return;
+    }
+
+    PossibleStates possibleStates;
+    possibleStates.stateSetID = possibleState->state_set_id;
+    constexpr uint8_t maxPossibleStatesSize = 0x20;
+    int position = 0;
+    for (uint8_t count = 0; count < possibleState->possible_states_size &&
+                            count < maxPossibleStatesSize;
+         count++)
+    {
+        for (size_t bits = 0; bits < 8; bits++)
+        {
+            if (possibleState->states[count].byte & (0x01 << bits))
+            {
+                possibleStates.possibleStateSetValues.emplace(position);
+            }
+            position++;
+        }
+    }
+
+    // Cache PDR for later use
+    std::shared_ptr<StateEffecterPDR> stateEffecterPDR =
+        std::make_shared<StateEffecterPDR>();
+    stateEffecterPDR->stateEffecterData = *effecterPDR;
+    // TODO: Multiple state sets in case of composite state effecter
+    stateEffecterPDR->possibleStates.emplace_back(std::move(possibleStates));
+    _stateEffecterPDR.emplace(effecterID, std::move(stateEffecterPDR));
 
     pldm_entity entity = {effecterPDR->entity_type,
                           effecterPDR->entity_instance,
@@ -1395,6 +1440,17 @@ std::optional<pldm_numeric_effecter_value_pdr>
         return iter->second;
     }
     return std::nullopt;
+}
+
+std::shared_ptr<StateEffecterPDR>
+    PDRManager::getStateEffecterPDR(const SensorID& effecterID)
+{
+    auto iter = _stateEffecterPDR.find(effecterID);
+    if (iter != _stateEffecterPDR.end())
+    {
+        return iter->second;
+    }
+    return nullptr;
 }
 
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)

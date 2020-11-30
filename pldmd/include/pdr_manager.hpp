@@ -69,6 +69,12 @@ struct StateSensorPDR
     std::vector<PossibleStates> possibleStates;
 };
 
+struct StateEffecterPDR
+{
+    pldm_state_effecter_pdr stateEffecterData;
+    std::vector<PossibleStates> possibleStates;
+};
+
 class PDRManager
 {
   public:
@@ -106,6 +112,10 @@ class PDRManager
     /** @brief Get numeric effecter PDR*/
     std::optional<pldm_numeric_effecter_value_pdr>
         getNumericEffecterPDR(const EffecterID& effecterID);
+
+    /** @brief Get state effecter PDR*/
+    std::shared_ptr<StateEffecterPDR>
+        getStateEffecterPDR(const EffecterID& effecterID);
 
   private:
     /** @brief fetch PDR Repository Info from terminus*/
@@ -261,6 +271,10 @@ class PDRManager
 
     /** @brief D-Bus interfaces to dump PDR */
     DBusInterfacePtr pdrDumpInterface;
+
+    /** @brief Holds State Effecter PDR */
+    std::unordered_map<EffecterID, std::shared_ptr<StateEffecterPDR>>
+        _stateEffecterPDR;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
