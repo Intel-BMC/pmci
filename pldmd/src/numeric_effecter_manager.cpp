@@ -34,6 +34,16 @@ NumericEffecterManager::NumericEffecterManager(
 {
 }
 
+NumericEffecterManager::~NumericEffecterManager()
+{
+    auto objectServer = getObjServer();
+    if (setEffecterInterface)
+    {
+
+        objectServer->remove_interface(setEffecterInterface);
+    }
+}
+
 bool NumericEffecterManager::enableNumericEffecter(
     boost::asio::yield_context& yield)
 {
@@ -284,6 +294,146 @@ bool NumericEffecterManager::populateEffecterValue(
     return true;
 }
 
+static std::optional<size_t> getEffecterValueSize(const uint8_t dataSize)
+{
+    switch (dataSize)
+    {
+        case PLDM_EFFECTER_DATA_SIZE_UINT8:
+        case PLDM_EFFECTER_DATA_SIZE_SINT8:
+            return sizeof(uint8_t);
+        case PLDM_EFFECTER_DATA_SIZE_UINT16:
+        case PLDM_EFFECTER_DATA_SIZE_SINT16:
+            return sizeof(uint16_t);
+        case PLDM_EFFECTER_DATA_SIZE_UINT32:
+        case PLDM_EFFECTER_DATA_SIZE_SINT32:
+            return sizeof(uint32_t);
+        default:
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Effecter data size not recognized");
+            return std::nullopt;
+    }
+}
+
+bool NumericEffecterManager::setEffecter(boost::asio::yield_context& yield,
+                                         double& value)
+{
+    int rc;
+
+    std::optional<size_t> dataSize =
+        getEffecterValueSize(_pdr.effecter_data_size);
+    if (dataSize == std::nullopt)
+    {
+        return false;
+    }
+    // pldm_set_numeric_effecter_value_req already have a effecter_value[1]
+    // Hence subtract `sizeof(uint8_t)` from the whole size
+    size_t payloadLength = sizeof(pldm_set_numeric_effecter_value_req) -
+                           sizeof(uint8_t) + *dataSize;
+    std::vector<uint8_t> req(pldmMsgHdrSize + payloadLength);
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+
+    double effecterValue;
+    if (auto settableValue =
+            pdr::effecter::calculateSettableEffecterValue(_pdr, value))
+    {
+        effecterValue = *settableValue;
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Effecter value calculation failed");
+        return false;
+    }
+
+    rc = encode_set_numeric_effecter_value_req(
+        createInstanceId(_tid), _effecterID, _pdr.effecter_data_size,
+        reinterpret_cast<uint8_t*>(&effecterValue), reqMsg, payloadLength);
+    if (!validatePLDMReqEncode(_tid, rc, "SetNumericEffecterValue"))
+    {
+        return false;
+    }
+
+    std::vector<uint8_t> resp;
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
+                                req, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to send SetNumericEffecterValue request",
+            phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    uint8_t completionCode;
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+
+    rc = decode_cc_only_resp(rspMsg, resp.size() - pldmMsgHdrSize,
+                             &completionCode);
+    if (!validatePLDMRespDecode(_tid, rc, completionCode,
+                                "SetNumericEffecterValue"))
+    {
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "SetNumericEffecterValue success",
+        phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
+void NumericEffecterManager::registerSetEffecter()
+{
+    auto objServer = getObjServer();
+    setEffecterInterface = std::make_shared<sdbusplus::asio::dbus_interface>(
+        getSdBus(), _effecter->effecterInterface->get_object_path(),
+        "xyz.openbmc_project.Effecter.SetEffecter");
+    setEffecterInterface->register_method(
+        "SetNumericEffecter",
+        [this](boost::asio::yield_context yield, double effecterValue) {
+            if (!setEffecter(yield, effecterValue))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to SetNumericEffecterValue",
+                    phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                    phosphor::logging::entry("TID=%d", _tid));
+
+                throw sdbusplus::exception::SdBusError(
+                    -EINVAL, "SetNumericEffecterValue failed");
+            }
+
+            auto refreshEffecterInterfaces = [this]() {
+                boost::system::error_code ec;
+                boost::asio::steady_timer timer(*getIoContext());
+                timer.expires_after(boost::asio::chrono::seconds(
+                    static_cast<int64_t>(_pdr.transition_interval)));
+                timer.async_wait([this](const boost::system::error_code& e) {
+                    if (e)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "SetNumericEffecterValue: async_wait error");
+                    }
+                    boost::asio::spawn(
+                        *getIoContext(),
+                        [this](boost::asio::yield_context yieldCtx) {
+                            if (!populateEffecterValue(yieldCtx))
+                            {
+                                phosphor::logging::log<
+                                    phosphor::logging::level::ERR>(
+                                    "Read state effecter failed",
+                                    phosphor::logging::entry(
+                                        "EFFECTER_ID=0x%0X", _effecterID),
+                                    phosphor::logging::entry("TID=%d", _tid));
+                            }
+                        });
+                });
+            };
+
+            // Refresh the value on D-Bus
+            getIoContext()->post(refreshEffecterInterfaces);
+        });
+}
+
 bool NumericEffecterManager::effecterManagerInit(
     boost::asio::yield_context& yield)
 {
@@ -302,6 +452,8 @@ bool NumericEffecterManager::effecterManagerInit(
     {
         return false;
     }
+
+    registerSetEffecter();
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Effecter Manager Init Success",

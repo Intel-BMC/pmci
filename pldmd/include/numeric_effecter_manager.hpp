@@ -36,7 +36,7 @@ class NumericEffecterManager
     NumericEffecterManager(NumericEffecterManager&&) = delete;
     NumericEffecterManager& operator=(const NumericEffecterManager&) = delete;
     NumericEffecterManager& operator=(NumericEffecterManager&&) = delete;
-    ~NumericEffecterManager() = default;
+    ~NumericEffecterManager();
 
     NumericEffecterManager(const pldm_tid_t tid, const EffecterID effecterID,
                            const std::string& name,
@@ -63,6 +63,12 @@ class NumericEffecterManager
     /** @brief Read effecter value and update interfaces*/
     bool populateEffecterValue(boost::asio::yield_context& yield);
 
+    /** @brief Set effecter value*/
+    bool setEffecter(boost::asio::yield_context& yield, double& value);
+
+    /** @brief Register D-Bus interfaces for SetEffecterValue*/
+    void registerSetEffecter();
+
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
 
@@ -77,6 +83,9 @@ class NumericEffecterManager
 
     /** @brief Effecter*/
     std::shared_ptr<NumericEffecter> _effecter;
+
+    /** @brief Set Effecter interface*/
+    std::shared_ptr<sdbusplus::asio::dbus_interface> setEffecterInterface;
 };
 
 } // namespace platform
