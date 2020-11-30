@@ -1,96 +1,101 @@
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required(VERSION 3.5)
 
-include (ExternalProject)
+include(ExternalProject)
 
-externalproject_add (
-    Boost URL
-    https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.gz
-    URL_MD5 5f521b41b79bf8616582c4a8a2c10177
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/boost"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/boost"
-    CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh
-    BUILD_COMMAND cd <SOURCE_DIR> && ./b2 --exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR> --with-system --with-coroutine install
-    INSTALL_COMMAND ""
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  Boost
+  URL https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.gz
+  URL_MD5 5f521b41b79bf8616582c4a8a2c10177
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/boost"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/boost"
+  CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh
+  BUILD_COMMAND cd <SOURCE_DIR> && ./b2 --exec-prefix=<BINARY_DIR>
+                --prefix=<BINARY_DIR> --with-system --with-coroutine install
+  INSTALL_COMMAND ""
+  UPDATE_COMMAND "")
 
 # requires apt install autoconf-archive and autoconf
-externalproject_add (
-    sdbusplus-project
-    GIT_REPOSITORY https://github.com/openbmc/sdbusplus.git
-    GIT_TAG afe80cf2e5dc4aefe3b041adeb0230e61929bf12
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/sdbusplus"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/sdbusplus"
-    CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh &&
-    ./configure --enable-transaction -exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR>
-    BUILD_COMMAND cd <SOURCE_DIR> && make -j libsdbusplus.la
-    INSTALL_COMMAND cd <SOURCE_DIR> && make install
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  sdbusplus-project
+  GIT_REPOSITORY https://github.com/openbmc/sdbusplus.git
+  GIT_TAG afe80cf2e5dc4aefe3b041adeb0230e61929bf12
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/sdbusplus"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/sdbusplus"
+  CONFIGURE_COMMAND
+    cd <SOURCE_DIR> && ./bootstrap.sh && ./configure --enable-transaction
+    -exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR>
+  BUILD_COMMAND cd <SOURCE_DIR> && make -j libsdbusplus.la
+  INSTALL_COMMAND cd <SOURCE_DIR> && make install
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    nlohmann-json
-    GIT_REPOSITORY "https://github.com/nlohmann/json.git"
-    GIT_TAG ea60d40f4a60a47d3be9560d8f7bc37c163fe47b
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/nlohmann-json"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/nlohmann-json"
-    CONFIGURE_COMMAND "" BUILD_COMMAND ""
-    INSTALL_COMMAND cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  nlohmann-json
+  GIT_REPOSITORY "https://github.com/nlohmann/json.git"
+  GIT_TAG ea60d40f4a60a47d3be9560d8f7bc37c163fe47b
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/nlohmann-json"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/nlohmann-json"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    CLIUtils
-    GIT_REPOSITORY "https://github.com/CLIUtils/CLI11.git"
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/CLIUtils"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/CLIUtils"
-    CONFIGURE_COMMAND "" BUILD_COMMAND ""
-    INSTALL_COMMAND  cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  CLIUtils
+  GIT_REPOSITORY "https://github.com/CLIUtils/CLI11.git"
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/CLIUtils"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/CLIUtils"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    phosphor-logging
-    GIT_REPOSITORY "https://github.com/openbmc/phosphor-logging.git"
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/phosphor-logging"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/phosphor-logging"
-    CONFIGURE_COMMAND "" BUILD_COMMAND "" INSTALL_COMMAND "" UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  phosphor-logging
+  GIT_REPOSITORY "https://github.com/openbmc/phosphor-logging.git"
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/phosphor-logging"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/phosphor-logging"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND ""
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    libmctp-intel GIT_REPOSITORY
-    "ssh://git-amr-2.devtools.intel.com:29418/openbmc-libmctp"
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/libmctp"
-    INSTALL_DIR "${CMAKE_BINARY_DIR}/libs/libmctp"
-    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  libmctp-intel
+  GIT_REPOSITORY "ssh://git-amr-2.devtools.intel.com:29418/openbmc-libmctp"
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/libmctp"
+  INSTALL_DIR "${CMAKE_BINARY_DIR}/libs/libmctp"
+  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    gtest GIT_REPOSITORY "https://github.com/google/googletest.git"
-    GIT_TAG e3f0319d89f4cbf32993de595d984183b1a9fc57
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/googletest"
-    INSTALL_DIR "${CMAKE_BINARY_DIR}/libs/googletest"
-    CMAKE_ARGS -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
-    UPDATE_COMMAND ""
-)
+ExternalProject_Add(
+  gtest
+  GIT_REPOSITORY "https://github.com/google/googletest.git"
+  GIT_TAG e3f0319d89f4cbf32993de595d984183b1a9fc57
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/googletest"
+  INSTALL_DIR "${CMAKE_BINARY_DIR}/libs/googletest"
+  CMAKE_ARGS -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+  UPDATE_COMMAND "")
 
-externalproject_add (
-    phosphor-dbus-interfaces
-    GIT_REPOSITORY "https://github.com/openbmc/phosphor-dbus-interfaces.git"
-    GIT_TAG 4d01be9343158118a8d25cd7180991fc98755575
-    SOURCE_DIR "${CMAKE_BINARY_DIR}/src/phosphor-dbus-interfaces"
-    BINARY_DIR "${CMAKE_BINARY_DIR}/libs/phosphor-dbus-interfaces"
-    PATCH_COMMAND git fetch "https://gerrit.openbmc-project.xyz/openbmc/phosphor-dbus-interfaces" refs/changes/39/30139/13 && git cherry-pick -n FETCH_HEAD
-    CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh &&
-    export SDBUSPLUSPLUS=${CMAKE_BINARY_DIR}/src/sdbusplus/tools/sdbus++ &&
-    export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:"${CMAKE_BINARY_DIR}/src/sdbusplus" &&
-    export SDBUSPLUS_CFLAGS=-I${CMAKE_BINARY_DIR}/src/sdbusplus &&
-    export SDBUSPLUS_LIBS=-L${CMAKE_BINARY_DIR}/src/sdbusplus/.libs &&
-    ./configure  --exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR>
-    BUILD_COMMAND cd <SOURCE_DIR> && make
-    INSTALL_COMMAND cd <SOURCE_DIR> && make install
-    UPDATE_COMMAND ""
-)
-ExternalProject_Add_StepDependencies(phosphor-dbus-interfaces build  sdbusplus-project)
-ExternalProject_Add_StepDependencies(libmctp-intel build  gtest)
+ExternalProject_Add(
+  phosphor-dbus-interfaces
+  GIT_REPOSITORY "https://github.com/openbmc/phosphor-dbus-interfaces.git"
+  GIT_TAG 4d01be9343158118a8d25cd7180991fc98755575
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/phosphor-dbus-interfaces"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/phosphor-dbus-interfaces"
+  PATCH_COMMAND
+    git fetch
+    "https://gerrit.openbmc-project.xyz/openbmc/phosphor-dbus-interfaces"
+    refs/changes/39/30139/13 && git cherry-pick -n FETCH_HEAD
+  CONFIGURE_COMMAND
+    cd <SOURCE_DIR> && ./bootstrap.sh && export
+    SDBUSPLUSPLUS=${CMAKE_BINARY_DIR}/src/sdbusplus/tools/sdbus++ && export
+    PKG_CONFIG_PATH=$PKG_CONFIG_PATH:"${CMAKE_BINARY_DIR}/src/sdbusplus" &&
+    export SDBUSPLUS_CFLAGS=-I${CMAKE_BINARY_DIR}/src/sdbusplus && export
+    SDBUSPLUS_LIBS=-L${CMAKE_BINARY_DIR}/src/sdbusplus/.libs && ./configure
+    --exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR>
+  BUILD_COMMAND cd <SOURCE_DIR> && make
+  INSTALL_COMMAND cd <SOURCE_DIR> && make install
+  UPDATE_COMMAND "")
+ExternalProject_Add_StepDependencies(phosphor-dbus-interfaces build
+                                     sdbusplus-project)
+ExternalProject_Add_StepDependencies(libmctp-intel build gtest)
