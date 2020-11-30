@@ -1687,3 +1687,29 @@ int encode_set_state_sensor_enable_req(const uint8_t instance_id,
 	}
 	return PLDM_SUCCESS;
 }
+
+int encode_set_numeric_effecter_enable_req(
+    const uint8_t instance_id, const uint16_t effecter_id,
+    const uint8_t effecter_operational_state, struct pldm_msg *msg)
+{
+	if (msg == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (effecter_operational_state > PLDM_SENSOR_UNAVAILABLE) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	int rc = PLDM_SUCCESS;
+	if ((rc = encode_pldm_header(instance_id, PLDM_PLATFORM,
+				     PLDM_SET_NUMERIC_EFFECTER_ENABLE,
+				     PLDM_REQUEST, msg)) != PLDM_SUCCESS) {
+		return rc;
+	}
+
+	struct pldm_set_numeric_effecter_enable_req *request =
+	    (struct pldm_set_numeric_effecter_enable_req *)msg->payload;
+	request->effecter_id = htole16(effecter_id);
+	request->effecter_operational_state = effecter_operational_state;
+	return PLDM_SUCCESS;
+}

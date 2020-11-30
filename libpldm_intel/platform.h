@@ -133,6 +133,7 @@ enum pldm_platform_commands {
 	PLDM_GET_SENSOR_READING = 0x11,
 	PLDM_SET_STATE_SENSOR_ENABLE = 0x20,
 	PLDM_GET_STATE_SENSOR_READINGS = 0x21,
+	PLDM_SET_NUMERIC_EFFECTER_ENABLE = 0x30,
 	PLDM_SET_NUMERIC_EFFECTER_VALUE = 0x31,
 	PLDM_GET_NUMERIC_EFFECTER_VALUE = 0x32,
 	PLDM_SET_STATE_EFFECTER_STATES = 0x39,
@@ -843,6 +844,15 @@ struct pldm_set_numeric_sensor_enable_req {
 	uint16_t sensor_id;
 	uint8_t sensor_operational_state;
 	uint8_t sensor_event_message_enable;
+} __attribute__((packed));
+
+/** @struct pldm_set_numeric_effecter_enable_req
+ *
+ *  Structure representing PLDM SetNumericSensorEnable request
+ */
+struct pldm_set_numeric_effecter_enable_req {
+	uint16_t effecter_id;
+	uint8_t effecter_operational_state;
 } __attribute__((packed));
 
 /** @struct pldm_state_sensor_op_field
@@ -1749,6 +1759,20 @@ int encode_set_state_sensor_enable_req(const uint8_t instance_id,
 				       const uint8_t composite_sensor_count,
 				       state_sensor_op_field *op_fields,
 				       struct pldm_msg *msg);
+
+/** @brief Encode SetNumericEffecterEnable request
+ *
+ *	@param[in] instance_id - Message's instance id
+ *	@param[in] effecter_id - A handle that is used to identify and access
+ *the effecter
+ *	@param[in] effecter_operational_state - The state of the effecter itself
+ *	@param[out] msg - Response message
+ *
+ *	@return pldm_completion_codes
+ */
+int encode_set_numeric_effecter_enable_req(
+    const uint8_t instance_id, const uint16_t effecter_id,
+    const uint8_t effecter_operational_state, struct pldm_msg *msg);
 
 #ifdef __cplusplus
 }
