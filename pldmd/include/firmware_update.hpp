@@ -229,6 +229,11 @@ class PLDMImg
      */
     bool processDevIdentificationInfo();
 
+    /** @brief API that finds the matched terminus
+     */
+    bool findMatchedTerminus(const uint8_t devIdRecord,
+                             const DescriptorsMap& pkgDescriptors);
+
     /** @brief API that process component data from PLDM firmware update package
      * header
      */
@@ -264,9 +269,11 @@ class PLDMImg
     uint8_t pkgVersionStringLen = 0;
     uint16_t compBitmapBitLength = 0;
     uint16_t fwDevPkgDataLen = 0;
+
     FWUProperties pkgFWUProperties;
     DevIDRecordsMap pkgDevIDRecords;
     CompPropertiesMap pkgCompProperties;
+    std::vector<std::pair<uint8_t, pldm_tid_t>> matchedTermini;
 };
 } // namespace fwu
 } // namespace pldm

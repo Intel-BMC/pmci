@@ -714,7 +714,6 @@ PLDMImg::PLDMImg(const std::string& pldmImgPath)
 
 PLDMImg::~PLDMImg()
 {
-    pldmImg.close();
 }
 
 bool PLDMImg::readData(const size_t startAddr, std::vector<uint8_t>& data,
@@ -963,6 +962,34 @@ bool PLDMImg::processCompImgInfo()
     return true;
 }
 
+bool PLDMImg::findMatchedTerminus(const uint8_t devIdRecord,
+                                  const DescriptorsMap& pkgDescriptors)
+{
+    for (auto const& it : terminusFwuProperties)
+    {
+        DescriptorsMap fdDescriptors;
+        try
+        {
+            fdDescriptors = std::get<DescriptorsMap>(it.second);
+        }
+        catch (const std::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("findMatchedTerminus: Failed to get DescriptorsMap for "
+                 "devIdRecord: " +
+                 std::to_string(devIdRecord))
+                    .c_str());
+            return false;
+        }
+        if (pkgDescriptors.size() == fdDescriptors.size() &&
+            pkgDescriptors == fdDescriptors)
+        {
+            matchedTermini.emplace_back(std::make_pair(devIdRecord, it.first));
+        }
+    }
+    return !matchedTermini.empty();
+}
+
 bool PLDMImg::processDevIdentificationInfo()
 {
     uint8_t deviceIDRecordCount = 0;
@@ -974,14 +1001,15 @@ bool PLDMImg::processDevIdentificationInfo()
     }
 
     deviceIDRecordCount = *hdrItr;
-    uint8_t found = 0;
+    uint8_t foundDescriptorCount = 0;
     constexpr size_t compBitmapBitLengthMultiplier = 8;
     std::advance(hdrItr, sizeof(deviceIDRecordCount));
 
-    while (hdrItr < std::end(hdrData) && found < deviceIDRecordCount)
+    while (hdrItr < std::end(hdrData) &&
+           foundDescriptorCount < deviceIDRecordCount)
     {
-        size_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
-        if (bytesLeft < sizeof(FWDevIdRecord))
+        ssize_t bytesLeft = std::distance(hdrItr, std::end(hdrData));
+        if (bytesLeft < static_cast<ssize_t>(sizeof(FWDevIdRecord)))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "no bytes left for FWDevIdRecord");
@@ -1025,7 +1053,13 @@ bool PLDMImg::processDevIdentificationInfo()
         unpackDescriptors(devIdentificationInfo->descriptorCount,
                           descriptorData, initialDescriptorType,
                           pkgDescriptorRecords);
-        // TODO match the descriptors from the query device identifiers info.
+        if (!findMatchedTerminus(foundDescriptorCount, pkgDescriptorRecords))
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "processDevIdentificationInfo: descriptors not matched",
+                phosphor::logging::entry("DESCRIPTOR=%d",
+                                         foundDescriptorCount));
+        }
         fwDevPkgDataLen = htole16(devIdentificationInfo->fwDevPkgDataLen);
 
         if (!advanceHdrItr(descriptorData.size(), fwDevPkgDataLen))
@@ -1036,22 +1070,28 @@ bool PLDMImg::processDevIdentificationInfo()
         }
         std::vector<uint8_t> fwDevPkgData(hdrItr, hdrItr + fwDevPkgDataLen);
         std::advance(hdrItr, fwDevPkgDataLen);
-        copyDevIdentificationInfoToMap(found, initialDescriptorType,
-                                       devIdentificationInfo,
-                                       applicableComponents, compImgSetVerStr,
-                                       fwDevPkgData, pkgDescriptorRecords);
-        found++;
+        copyDevIdentificationInfoToMap(
+            foundDescriptorCount, initialDescriptorType, devIdentificationInfo,
+            applicableComponents, compImgSetVerStr, fwDevPkgData,
+            pkgDescriptorRecords);
+        foundDescriptorCount++;
     }
-    if (found != deviceIDRecordCount)
+    if (foundDescriptorCount != deviceIDRecordCount)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Descriptor count not matched",
-            phosphor::logging::entry("ACTUAL_DEV_ID_RECORD_COUNT=%d", found),
+            phosphor::logging::entry("ACTUAL_DEV_ID_RECORD_COUNT=%d",
+                                     foundDescriptorCount),
             phosphor::logging::entry("EXPECTED_DEV_ID_RECORD_COUNT=%d",
                                      deviceIDRecordCount));
         return false;
     }
-
+    if (!matchedTermini.size())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Descriptors not matched with descriptors in device ID records");
+        return false;
+    }
     return true;
 }
 
