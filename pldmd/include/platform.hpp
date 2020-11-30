@@ -15,6 +15,7 @@
  */
 #pragma once
 
+#include "numeric_effecter_manager.hpp"
 #include "pdr_manager.hpp"
 #include "pldm.hpp"
 #include "sensor_manager.hpp"
@@ -36,7 +37,10 @@ struct PlatformMonitoringControl
     std::unordered_map<SensorID, std::shared_ptr<SensorManager>>
         sensorManagerMap;
     std::unordered_map<SensorID, std::shared_ptr<StateSensor>> stateSensorMap;
-    // TODO: Add effecter resources
+    // TODO: Rename above maps as NumericSensors and StateSensors
+    std::unordered_map<EffecterID, std::shared_ptr<NumericEffecterManager>>
+        numericEffecters;
+    // TODO: Add state effecter resources
 };
 
 } // namespace platform

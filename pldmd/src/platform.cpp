@@ -168,6 +168,35 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
     }
 }
 
+void initEffecters(boost::asio::yield_context& yield, const pldm_tid_t tid)
+{
+    PlatformMonitoringControl& platformMC = platforms[tid];
+    std::unordered_map<EffecterID, std::string> effecterList =
+        platformMC.pdrManager->getEffecters();
+
+    for (auto const& [effecterID, effecterName] : effecterList)
+    {
+        if (auto pdr = platformMC.pdrManager->getNumericEffecterPDR(effecterID))
+        {
+            std::unique_ptr<NumericEffecterManager> numericEffecterManager =
+                std::make_unique<NumericEffecterManager>(tid, effecterID,
+                                                         effecterName, *pdr);
+            if (!numericEffecterManager->effecterManagerInit(yield))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Numeric Effecter Manager Init failed",
+                    phosphor::logging::entry("EFFECTER_ID=0x%0X", effecterID),
+                    phosphor::logging::entry("TID=%d", tid));
+                continue;
+            }
+
+            platformMC.numericEffecters[effecterID] =
+                std::move(numericEffecterManager);
+        }
+        // TODO: Add state effecters
+    }
+}
+
 bool initPDRs(boost::asio::yield_context& yield, const pldm_tid_t tid)
 {
     std::unique_ptr<PDRManager> pdrManager = std::make_unique<PDRManager>(tid);
@@ -202,6 +231,8 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     }
 
     initSensors(yield, tid);
+
+    initEffecters(yield, tid);
 
     initSensorPoll();
 

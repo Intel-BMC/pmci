@@ -1386,6 +1386,17 @@ std::optional<std::shared_ptr<StateSensorPDR>>
     return std::nullopt;
 }
 
+std::optional<pldm_numeric_effecter_value_pdr>
+    PDRManager::getNumericEffecterPDR(const EffecterID& effecterID)
+{
+    auto iter = _numericEffecterPDR.find(effecterID);
+    if (iter != _numericEffecterPDR.end())
+    {
+        return iter->second;
+    }
+    return std::nullopt;
+}
+
 bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
 {
     std::optional<pldm_pdr_repository_info> pdrInfo =

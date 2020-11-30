@@ -97,6 +97,16 @@ class PDRManager
     std::optional<std::shared_ptr<StateSensorPDR>>
         getStateSensorPDR(const SensorID& sensorID);
 
+    /** @brief Get Effecter list*/
+    std::unordered_map<EffecterID, std::string> getEffecters()
+    {
+        return _effecterAuxNames;
+    };
+
+    /** @brief Get numeric effecter PDR*/
+    std::optional<pldm_numeric_effecter_value_pdr>
+        getNumericEffecterPDR(const EffecterID& effecterID);
+
   private:
     /** @brief fetch PDR Repository Info from terminus*/
     std::optional<pldm_pdr_repository_info>
