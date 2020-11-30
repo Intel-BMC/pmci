@@ -136,6 +136,7 @@ enum pldm_platform_commands {
 	PLDM_SET_NUMERIC_EFFECTER_ENABLE = 0x30,
 	PLDM_SET_NUMERIC_EFFECTER_VALUE = 0x31,
 	PLDM_GET_NUMERIC_EFFECTER_VALUE = 0x32,
+	PLDM_SET_STATE_EFFECTER_ENABLE = 0x38,
 	PLDM_SET_STATE_EFFECTER_STATES = 0x39,
 	PLDM_GET_PDR_REPOSITORY_INFO = 0x50,
 	PLDM_GET_PDR = 0x51,
@@ -872,6 +873,25 @@ struct pldm_set_state_sensor_enable_req {
 	uint16_t sensor_id;
 	uint8_t composite_sensor_count;
 	state_sensor_op_field op_field[1];
+} __attribute__((packed));
+
+/** @struct pldm_state_effecter_op_field
+ *
+ *  Structure representing PLDM SetStateSensorEnables opField format
+ */
+typedef struct pldm_state_effecter_op_field {
+	uint8_t effecter_operational_state;
+	uint8_t event_message_enable;
+} __attribute__((packed)) state_effecter_op_field;
+
+/** @struct pldm_set_state_effecter_enable_req
+ *
+ *  Structure representing PLDM SetStateSensorEnables request
+ */
+struct pldm_set_state_effecter_enable_req {
+	uint16_t effecter_id;
+	uint8_t composite_effecter_count;
+	state_effecter_op_field op_field[1];
 } __attribute__((packed));
 
 /** @struct pldm_get_sensor_reading_req
@@ -1773,6 +1793,25 @@ int encode_set_state_sensor_enable_req(const uint8_t instance_id,
 int encode_set_numeric_effecter_enable_req(
     const uint8_t instance_id, const uint16_t effecter_id,
     const uint8_t effecter_operational_state, struct pldm_msg *msg);
+
+/** @brief Encode SetStateEffecterEnables request
+ *
+ *	@param[in] instance_id - Message's instance id
+ *	@param[in] effecter_id - A handle that is used to identify and access
+ *the effecter
+ *	@param[in] composite_effecter_count - Number of coposite effecters
+ *	@param[in] op_fields - SetStateEffecterEnables opField -
+ *value:{{enabled, disabled, unavailable},{noChange, disableEvents,
+ *enableEvents, enableOpEventsOnly, enableStateEventsOnly}}
+ *	@param[out] msg - Encoded message
+ *
+ *	@return pldm_completion_codes
+ */
+int encode_set_state_effecter_enable_req(const uint8_t instance_id,
+					 const uint16_t effecter_id,
+					 const uint8_t composite_effecter_count,
+					 state_effecter_op_field *op_fields,
+					 struct pldm_msg *msg);
 
 #ifdef __cplusplus
 }

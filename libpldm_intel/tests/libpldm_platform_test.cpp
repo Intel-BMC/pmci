@@ -2244,6 +2244,101 @@ TEST(SetNumericEffecterEnable, testBadEncodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(SetStateEffecterEnables, testGoodEncodeRequest)
+{
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t effecterID = 0x1123;
+    constexpr uint8_t compositeEffecterCount = 2;
+    constexpr uint8_t effecterOperationalState = EFFECTER_OPER_STATE_INTEST;
+    constexpr uint8_t effecterEventMessageEnable = PLDM_ENABLE_EVENTS;
+    state_effecter_op_field opField1 = {effecterOperationalState,
+                                        effecterEventMessageEnable};
+    state_effecter_op_field opField2 = {effecterOperationalState,
+                                        effecterEventMessageEnable};
+    std::array<state_effecter_op_field, 2> opFields = {opField1, opField2};
+    std::array<uint8_t,
+               hdrSize + sizeof(pldm_set_state_effecter_enable_req) -
+                   sizeof(state_effecter_op_field) +
+                   (sizeof(state_effecter_op_field) * compositeEffecterCount)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+
+    auto rc = encode_set_state_effecter_enable_req(
+        instanceID, effecterID, compositeEffecterCount, opFields.data(), msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_SET_STATE_EFFECTER_ENABLE);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+
+    struct pldm_set_state_effecter_enable_req* effecterEnableReq =
+        reinterpret_cast<struct pldm_set_state_effecter_enable_req*>(
+            msg->payload);
+    state_effecter_op_field* opFieldsOut = effecterEnableReq->op_field;
+
+    EXPECT_EQ(effecterEnableReq->effecter_id, effecterID);
+    EXPECT_EQ(effecterEnableReq->composite_effecter_count,
+              compositeEffecterCount);
+    EXPECT_EQ(opFieldsOut[0].effecter_operational_state,
+              effecterOperationalState);
+    EXPECT_EQ(opFieldsOut[0].event_message_enable, effecterEventMessageEnable);
+    EXPECT_EQ(opFieldsOut[1].effecter_operational_state,
+              effecterOperationalState);
+    EXPECT_EQ(opFieldsOut[1].event_message_enable, effecterEventMessageEnable);
+}
+
+TEST(SetStateEffecterEnables, testBadEncodeRequest)
+{
+    constexpr uint8_t instanceID = 0x0A;
+    constexpr uint16_t effecterID = 0x1123;
+    constexpr uint8_t compositeEffecterCount = 2;
+    uint8_t effecterOperationalState = EFFECTER_OPER_STATE_INTEST;
+    uint8_t effecterEventMessageEnable = PLDM_ENABLE_EVENTS;
+    state_effecter_op_field opField1 = {effecterOperationalState,
+                                        effecterEventMessageEnable};
+    state_effecter_op_field opField2 = {effecterOperationalState,
+                                        effecterEventMessageEnable};
+    std::array<state_effecter_op_field, 2> opFields = {opField1, opField2};
+    std::array<uint8_t,
+               hdrSize + sizeof(pldm_set_state_effecter_enable_req) -
+                   sizeof(state_effecter_op_field) +
+                   (sizeof(state_effecter_op_field) * compositeEffecterCount)>
+        reqData{};
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(reqData.data());
+
+    int rc = encode_set_state_effecter_enable_req(
+        instanceID, effecterID, compositeEffecterCount, opFields.data(), NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    constexpr uint8_t compositeEffecterCountInvalid = 0;
+    rc = encode_set_state_effecter_enable_req(instanceID, effecterID,
+                                              compositeEffecterCountInvalid,
+                                              opFields.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    uint8_t effecterOperationalStateInvalid = EFFECTER_OPER_STATE_INTEST + 1;
+    state_effecter_op_field opFieldInvalid1 = {effecterOperationalStateInvalid,
+                                               effecterEventMessageEnable};
+    std::array<state_effecter_op_field, 2> opFieldsInvalid = {opField1,
+                                                              opFieldInvalid1};
+    rc = encode_set_state_effecter_enable_req(instanceID, effecterID,
+                                              compositeEffecterCount,
+                                              opFieldsInvalid.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    uint8_t effecterEventMessageEnableInvalid = PLDM_ENABLE_EVENTS + 1;
+    state_effecter_op_field opFieldInvalid2 = {
+        effecterOperationalState, effecterEventMessageEnableInvalid};
+    std::array<state_effecter_op_field, 2> opFieldsInvalid2 = {opField1,
+                                                               opFieldInvalid2};
+    rc = encode_set_state_effecter_enable_req(instanceID, effecterID,
+                                              compositeEffecterCount,
+                                              opFieldsInvalid2.data(), msg);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
