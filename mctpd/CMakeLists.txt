@@ -129,7 +129,7 @@ if(${MCTPD_BUILD_UT})
   find_package(GTest REQUIRED CONFIG)
   target_link_libraries(
     test-mctpd
-    GTest::gtest
+    GTest::gtest_main
     GTest::gmock
     sdbusplus
     mctp_intel
