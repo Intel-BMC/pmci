@@ -25,8 +25,9 @@ class PCIeBinding : public MctpBinding
 {
   public:
     PCIeBinding() = delete;
-    PCIeBinding(std::shared_ptr<object_server>& objServer, std::string& objPath,
-                ConfigurationVariant& conf, boost::asio::io_context& ioc);
+    PCIeBinding(std::shared_ptr<object_server>& objServer,
+                const std::string& objPath, const PcieConfiguration& conf,
+                boost::asio::io_context& ioc);
     virtual ~PCIeBinding();
     virtual void initializeBinding() override;
 

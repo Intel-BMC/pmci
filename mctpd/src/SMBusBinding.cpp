@@ -203,9 +203,11 @@ std::optional<std::vector<uint8_t>>
 }
 
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
-                           std::string& objPath, ConfigurationVariant& conf,
+                           const std::string& objPath,
+                           const SMBusConfiguration& conf,
                            boost::asio::io_context& ioc) :
-    MctpBinding(objServer, objPath, conf, ioc),
+    MctpBinding(objServer, objPath, conf, ioc,
+                mctp_server::BindingTypes::MctpOverSmbus),
     smbusReceiverFd(ioc)
 {
     std::shared_ptr<dbus_interface> smbusInterface =
@@ -213,10 +215,17 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
 
     try
     {
-        this->arpMasterSupport =
-            std::get<SMBusConfiguration>(conf).arpMasterSupport;
-        this->bus = std::get<SMBusConfiguration>(conf).bus;
-        this->bmcSlaveAddr = std::get<SMBusConfiguration>(conf).bmcSlaveAddr;
+        arpMasterSupport = conf.arpMasterSupport;
+        bus = conf.bus;
+        bmcSlaveAddr = conf.bmcSlaveAddr;
+
+        // TODO: If we are not top most busowner, wait for top mostbus owner to
+        // issue EID Pool
+        if (conf.mode == mctp_server::BindingModeTypes::BusOwner)
+        {
+            initializeEidPool(conf.eidPool);
+        }
+
         registerProperty(smbusInterface, "ArpMasterSupport", arpMasterSupport);
         registerProperty(smbusInterface, "BusPath", bus);
         registerProperty(smbusInterface, "BmcSlaveAddress", bmcSlaveAddr);

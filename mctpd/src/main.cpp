@@ -122,9 +122,8 @@ static bool getField(const json& configuration, const std::string& fieldName,
     }
 }
 
-template <typename Configuration>
-static std::optional<SMBusConfiguration>
-    getSMBusConfiguration(const Configuration& map)
+template <typename T>
+static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
 {
     std::string physicalMediumID;
     std::string role;
@@ -202,9 +201,8 @@ static std::optional<SMBusConfiguration>
     return config;
 }
 
-template <typename Configuration>
-static std::optional<PcieConfiguration>
-    getPcieConfiguration(const Configuration& map)
+template <typename T>
+static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
 {
     std::string physicalMediumID;
     std::string role;
@@ -281,7 +279,7 @@ static ConfigurationMap
     return map;
 }
 
-static std::optional<std::pair<std::string, ConfigurationVariant>>
+static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfigurationFromEntityManager(const std::string& configurationName)
 {
     const std::string relativePath =
@@ -306,14 +304,22 @@ static std::optional<std::pair<std::string, ConfigurationVariant>>
         return std::nullopt;
     }
 
-    std::optional<ConfigurationVariant> configuration;
+    std::unique_ptr<Configuration> configuration;
     if (bindingType == "MctpSMBus")
     {
-        configuration = getSMBusConfiguration(map);
+        if (auto optConfig = getSMBusConfiguration(map))
+        {
+            configuration =
+                std::make_unique<SMBusConfiguration>(std::move(*optConfig));
+        }
     }
     else if (bindingType == "MctpPCIe")
     {
-        configuration = getPcieConfiguration(map);
+        if (auto optConfig = getPcieConfiguration(map))
+        {
+            configuration =
+                std::make_unique<PcieConfiguration>(std::move(*optConfig));
+        }
     }
     if (!configuration)
     {
@@ -323,10 +329,10 @@ static std::optional<std::pair<std::string, ConfigurationVariant>>
     const std::regex illegal_name_regex("[^A-Za-z0-9_.]");
     std::regex_replace(name.begin(), name.begin(), name.end(),
                        illegal_name_regex, "_");
-    return std::make_pair(name, std::move(configuration).value());
+    return std::make_pair(name, std::move(configuration));
 }
 
-static std::optional<std::pair<std::string, ConfigurationVariant>>
+static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfigurationFromFile(const std::string& configurationName)
 {
     std::ifstream jsonFile(configPath);
@@ -341,29 +347,36 @@ static std::optional<std::pair<std::string, ConfigurationVariant>>
         return std::nullopt;
     }
 
-    std::optional<ConfigurationVariant> configuration;
+    std::unique_ptr<Configuration> configuration;
     if (configurationName == "smbus")
     {
-        configuration = getSMBusConfiguration(jsonConfig.at("smbus"));
+        if (auto optConfig = getSMBusConfiguration(jsonConfig.at("smbus")))
+        {
+            configuration =
+                std::make_unique<SMBusConfiguration>(std::move(*optConfig));
+        }
     }
     else if (configurationName == "pcie")
     {
-        configuration = getPcieConfiguration(jsonConfig.at("pcie"));
+        if (auto optConfig = getPcieConfiguration(jsonConfig.at("pcie")))
+        {
+            configuration =
+                std::make_unique<PcieConfiguration>(std::move(*optConfig));
+        }
     }
     if (!configuration)
     {
         return std::nullopt;
     }
     return std::make_pair("MCTP-" + configurationName,
-                          std::move(configuration).value());
+                          std::move(configuration));
 }
 
-static std::optional<std::pair<std::string, ConfigurationVariant>>
+static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     getConfiguration(const std::string& configurationName)
 {
-    std::optional<std::pair<std::string, ConfigurationVariant>>
-        configurationPair =
-            getConfigurationFromEntityManager(configurationName);
+    auto configurationPair =
+        getConfigurationFromEntityManager(configurationName);
     if (!configurationPair)
     {
         configurationPair = getConfigurationFromFile(configurationName);
@@ -371,40 +384,34 @@ static std::optional<std::pair<std::string, ConfigurationVariant>>
     return configurationPair;
 }
 
-template <class... Types>
-struct overload : Types...
-{
-    using Types::operator()...;
-};
-
-template <class... Types>
-overload(Types...) -> overload<Types...>;
-
 std::unique_ptr<MctpBinding>
-    getBindingPtr(ConfigurationVariant& mctpdConfiguration,
+    getBindingPtr(const Configuration& configuration,
                   std::shared_ptr<object_server>& objectServer,
                   boost::asio::io_context& ioc)
 {
     std::string mctpBaseObj = "/xyz/openbmc_project/mctp";
-    return std::visit(
-        overload{[&mctpdConfiguration, &objectServer, &mctpBaseObj,
-                  &ioc](SMBusConfiguration&) -> std::unique_ptr<MctpBinding> {
-                     return std::make_unique<SMBusBinding>(
-                         objectServer, mctpBaseObj, mctpdConfiguration, ioc);
-                 },
-                 [&mctpdConfiguration, &objectServer, &mctpBaseObj,
-                  &ioc](PcieConfiguration&) -> std::unique_ptr<MctpBinding> {
-                     return std::make_unique<PCIeBinding>(
-                         objectServer, mctpBaseObj, mctpdConfiguration, ioc);
-                 }},
-        mctpdConfiguration);
+
+    if (auto smbusConfig =
+            dynamic_cast<const SMBusConfiguration*>(&configuration))
+    {
+        return std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
+                                              *smbusConfig, ioc);
+    }
+    else if (auto pcieConfig =
+                 dynamic_cast<const PcieConfiguration*>(&configuration))
+    {
+        return std::make_unique<PCIeBinding>(objectServer, mctpBaseObj,
+                                             *pcieConfig, ioc);
+    }
+
+    return nullptr;
 }
 
 int main(int argc, char* argv[])
 {
     CLI::App app("MCTP Daemon");
     std::string binding;
-    std::optional<std::pair<std::string, ConfigurationVariant>>
+    std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
         mctpdConfigurationPair;
 
     app.add_option("-b,--binding", binding,
@@ -447,7 +454,7 @@ int main(int argc, char* argv[])
     const std::string mctpServiceName = "xyz.openbmc_project." + mctpdName;
     conn->request_name(mctpServiceName.c_str());
 
-    auto bindingPtr = getBindingPtr(mctpdConfiguration, objectServer, ioc);
+    auto bindingPtr = getBindingPtr(*mctpdConfiguration, objectServer, ioc);
     try
     {
         bindingPtr->initializeBinding();

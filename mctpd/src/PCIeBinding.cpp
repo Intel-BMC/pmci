@@ -3,18 +3,20 @@
 #include <phosphor-logging/log.hpp>
 
 PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
-                         std::string& objPath, ConfigurationVariant& conf,
+                         const std::string& objPath,
+                         const PcieConfiguration& conf,
                          boost::asio::io_context& ioc) :
-    MctpBinding(objServer, objPath, conf, ioc),
+    MctpBinding(objServer, objPath, conf, ioc,
+                mctp_server::BindingTypes::MctpOverPcieVdm),
     streamMonitor(ioc), ueventMonitor(ioc),
-    getRoutingInterval(std::get<PcieConfiguration>(conf).getRoutingInterval),
+    getRoutingInterval(conf.getRoutingInterval),
     getRoutingTableTimer(ioc, getRoutingInterval)
 {
     pcieInterface = objServer->add_interface(objPath, pcie_binding::interface);
 
     try
     {
-        bdf = std::get<PcieConfiguration>(conf).bdf;
+        bdf = conf.bdf;
 
         if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
             discoveredFlag = pcie_binding::DiscoveryFlags::NotApplicable;

@@ -27,18 +27,15 @@ class MctpdBaseTest : public ::testing::Test
         mctp_server::BindingModeTypes mode, uint8_t defaultEid,
         std::set<uint8_t> eidPool, std::string busName)
     {
-        SMBusConfiguration smbusConfig;
-
         smbusConfig.mediumId = mediumId;
         smbusConfig.mode = mode;
         smbusConfig.defaultEid = defaultEid;
         smbusConfig.eidPool = eidPool;
         smbusConfig.bus = busName;
-        testConfiguration.emplace<SMBusConfiguration>(smbusConfig);
     }
     std::string mctpBaseObj = "/xyz/openbmc_project/mctp";
     std::shared_ptr<mctpd_mock::object_server_mock> objectServerMock;
-    ConfigurationVariant testConfiguration;
+    SMBusConfiguration smbusConfig;
 };
 
 /*
@@ -139,6 +136,6 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
     boost::asio::io_context ioc;
 
     std::unique_ptr<MctpBinding> bindingPtr = std::make_unique<SMBusBinding>(
-        objectServerMock, mctpBaseObj, testConfiguration, ioc);
+        objectServerMock, mctpBaseObj, smbusConfig, ioc);
     bindingPtr->initializeBinding();
 }

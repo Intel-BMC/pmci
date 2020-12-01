@@ -11,7 +11,7 @@ class SMBusBinding : public MctpBinding
   public:
     SMBusBinding() = delete;
     SMBusBinding(std::shared_ptr<object_server>& objServer,
-                 std::string& objPath, ConfigurationVariant& conf,
+                 const std::string& objPath, const SMBusConfiguration& conf,
                  boost::asio::io_context& ioc);
     virtual ~SMBusBinding();
     virtual void initializeBinding() override;

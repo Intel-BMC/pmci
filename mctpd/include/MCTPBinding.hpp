@@ -27,28 +27,33 @@ using mctp_msg_types =
 class SMBusBinding;
 class PCIeBinding;
 
-struct SMBusConfiguration
+struct Configuration
 {
     mctp_server::MctpPhysicalMediumIdentifiers mediumId;
     mctp_server::BindingModeTypes mode;
     uint8_t defaultEid;
+    unsigned int reqToRespTime;
+    uint8_t reqRetryCount;
+
+    virtual ~Configuration() = default;
+};
+
+struct SMBusConfiguration : Configuration
+{
     std::set<uint8_t> eidPool;
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
-    unsigned int reqToRespTime;
-    uint8_t reqRetryCount;
+
+    virtual ~SMBusConfiguration() = default;
 };
 
-struct PcieConfiguration
+struct PcieConfiguration : Configuration
 {
-    mctp_server::MctpPhysicalMediumIdentifiers mediumId;
-    mctp_server::BindingModeTypes mode;
-    uint8_t defaultEid;
     uint16_t bdf;
-    unsigned int reqToRespTime;
-    uint8_t reqRetryCount;
     uint8_t getRoutingInterval;
+
+    virtual ~PcieConfiguration() = default;
 };
 
 struct MsgTypes
@@ -96,9 +101,6 @@ enum class PacketState : uint8_t
     receivedResponse,
     noResponse
 };
-
-using ConfigurationVariant =
-    std::variant<SMBusConfiguration, PcieConfiguration>;
 
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
 
@@ -156,8 +158,9 @@ class MctpBinding
 {
   public:
     MctpBinding(std::shared_ptr<object_server>& objServer,
-                const std::string& objPath, ConfigurationVariant& conf,
-                boost::asio::io_context& ioc);
+                const std::string& objPath, const Configuration& conf,
+                boost::asio::io_context& ioc,
+                const mctp_server::BindingTypes bindingType);
     MctpBinding() = delete;
     virtual ~MctpBinding();
     virtual void initializeBinding() = 0;

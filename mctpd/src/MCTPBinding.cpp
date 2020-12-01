@@ -354,49 +354,23 @@ bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
 }
 
 MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
-                         const std::string& objPath, ConfigurationVariant& conf,
-                         boost::asio::io_context& ioc) :
+                         const std::string& objPath, const Configuration& conf,
+                         boost::asio::io_context& ioc,
+                         const mctp_server::BindingTypes bindingType) :
     io(ioc),
-    objectServer(objServer), ctrlTxTimer(io)
+    bindingID(bindingType), objectServer(objServer), ctrlTxTimer(io)
 {
     objServer->add_manager(objPath);
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
     try
     {
-        if (SMBusConfiguration* smbusConf =
-                std::get_if<SMBusConfiguration>(&conf))
-        {
-            ownEid = smbusConf->defaultEid;
-            bindingID = mctp_server::BindingTypes::MctpOverSmbus;
-            bindingMediumID = smbusConf->mediumId;
-            bindingModeType = smbusConf->mode;
-            ctrlTxRetryDelay = smbusConf->reqToRespTime;
-            ctrlTxRetryCount = smbusConf->reqRetryCount;
+        ownEid = conf.defaultEid;
+        bindingMediumID = conf.mediumId;
+        bindingModeType = conf.mode;
 
-            // TODO: Add bus owner interface.
-            // TODO: If we are not top most busowner, wait for top mostbus owner
-            // to issue EID Pool
-            if (smbusConf->mode == mctp_server::BindingModeTypes::BusOwner)
-            {
-                initializeEidPool(smbusConf->eidPool);
-            }
-        }
-        else if (PcieConfiguration* pcieConf =
-                     std::get_if<PcieConfiguration>(&conf))
-        {
-            ownEid = pcieConf->defaultEid;
-            bindingID = mctp_server::BindingTypes::MctpOverPcieVdm;
-            bindingMediumID = pcieConf->mediumId;
-            bindingModeType = pcieConf->mode;
-            ctrlTxRetryDelay = pcieConf->reqToRespTime;
-            ctrlTxRetryCount = pcieConf->reqRetryCount;
-        }
-        else
-        {
-            throw std::system_error(
-                std::make_error_code(std::errc::invalid_argument));
-        }
+        ctrlTxRetryDelay = conf.reqToRespTime;
+        ctrlTxRetryCount = conf.reqRetryCount;
 
         createUuid();
         registerProperty(mctpInterface, "Eid", ownEid);
