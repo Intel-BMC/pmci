@@ -40,6 +40,9 @@ class StateEffecter
                   const std::string& name,
                   const std::shared_ptr<StateEffecterPDR>& pdr);
 
+    /** @brief Init StateEffecter*/
+    bool stateEffecterInit(boost::asio::yield_context& yield);
+
   private:
     /** @brief Initialize initial D-Bus interfaces and properties*/
     void setInitialProperties();
@@ -58,6 +61,9 @@ class StateEffecter
 
     /** @brief Update effecter state*/
     void updateState(const uint8_t currentState, const uint8_t pendingState);
+
+    /** @brief  Enable effecter*/
+    bool enableStateEffecter(boost::asio::yield_context& yield);
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;

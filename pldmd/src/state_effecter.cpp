@@ -208,5 +208,93 @@ void StateEffecter::updateState(const uint8_t currentState,
     }
 }
 
+bool StateEffecter::enableStateEffecter(boost::asio::yield_context& yield)
+{
+    uint8_t effecterOpState;
+    switch (_pdr->stateEffecterData.effecter_init)
+    {
+        case PLDM_NO_INIT:
+            effecterOpState = EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING;
+            break;
+        case PLDM_USE_INIT_PDR:
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "State Effecter Initialization PDR not supported",
+                phosphor::logging::entry("TID=%d", _tid),
+                phosphor::logging::entry("EFFECTER_ID=%d", _effecterID));
+            return false;
+        case PLDM_ENABLE_EFFECTER:
+            effecterOpState = EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING;
+            break;
+        case PLDM_DISABLE_EFECTER:
+            effecterOpState = EFFECTER_OPER_STATE_DISABLED;
+            break;
+        default:
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Invalid effecterInit value in PDR",
+                phosphor::logging::entry("TID=%d", _tid),
+                phosphor::logging::entry("EFFECTER_ID=%d", _effecterID));
+            return false;
+    }
+
+    int rc;
+    // TODO: PLDM events and composite effecter supported
+    constexpr uint8_t compositeEffecterCount = 1;
+    std::array<state_effecter_op_field, compositeEffecterCount> opFields = {
+        {effecterOpState, PLDM_DISABLE_EVENTS}};
+    std::vector<uint8_t> req(pldmMsgHdrSize +
+                             sizeof(pldm_set_state_effecter_enable_req));
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+
+    rc = encode_set_state_effecter_enable_req(
+        createInstanceId(_tid), _effecterID, compositeEffecterCount,
+        opFields.data(), reqMsg);
+    if (!validatePLDMReqEncode(_tid, rc, "SetStateEffecterEnable"))
+    {
+        return false;
+    }
+
+    std::vector<uint8_t> resp;
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
+                                req, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to send SetStateEffecterEnable request",
+            phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    uint8_t completionCode;
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+
+    rc = decode_cc_only_resp(rspMsg, resp.size() - pldmMsgHdrSize,
+                             &completionCode);
+    if (!validatePLDMRespDecode(_tid, rc, completionCode,
+                                "SetStateEffecterEnable"))
+    {
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "SetStateEffecterEnable success",
+        phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
+bool StateEffecter::stateEffecterInit(boost::asio::yield_context& yield)
+{
+    if (!enableStateEffecter(yield))
+    {
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "State Effecter Init Success",
+        phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
 } // namespace platform
 } // namespace pldm
