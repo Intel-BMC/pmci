@@ -193,7 +193,23 @@ void initEffecters(boost::asio::yield_context& yield, const pldm_tid_t tid)
             platformMC.numericEffecters[effecterID] =
                 std::move(numericEffecterManager);
         }
-        // TODO: Add state effecters
+
+        if (auto pdr = platformMC.pdrManager->getStateEffecterPDR(effecterID))
+        {
+            std::unique_ptr<StateEffecter> stateEffecter =
+                std::make_unique<StateEffecter>(tid, effecterID, effecterName,
+                                                pdr);
+            if (!stateEffecter->stateEffecterInit(yield))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "State Effecter Init failed",
+                    phosphor::logging::entry("EFFECTER_ID=0x%0X", effecterID),
+                    phosphor::logging::entry("TID=%d", tid));
+                continue;
+            }
+
+            platformMC.stateEffecters[effecterID] = std::move(stateEffecter);
+        }
     }
 }
 

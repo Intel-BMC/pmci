@@ -19,6 +19,7 @@
 #include "pdr_manager.hpp"
 #include "pldm.hpp"
 #include "sensor_manager.hpp"
+#include "state_effecter.hpp"
 #include "state_sensor.hpp"
 
 #include "platform.h"
@@ -34,13 +35,14 @@ constexpr size_t commandRetryCount = 3;
 struct PlatformMonitoringControl
 {
     std::unique_ptr<PDRManager> pdrManager;
-    std::unordered_map<SensorID, std::shared_ptr<SensorManager>>
+    std::unordered_map<SensorID, std::unique_ptr<SensorManager>>
         sensorManagerMap;
-    std::unordered_map<SensorID, std::shared_ptr<StateSensor>> stateSensorMap;
+    std::unordered_map<SensorID, std::unique_ptr<StateSensor>> stateSensorMap;
     // TODO: Rename above maps as NumericSensors and StateSensors
-    std::unordered_map<EffecterID, std::shared_ptr<NumericEffecterManager>>
+    std::unordered_map<EffecterID, std::unique_ptr<NumericEffecterManager>>
         numericEffecters;
-    // TODO: Add state effecter resources
+    std::unordered_map<EffecterID, std::unique_ptr<StateEffecter>>
+        stateEffecters;
 };
 
 } // namespace platform
