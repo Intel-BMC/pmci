@@ -683,10 +683,9 @@ TEST(GetFWParams, testGoodDecodeCompResponse)
                         outPendingCompVerStr.length));
 }
 
-/*RequestUpdate Encode Request Test Cases*/
 TEST(RequestUpdate, testGoodEncodeRequest)
 {
-    uint8_t instance_id = 0x01;
+    uint8_t instanceId = 0x01;
     // Component Image Set Version String Length is not fixed here taking it as
     // 6
     constexpr uint8_t compImgSetVerStrLen = 6;
@@ -702,32 +701,34 @@ TEST(RequestUpdate, testGoodEncodeRequest)
     inReq.no_of_comp = 1;
     inReq.max_outstand_transfer_req = 1;
     inReq.pkg_data_len = 0;
-    inReq.comp_image_set_ver_str_type = 0;
+    inReq.comp_image_set_ver_str_type = COMP_VER_STR_TYPE_UNKNOWN;
     inReq.comp_image_set_ver_str_len = compImgSetVerStrLen;
 
-    std::fill(compImgSetVerStrArr.data(), compImgSetVerStrArr.end() - 1, 0xFF);
+    std::fill(compImgSetVerStrArr.data(), compImgSetVerStrArr.end(), 0xFF);
 
     std::array<uint8_t, hdrSize + sizeof(struct request_update_req) +
                             compImgSetVerStrLen>
         outReq;
 
     auto msg = (struct pldm_msg*)outReq.data();
-    size_t payloadLen =
-        sizeof(struct request_update_req) + inCompImgSetVerStr.length;
-    auto rc = encode_request_update_req(instance_id, msg, payloadLen, &inReq,
-                                        &inCompImgSetVerStr);
+
+    auto rc = encode_request_update_req(instanceId, msg,
+                                        sizeof(struct request_update_req) +
+                                            inCompImgSetVerStr.length,
+                                        &inReq, &inCompImgSetVerStr);
 
     auto request = (struct request_update_req*)(outReq.data() + hdrSize);
+
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
-    EXPECT_EQ(msg->hdr.instance_id, instance_id);
+    EXPECT_EQ(msg->hdr.instance_id, instanceId);
     EXPECT_EQ(msg->hdr.type, PLDM_FWU);
     EXPECT_EQ(msg->hdr.command, PLDM_REQUEST_UPDATE);
-    EXPECT_EQ(request->max_transfer_size, inReq.max_transfer_size);
-    EXPECT_EQ(request->no_of_comp, inReq.no_of_comp);
+    EXPECT_EQ(le32toh(request->max_transfer_size), inReq.max_transfer_size);
+    EXPECT_EQ(le16toh(request->no_of_comp), inReq.no_of_comp);
     EXPECT_EQ(request->max_outstand_transfer_req,
               inReq.max_outstand_transfer_req);
-    EXPECT_EQ(request->pkg_data_len, inReq.pkg_data_len);
+    EXPECT_EQ(le16toh(request->pkg_data_len), inReq.pkg_data_len);
     EXPECT_EQ(request->comp_image_set_ver_str_type,
               inReq.comp_image_set_ver_str_type);
     EXPECT_EQ(request->comp_image_set_ver_str_len,
@@ -738,12 +739,76 @@ TEST(RequestUpdate, testGoodEncodeRequest)
                              sizeof(struct request_update_req)));
 }
 
-/*RequestUpdate Decode Response Test Cases*/
+TEST(RequestUpdate, testBadEncodeRequest)
+{
+    uint8_t instanceId = 0x01;
+    constexpr uint8_t compImgSetVerStrLen = 6;
+
+    std::array<uint8_t, compImgSetVerStrLen> compImgSetVerStrArr;
+    struct variable_field inCompImgSetVerStr;
+    inCompImgSetVerStr.ptr = compImgSetVerStrArr.data();
+    inCompImgSetVerStr.length = compImgSetVerStrLen;
+
+    struct request_update_req inReq;
+
+    std::fill(compImgSetVerStrArr.data(), compImgSetVerStrArr.end(), 0xFF);
+
+    std::array<uint8_t, hdrSize + sizeof(struct request_update_req) +
+                            compImgSetVerStrLen>
+        outReq;
+
+    auto msg = (struct pldm_msg*)outReq.data();
+
+    auto rc = encode_request_update_req(instanceId, 0,
+                                        sizeof(struct request_update_req) +
+                                            inCompImgSetVerStr.length,
+                                        &inReq, &inCompImgSetVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_request_update_req(instanceId, msg, 0, &inReq,
+                                   &inCompImgSetVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    rc = encode_request_update_req(instanceId, msg,
+                                   sizeof(struct request_update_req) +
+                                       inCompImgSetVerStr.length,
+                                   NULL, &inCompImgSetVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_request_update_req(instanceId, msg,
+                                   sizeof(struct request_update_req) +
+                                       inCompImgSetVerStr.length,
+                                   &inReq, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inReq.max_transfer_size = 30;
+    inReq.no_of_comp = 0;
+    inReq.max_outstand_transfer_req = 0;
+    inReq.pkg_data_len = 0;
+    inReq.comp_image_set_ver_str_type = 10;
+    inReq.comp_image_set_ver_str_len = 0;
+
+    rc = encode_request_update_req(instanceId, msg,
+                                   sizeof(struct request_update_req) +
+                                       inCompImgSetVerStr.length,
+                                   &inReq, &inCompImgSetVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    inCompImgSetVerStr.ptr = NULL;
+    inCompImgSetVerStr.length = 0;
+
+    rc = encode_request_update_req(instanceId, msg,
+                                   sizeof(struct request_update_req) +
+                                       inCompImgSetVerStr.length,
+                                   &inReq, &inCompImgSetVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+}
+
 TEST(RequestUpdate, testGoodDecodeResponse)
 {
-    uint8_t completionCode = PLDM_SUCCESS;
-    uint16_t fd_meta_data_len = 0;
-    uint8_t fd_pkg_data = 0;
+    uint8_t completionCode = PLDM_ERROR;
+    uint16_t fdMetaDataLen = 0;
+    uint8_t fdPkgData = 0;
 
     std::array<uint8_t, hdrSize + sizeof(struct request_update_resp)>
         responseMsg{};
@@ -756,16 +821,58 @@ TEST(RequestUpdate, testGoodDecodeResponse)
 
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
 
-    auto rc = decode_request_update_resp(response, responseMsg.size() - hdrSize,
-                                         &completionCode, &fd_meta_data_len,
-                                         &fd_pkg_data);
+    auto rc =
+        decode_request_update_resp(response, responseMsg.size() - hdrSize,
+                                   &completionCode, &fdMetaDataLen, &fdPkgData);
 
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(completionCode, PLDM_SUCCESS);
-    EXPECT_EQ(fd_meta_data_len, inResp->fd_meta_data_len);
-    EXPECT_EQ(fd_pkg_data, inResp->fd_pkg_data);
+    EXPECT_EQ(fdMetaDataLen, htole16(inResp->fd_meta_data_len));
+    EXPECT_EQ(fdPkgData, inResp->fd_pkg_data);
 }
 
+TEST(RequestUpdate, testBadDecodeResponse)
+{
+    uint8_t completionCode = PLDM_ERROR;
+    uint16_t fdMetaDataLen = 0;
+    uint8_t fdPkgData = 0;
+
+    std::array<uint8_t, hdrSize + sizeof(struct request_update_resp)>
+        responseMsg{};
+    struct request_update_resp* inResp =
+        reinterpret_cast<struct request_update_resp*>(responseMsg.data() +
+                                                      hdrSize);
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->fd_meta_data_len = 0x0F;
+    inResp->fd_pkg_data = 0x0F;
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc =
+        decode_request_update_resp(NULL, responseMsg.size() - hdrSize,
+                                   &completionCode, &fdMetaDataLen, &fdPkgData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_request_update_resp(response, 0, &completionCode,
+                                    &fdMetaDataLen, &fdPkgData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    rc = decode_request_update_resp(response, responseMsg.size() - hdrSize,
+                                    NULL, &fdMetaDataLen, &fdPkgData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_request_update_resp(response, responseMsg.size() - hdrSize,
+                                    &completionCode, NULL, &fdPkgData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_request_update_resp(response, responseMsg.size() - hdrSize,
+                                    &completionCode, &fdMetaDataLen, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
+/* GetDeviceMetaData */
+
+/*GetDeviceMetaData Encode Request Test Cases*/
 TEST(GetDeviceMetaData, testGoodEncodeRequest)
 {
     std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_req)>

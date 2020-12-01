@@ -28,6 +28,8 @@ extern "C" {
 #define PLDM_CANCEL_UPDATE_COMPONENT 0x1C
 #define PLDM_CANCEL_UPDATE 0x1D
 
+#define PLDM_FWU_BASELINE_TRANSFER_SIZE 32
+#define MIN_OUTSTANDING_REQ 1
 #define PLDM_GET_FIRMWARE_PARAMENTERS_REQ_BYTES 0
 #define PLDM_FWU_COMP_VER_STR_SIZE_MAX 256
 
@@ -58,6 +60,18 @@ enum fw_update_error_completion_codes {
 	NO_PACKAGE_DATA = 0x8F,
 	INVALID_DATA_TRANSFER_HANDLE = 0x90,
 	INVALID_TRANSFER_OPERATION_FLAG = 0x91
+};
+
+/** @brief PLDM FWU values for Component Version String Type or Component Image
+ * Set Version String Type
+ */
+enum comp_type {
+	COMP_VER_STR_TYPE_UNKNOWN = 0,
+	COMP_ASCII = 1,
+	COMP_UTF_8 = 2,
+	COMP_UTF_16 = 3,
+	COMP_UTF_16LE = 4,
+	COMP_UTF_16BE = 5
 };
 
 /** @brief PLDM Firmware Update States
@@ -171,17 +185,6 @@ enum comp_classification {
 	COMP_BIOS_OR_FCODE = 0x000B,
 	COMP_SUPPORT_OR_SERVICEPACK = 0x000C,
 	COMP_SOFTWARE_BUNDLE = 0x000D
-};
-
-/** @brief PLDM FWU values for Component Version String Type
- */
-enum comp_ver_str_type {
-	COMP_VER_STR_TYPE_UNKNOWN = 0,
-	COMP_ASCII = 1,
-	COMP_UTF_8 = 2,
-	COMP_UTF_16 = 3,
-	COMP_UTF_16LE = 4,
-	COMP_UTF_16BE = 5
 };
 
 /** @brief PLDM FWU codes for Component Compatibility Response
@@ -456,7 +459,7 @@ int decode_get_firmware_parameters_comp_resp(
  */
 int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 			      const size_t payload_length,
-			      struct request_update_req *data,
+			      const struct request_update_req *data,
 			      struct variable_field *comp_img_set_ver_str);
 
 /** @brief Decode a RequestUpdate response message

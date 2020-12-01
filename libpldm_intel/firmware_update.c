@@ -3,6 +3,26 @@
 
 #include "firmware_update.h"
 
+/** @brief Check whether Component Version String Type or Component Image Set
+ * Version String Type is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_comp_ver_str_type_valid(const uint8_t comp_type)
+{
+	switch (comp_type) {
+	case COMP_VER_STR_TYPE_UNKNOWN:
+	case COMP_ASCII:
+	case COMP_UTF_8:
+	case COMP_UTF_16:
+	case COMP_UTF_16LE:
+	case COMP_UTF_16BE:
+		return true;
+
+	default:
+		return false;
+	}
+}
 /** @brief Check validity of VerifyResult in VerifyComplete request
  *
  *	@param[in] verify_result - VerifyResult
@@ -296,49 +316,66 @@ int decode_get_firmware_parameters_comp_resp(
 	return PLDM_SUCCESS;
 }
 
-/*RequestUpdate Encode Request API */
 int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 			      const size_t payload_length,
-			      struct request_update_req *data,
+			      const struct request_update_req *data,
 			      struct variable_field *comp_img_set_ver_str)
 {
 	if (msg == NULL || data == NULL || comp_img_set_ver_str == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	struct pldm_header_info header = {0};
-	header.instance = instance_id;
-	header.msg_type = PLDM_REQUEST;
-	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_REQUEST_UPDATE;
-	pack_pldm_header(&header, &(msg->hdr));
-
-	int rc = pack_pldm_header(&header, &(msg->hdr));
-	if (PLDM_SUCCESS != rc) {
-		return rc;
-	}
-
 	if (payload_length < sizeof(struct request_update_req)) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	memcpy(msg->payload, data, sizeof(struct request_update_req));
+	int rc = encode_pldm_header(instance_id, PLDM_FWU, PLDM_REQUEST_UPDATE,
+				    PLDM_REQUEST, msg);
 
-	if (payload_length <
+	if (PLDM_SUCCESS != rc) {
+		return rc;
+	}
+
+	struct request_update_req *request =
+	    (struct request_update_req *)msg->payload;
+
+	if (data->max_transfer_size < PLDM_FWU_BASELINE_TRANSFER_SIZE) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	request->max_transfer_size = htole32(data->max_transfer_size);
+	request->no_of_comp = htole16(data->no_of_comp);
+
+	if (data->max_outstand_transfer_req < MIN_OUTSTANDING_REQ) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	request->max_outstand_transfer_req = data->max_outstand_transfer_req;
+	request->pkg_data_len = htole16(data->pkg_data_len);
+
+	if (!check_comp_ver_str_type_valid(data->comp_image_set_ver_str_type)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	request->comp_image_set_ver_str_type =
+	    data->comp_image_set_ver_str_type;
+	request->comp_image_set_ver_str_len = data->comp_image_set_ver_str_len;
+
+	if (payload_length !=
 	    sizeof(struct request_update_req) + comp_img_set_ver_str->length) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
 	if (comp_img_set_ver_str->ptr == NULL) {
-		return PLDM_ERROR;
+		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	memcpy(msg->payload + sizeof(struct request_update_req),
 	       comp_img_set_ver_str->ptr, comp_img_set_ver_str->length);
 
 	return PLDM_SUCCESS;
 }
 
-/*RequestUpdate decode Response API */
 int decode_request_update_resp(const struct pldm_msg *msg,
 			       const size_t payload_length,
 			       uint8_t *completion_code,
@@ -350,17 +387,19 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 	}
 
 	*completion_code = msg->payload[0];
-	if (PLDM_SUCCESS != *completion_code) {
+
+	if (*completion_code != PLDM_SUCCESS) {
 		return *completion_code;
 	}
-	size_t resp_len = sizeof(struct request_update_resp);
 
-	if (payload_length != resp_len) {
+	if (payload_length != sizeof(struct request_update_resp)) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
+
 	struct request_update_resp *response =
 	    (struct request_update_resp *)msg->payload;
-	*fd_meta_data_len = htole16(response->fd_meta_data_len);
+
+	*fd_meta_data_len = le16toh(response->fd_meta_data_len);
 
 	*fd_pkg_data = response->fd_pkg_data;
 
@@ -540,26 +579,6 @@ static bool check_comp_classification_valid(const uint16_t comp_classification)
 	case COMP_BIOS_OR_FCODE:
 	case COMP_SUPPORT_OR_SERVICEPACK:
 	case COMP_SOFTWARE_BUNDLE:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-/** @brief Check whether Component Version String Type is valid
- *
- *  @return true if is from below mentioned values, false if not
- */
-static bool check_comp_ver_str_type_valid(const uint8_t comp_ver_str_type)
-{
-	switch (comp_ver_str_type) {
-	case COMP_VER_STR_TYPE_UNKNOWN:
-	case COMP_ASCII:
-	case COMP_UTF_8:
-	case COMP_UTF_16:
-	case COMP_UTF_16LE:
-	case COMP_UTF_16BE:
 		return true;
 
 	default:
