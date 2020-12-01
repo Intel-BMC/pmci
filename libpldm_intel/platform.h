@@ -28,6 +28,7 @@ extern "C" {
 #define PLDM_GET_NUMERIC_EFFECTER_VALUE_MIN_RESP_BYTES 5
 #define PLDM_GET_SENSOR_READING_MIN_RESP_BYTES 8
 #define PLDM_GET_STATE_SENSOR_READINGS_MIN_RESP_BYTES 2
+#define PLDM_GET_STATE_EFFECTER_STATES_MIN_RESP_BYTES 2
 
 /* Minimum length for PLDM PlatformEventMessage request */
 #define PLDM_PLATFORM_EVENT_MESSAGE_MIN_REQ_BYTES 3
@@ -671,6 +672,16 @@ typedef struct state_field_for_get_state_sensor_readings {
 			     //! that is associated with the sensor
 } __attribute__((packed)) get_sensor_state_field;
 
+/** @struct get_effecter_state_field
+ *
+ *  Structure representing a stateField in GetStateEffecterStates command */
+
+typedef struct state_effecter_state {
+	uint8_t effecter_op_state; //!< The state of the effecter itself
+	uint8_t pending_state;	   //!< Return a pending state value
+	uint8_t present_state;	   //!< Present state of the effecter
+} __attribute__((packed)) get_effecter_state_field;
+
 /** @struct PLDM_SetStateEffecterStates_Request
  *
  *  Structure representing PLDM set state effecter states request.
@@ -744,6 +755,16 @@ struct pldm_get_state_sensor_readings_resp {
 	uint8_t completion_code;
 	uint8_t comp_sensor_count;
 	get_sensor_state_field field[1];
+} __attribute__((packed));
+
+/** @struct pldm_get_state_effecter_states_resp
+ *
+ *  Structure representing PLDM get state effecter states response.
+ */
+struct pldm_get_state_effecter_states_resp {
+	uint8_t completion_code;
+	uint8_t comp_effecter_count;
+	get_effecter_state_field field[1];
 } __attribute__((packed));
 
 /** @struct pldm_sensor_event
@@ -1834,6 +1855,25 @@ int encode_set_state_effecter_enable_req(const uint8_t instance_id,
 int encode_get_state_effecter_states_req(const uint8_t instance_id,
 					 const uint16_t effecter_id,
 					 struct pldm_msg *msg);
+
+/** @brief Decode GetStateEffecterStates response data
+ *
+ *  @param[in] msg - Request message
+ *  @param[in] payload_length - Length of response message payload
+ *  @param[out] completion_code - PLDM completion code
+ *  @param[in,out] comp_effecter_count - The number of individual sets of
+ * effecter information that this command accesses
+ *  @param[out] field - Each stateField is an instance of a stateField structure
+ *         that is used to return the present operational state setting and the
+ *         present state and pending state for a particular set of effecter
+ *         information contained within the state effecter
+ *  @return pldm_completion_codes
+ */
+int decode_get_state_effecter_states_resp(const struct pldm_msg *msg,
+					  const size_t payload_length,
+					  uint8_t *completion_code,
+					  uint8_t *comp_effecter_count,
+					  get_effecter_state_field *field);
 
 #ifdef __cplusplus
 }

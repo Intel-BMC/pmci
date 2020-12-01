@@ -1788,3 +1788,43 @@ int encode_get_state_effecter_states_req(const uint8_t instance_id,
 
 	return PLDM_SUCCESS;
 }
+
+int decode_get_state_effecter_states_resp(const struct pldm_msg *msg,
+					  const size_t payload_length,
+					  uint8_t *completion_code,
+					  uint8_t *comp_effecter_count,
+					  get_effecter_state_field *field)
+{
+	if (msg == NULL || completion_code == NULL ||
+	    comp_effecter_count == NULL || field == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	*completion_code = msg->payload[0];
+	if (PLDM_SUCCESS != *completion_code) {
+		return PLDM_SUCCESS;
+	}
+
+	if (payload_length >
+	    PLDM_GET_STATE_EFFECTER_STATES_MIN_RESP_BYTES +
+		sizeof(get_effecter_state_field) * *comp_effecter_count) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	struct pldm_get_state_effecter_states_resp *response =
+	    (struct pldm_get_state_effecter_states_resp *)msg->payload;
+
+	if (response->comp_effecter_count < PLDM_COMPOSITE_EFFECTER_COUNT_MIN ||
+	    response->comp_effecter_count > PLDM_COMPOSITE_EFFECTER_COUNT_MAX) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+	if (response->comp_effecter_count > *comp_effecter_count) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+	*comp_effecter_count = response->comp_effecter_count;
+
+	memcpy(field, response->field,
+	       (sizeof(get_effecter_state_field) * (*comp_effecter_count)));
+
+	return PLDM_SUCCESS;
+}
