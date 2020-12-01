@@ -65,6 +65,15 @@ class StateEffecter
     /** @brief  Enable effecter*/
     bool enableStateEffecter(boost::asio::yield_context& yield);
 
+    /** @brief Handle effecter reading*/
+    bool handleStateEffecterState(get_effecter_state_field& stateReading);
+
+    /** @brief fetch the effecter value*/
+    bool getStateEffecterStates(boost::asio::yield_context& yield);
+
+    /** @brief Read effecter value and update interfaces*/
+    bool populateEffecterValue(boost::asio::yield_context& yield);
+
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
 

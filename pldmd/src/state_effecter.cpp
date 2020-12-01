@@ -282,9 +282,128 @@ bool StateEffecter::enableStateEffecter(boost::asio::yield_context& yield)
     return true;
 }
 
+bool StateEffecter::handleStateEffecterState(
+    get_effecter_state_field& stateReading)
+{
+    switch (stateReading.effecter_op_state)
+    {
+        case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING:
+        // TODO: Read again after transition interval before setting value
+        case EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING: {
+            updateState(stateReading.present_state, stateReading.pending_state);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "GetStateEffecterStates success",
+                phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                phosphor::logging::entry("TID=%d", _tid));
+            break;
+        }
+        case EFFECTER_OPER_STATE_DISABLED: {
+            markFunctional(false);
+            markAvailable(true);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State effecter disabled",
+                phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                phosphor::logging::entry("TID=%d", _tid));
+            break;
+        }
+        case EFFECTER_OPER_STATE_UNAVAILABLE: {
+            markFunctional(false);
+            markAvailable(false);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State effecter unavailable",
+                phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
+        default:
+            // TODO: Handle other effecter operational states like
+            // statusUnknown, initializing etc.
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State effecter operational status unknown",
+                phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+    }
+    return true;
+}
+
+bool StateEffecter::getStateEffecterStates(boost::asio::yield_context& yield)
+{
+    int rc;
+    std::vector<uint8_t> req(pldmMsgHdrSize +
+                             sizeof(pldm_get_state_effecter_states_req));
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+
+    rc = encode_get_state_effecter_states_req(createInstanceId(_tid),
+                                              _effecterID, reqMsg);
+    if (!validatePLDMReqEncode(_tid, rc, "GetStateEffecterStates"))
+    {
+        return false;
+    }
+
+    std::vector<uint8_t> resp;
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
+                                req, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to send GetStateEffecterStates request",
+            phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    uint8_t completionCode;
+    uint8_t compositeEffecterCount;
+    std::array<get_effecter_state_field, PLDM_COMPOSITE_EFFECTER_COUNT_MAX>
+        stateField{};
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+
+    rc = decode_get_state_effecter_states_resp(
+        rspMsg, resp.size() - pldmMsgHdrSize, &completionCode,
+        &compositeEffecterCount, stateField.data());
+    if (!validatePLDMRespDecode(_tid, rc, completionCode,
+                                "GetStateEffecterStates"))
+    {
+        return false;
+    }
+
+    if (!compositeEffecterCount)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetStateEffecterStates: Invalid composite effecter count",
+            phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+    // Handle only first value.
+    // TODO: Composite effecter support.
+    return handleStateEffecterState(stateField[0]);
+}
+
+bool StateEffecter::populateEffecterValue(boost::asio::yield_context& yield)
+{
+    if (!getStateEffecterStates(yield))
+    {
+        incrementError();
+        return false;
+    }
+    return true;
+}
+
 bool StateEffecter::stateEffecterInit(boost::asio::yield_context& yield)
 {
     if (!enableStateEffecter(yield))
+    {
+        return false;
+    }
+
+    if (!populateEffecterValue(yield))
     {
         return false;
     }
