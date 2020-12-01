@@ -1765,3 +1765,26 @@ int encode_set_state_effecter_enable_req(const uint8_t instance_id,
 	}
 	return PLDM_SUCCESS;
 }
+
+int encode_get_state_effecter_states_req(const uint8_t instance_id,
+					 const uint16_t effecter_id,
+					 struct pldm_msg *msg)
+{
+	int rc = PLDM_SUCCESS;
+
+	if (msg == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if ((rc = encode_pldm_header(instance_id, PLDM_PLATFORM,
+				     PLDM_GET_STATE_EFFECTER_STATES,
+				     PLDM_REQUEST, msg)) != PLDM_SUCCESS) {
+		return rc;
+	}
+
+	struct pldm_get_state_effecter_states_req *request =
+	    (struct pldm_get_state_effecter_states_req *)msg->payload;
+	request->effecter_id = htole16(effecter_id);
+
+	return PLDM_SUCCESS;
+}

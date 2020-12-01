@@ -138,6 +138,7 @@ enum pldm_platform_commands {
 	PLDM_GET_NUMERIC_EFFECTER_VALUE = 0x32,
 	PLDM_SET_STATE_EFFECTER_ENABLE = 0x38,
 	PLDM_SET_STATE_EFFECTER_STATES = 0x39,
+	PLDM_GET_STATE_EFFECTER_STATES = 0x3A,
 	PLDM_GET_PDR_REPOSITORY_INFO = 0x50,
 	PLDM_GET_PDR = 0x51,
 	PLDM_PLATFORM_EVENT_MESSAGE = 0x0A
@@ -725,6 +726,14 @@ struct pldm_get_state_sensor_readings_req {
 	uint16_t sensor_id;
 	bitfield8_t sensor_rearm;
 	uint8_t reserved;
+} __attribute__((packed));
+
+/** @struct pldm_get_state_effecter_states_req
+ *
+ *  Structure representing PLDM get state effecter states request.
+ */
+struct pldm_get_state_effecter_states_req {
+	uint16_t effecter_id;
 } __attribute__((packed));
 
 /** @struct pldm_get_state_sensor_readings_resp
@@ -1811,6 +1820,19 @@ int encode_set_state_effecter_enable_req(const uint8_t instance_id,
 					 const uint16_t effecter_id,
 					 const uint8_t composite_effecter_count,
 					 state_effecter_op_field *op_fields,
+					 struct pldm_msg *msg);
+
+/** @brief Encode GetStateEffecterStates request
+ *
+ *	@param[in] instance_id - Message's instance id
+ *	@param[in] effecter_id - A handle that is used to identify and access
+ *the effecter
+ *	@param[out] msg - Encoded message
+ *
+ *	@return pldm_completion_codes
+ */
+int encode_get_state_effecter_states_req(const uint8_t instance_id,
+					 const uint16_t effecter_id,
 					 struct pldm_msg *msg);
 
 #ifdef __cplusplus

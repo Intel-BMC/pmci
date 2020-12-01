@@ -2339,6 +2339,42 @@ TEST(SetStateEffecterEnables, testBadEncodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
+TEST(GetStateEffecterStates, testGoodEncodeRequest)
+{
+    std::array<uint8_t,
+               hdrSize + sizeof(struct pldm_get_state_effecter_states_req)>
+        requestMsg{};
+
+    constexpr uint16_t effecterId = 0xAB;
+    constexpr uint8_t instanceID = 0x0A;
+
+    pldm_msg* msg = reinterpret_cast<pldm_msg*>(requestMsg.data());
+    auto rc = encode_get_state_effecter_states_req(instanceID, effecterId, msg);
+
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(msg->hdr.command, PLDM_GET_STATE_EFFECTER_STATES);
+    EXPECT_EQ(msg->hdr.type, PLDM_PLATFORM);
+    EXPECT_EQ(msg->hdr.request, 1);
+    EXPECT_EQ(msg->hdr.datagram, 0);
+    EXPECT_EQ(msg->hdr.instance_id, instanceID);
+
+    struct pldm_get_state_effecter_states_req* req =
+        reinterpret_cast<struct pldm_get_state_effecter_states_req*>(
+            msg->payload);
+    EXPECT_EQ(effecterId, le16toh(req->effecter_id));
+}
+
+TEST(GetStateEffecterStates, testBadEncodeRequest)
+{
+    constexpr uint16_t effecterId = 0xAB;
+    constexpr uint8_t instanceID = 0x0A;
+
+    auto rc =
+        encode_get_state_effecter_states_req(instanceID, effecterId, nullptr);
+
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+}
+
 int main(int argc, char** argv)
 {
     ::testing::InitGoogleTest(&argc, argv);
