@@ -396,6 +396,137 @@ bool StateEffecter::populateEffecterValue(boost::asio::yield_context& yield)
     return true;
 }
 
+bool StateEffecter::isEffecterStateSettable(const uint8_t state)
+{
+    // Note:- possibleStates will never be empty
+    auto itr =
+        std::find(_pdr->possibleStates[0].possibleStateSetValues.begin(),
+                  _pdr->possibleStates[0].possibleStateSetValues.end(), state);
+    if (itr != _pdr->possibleStates[0].possibleStateSetValues.end())
+    {
+        return true;
+    }
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        "State not supported by effecter",
+        phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return false;
+}
+
+bool StateEffecter::setEffecter(boost::asio::yield_context& yield,
+                                const uint8_t state)
+{
+    int rc;
+
+    // Composite effecters not spported
+    constexpr size_t minSetStateEffecterStatesSize = 5;
+    std::vector<uint8_t> req(pldmMsgHdrSize + minSetStateEffecterStatesSize);
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+    set_effecter_state_field stateField = {PLDM_REQUEST_SET, state};
+
+    constexpr size_t compositeEffecterCount = 1;
+    rc = encode_set_state_effecter_states_req(
+        createInstanceId(_tid), _effecterID, compositeEffecterCount,
+        &stateField, reqMsg);
+    if (!validatePLDMReqEncode(_tid, rc, "SetStateEffecterStates"))
+    {
+        return false;
+    }
+
+    std::vector<uint8_t> resp;
+    if (!sendReceivePldmMessage(yield, _tid, commandTimeout, commandRetryCount,
+                                req, resp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to send SetStateEffecterStates request",
+            phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+            phosphor::logging::entry("TID=%d", _tid));
+        return false;
+    }
+
+    uint8_t completionCode;
+    auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
+
+    rc = decode_cc_only_resp(rspMsg, resp.size() - pldmMsgHdrSize,
+                             &completionCode);
+    if (!validatePLDMRespDecode(_tid, rc, completionCode,
+                                "SetStateEffecterStates"))
+    {
+        return false;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "SetStateEffecterStates success",
+        phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+        phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
+void StateEffecter::registerSetEffecter()
+{
+    static const std::string path =
+        pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
+    auto objServer = getObjServer();
+    setEffecterInterface = objServer->add_unique_interface(
+        path, "xyz.openbmc_project.Effecter.SetEffecter");
+    setEffecterInterface->register_method(
+        "SetStateEffecter",
+        [this](boost::asio::yield_context yield, uint8_t effecterState) {
+            if (!isEffecterStateSettable(effecterState))
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Unsupported effecter data state received",
+                    phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                    phosphor::logging::entry("TID=%d", _tid),
+                    phosphor::logging::entry("STATE=%d", effecterState));
+
+                throw sdbusplus::exception::SdBusError(
+                    -EINVAL, "Unsupported effecter state");
+            }
+            if (!setEffecter(yield, effecterState))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to SetStateEffecterStates",
+                    phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
+                    phosphor::logging::entry("TID=%d", _tid));
+
+                throw sdbusplus::exception::SdBusError(
+                    -EINVAL, "SetStateEffecterStates failed");
+            }
+
+            auto refreshEffecterInterfaces = [this]() {
+                boost::system::error_code ec;
+                uint8_t transitionIntervalSec = 3;
+                boost::asio::steady_timer timer(*getIoContext());
+                timer.expires_after(
+                    boost::asio::chrono::seconds(transitionIntervalSec));
+                timer.async_wait([this](const boost::system::error_code& e) {
+                    if (e)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "SetStateEffecter: async_wait error");
+                    }
+                    boost::asio::spawn(
+                        *getIoContext(),
+                        [this](boost::asio::yield_context yieldCtx) {
+                            if (!populateEffecterValue(yieldCtx))
+                            {
+                                phosphor::logging::log<
+                                    phosphor::logging::level::ERR>(
+                                    "Read state effecter failed",
+                                    phosphor::logging::entry(
+                                        "EFFECTER_ID=0x%0X", _effecterID),
+                                    phosphor::logging::entry("TID=%d", _tid));
+                            }
+                        });
+                });
+            };
+
+            // Refresh the value on D-Bus
+            getIoContext()->post(refreshEffecterInterfaces);
+        });
+}
+
 bool StateEffecter::stateEffecterInit(boost::asio::yield_context& yield)
 {
     if (!enableStateEffecter(yield))
@@ -407,6 +538,8 @@ bool StateEffecter::stateEffecterInit(boost::asio::yield_context& yield)
     {
         return false;
     }
+
+    registerSetEffecter();
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "State Effecter Init Success",

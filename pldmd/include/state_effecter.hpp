@@ -74,6 +74,15 @@ class StateEffecter
     /** @brief Read effecter value and update interfaces*/
     bool populateEffecterValue(boost::asio::yield_context& yield);
 
+    /** @brief Validate the effecter value is supported*/
+    bool isEffecterStateSettable(const uint8_t state);
+
+    /** @brief Set effecter value*/
+    bool setEffecter(boost::asio::yield_context& yield, const uint8_t value);
+
+    /** @brief Register D-Bus interfaces for SetEffecterValue*/
+    void registerSetEffecter();
+
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
 
@@ -101,6 +110,8 @@ class StateEffecter
     std::unique_ptr<sdbusplus::asio::dbus_interface> availableInterface =
         nullptr;
     std::unique_ptr<sdbusplus::asio::dbus_interface> operationalInterface =
+        nullptr;
+    std::unique_ptr<sdbusplus::asio::dbus_interface> setEffecterInterface =
         nullptr;
 };
 
