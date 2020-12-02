@@ -34,9 +34,9 @@ class SMBusBinding : public MctpBinding
                              std::vector<uint8_t>& response) override;
 
   private:
-    void SMBusInit();
+    std::string SMBusInit();
     void readResponse();
-    void initEndpointDiscovery();
+    void initEndpointDiscovery(boost::asio::yield_context& yield);
     bool reserveBandwidth(const mctp_eid_t eid,
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
@@ -50,13 +50,22 @@ class SMBusBinding : public MctpBinding
     struct mctp_binding_smbus* smbus = nullptr;
     int inFd{-1};  // in_fd for the smbus binding
     int outFd{-1}; // out_fd for the root bus
-    std::vector<std::pair<int, int>> muxFds;
     boost::asio::posix::stream_descriptor smbusReceiverFd;
     boost::asio::steady_timer reserveBWTimer;
     std::shared_ptr<dbus_interface> smbusInterface;
     bool isMuxFd(const int fd);
     std::vector<std::pair<mctp_eid_t, struct mctp_smbus_pkt_private>>
         smbusDeviceTable;
-    void scanAllPorts(void);
-    void scanPort(const int scanFd);
+    boost::asio::steady_timer scanTimer;
+    std::map<int, int> muxPortMap;
+    std::set<std::pair<int, uint8_t>> rootDeviceMap;
+    bool addRootDevices;
+    void scanDevices(boost::asio::yield_context& yield);
+    std::map<int, int> getMuxFds(const std::string& rootPort);
+    void scanPort(const int scanFd,
+                  std::set<std::pair<int, uint8_t>>& deviceMap);
+    void scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap);
+    mctp_eid_t
+        getEIDFromDeviceTable(const std::vector<uint8_t>& bindingPrivate);
+    void removeDeviceTableEntry(const mctp_eid_t eid);
 };

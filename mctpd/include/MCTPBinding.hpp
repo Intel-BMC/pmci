@@ -210,6 +210,7 @@ class MctpBinding
                                      void* bindingPrivate,
                                      std::vector<uint8_t>& request,
                                      std::vector<uint8_t>& response);
+
     bool getEidCtrlCmd(boost::asio::yield_context& yield,
                        const std::vector<uint8_t>& bindingPrivate,
                        const mctp_eid_t destEid, std::vector<uint8_t>& resp);
@@ -253,7 +254,7 @@ class MctpBinding
     std::optional<mctp_eid_t>
         registerEndpoint(boost::asio::yield_context& yield,
                          const std::vector<uint8_t>& bindingPrivate,
-                         mctp_eid_t eid = 0xFF,
+                         mctp_eid_t eid,
                          mctp_server::BindingModeTypes bindingMode =
                              mctp_server::BindingModeTypes::Endpoint);
     void unregisterEndpoint(mctp_eid_t eid);
@@ -294,8 +295,7 @@ class MctpBinding
 
     boost::asio::steady_timer ctrlTxTimer;
 
-    // map<EID, assigned>
-    std::unordered_map<mctp_eid_t, bool> eidPoolMap;
+    std::vector<std::pair<mctp_eid_t, bool>> eidPool;
     bool ctrlTxTimerExpired = true;
     // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
     //  Callback>
@@ -304,6 +304,8 @@ class MctpBinding
                    std::vector<uint8_t>, std::vector<uint8_t>,
                    std::function<void(PacketState, std::vector<uint8_t>&)>>>
         ctrlTxQueue;
+    // <eid, uuid>
+    std::vector<std::pair<mctp_eid_t, std::string>> uuidTable;
 
     void createUuid();
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
@@ -326,7 +328,8 @@ class MctpBinding
     bool getFormattedReq(std::vector<uint8_t>& req, Args&&... reqParam);
     std::optional<mctp_eid_t>
         busOwnerRegisterEndpoint(boost::asio::yield_context& yield,
-                                 const std::vector<uint8_t>& bindingPrivate);
+                                 const std::vector<uint8_t>& bindingPrivate,
+                                 mctp_eid_t eid);
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
                           const MsgTypes& messageType);
     void populateEndpointProperties(const EndpointProperties& epProperties);
@@ -341,4 +344,8 @@ class MctpBinding
     void removeInterface(
         std::string& interfacePath,
         std::vector<std::shared_ptr<dbus_interface>>& interfaces);
+    std::optional<mctp_eid_t> getEIDFromUUID(std::string& uuidStr);
+    void clearRegisteredDevice(const mctp_eid_t eid);
+    bool isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID);
+    bool isEIDRegistered(mctp_eid_t eid);
 };

@@ -13,6 +13,7 @@
 
 constexpr int noMoreSet = 0xFF;
 static std::string vendIdFormat = "0x8086";
+static const std::string nullUUID = "00000000-0000-0000-0000-000000000000";
 
 constexpr sd_id128_t mctpdAppId = SD_ID128_MAKE(c4, e4, d9, 4a, 88, 43, 4d, f0,
                                                 94, 9d, bb, 0a, af, 53, 4e, 6d);
@@ -688,12 +689,10 @@ bool MctpBinding::manageVdpciVersionInfo(uint16_t vendorIdx,
 
 MctpBinding::~MctpBinding()
 {
-    for (auto [eid, assigned] : eidPoolMap)
+    for (auto [eid, assigned] : eidPool)
     {
         if (assigned)
         {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                "Unregistering EID", phosphor::logging::entry("EID=%d", eid));
             unregisterEndpoint(eid);
         }
     }
@@ -756,17 +755,36 @@ void MctpBinding::initializeEidPool(const std::set<mctp_eid_t>& pool)
 {
     for (auto const& epId : pool)
     {
-        eidPoolMap.emplace(epId, false);
+        eidPool.push_back(std::make_pair(epId, false));
     }
 }
 
 void MctpBinding::updateEidStatus(const mctp_eid_t endpointId,
                                   const bool assigned)
 {
-    auto eidItr = eidPoolMap.find(endpointId);
-    if (eidItr != eidPoolMap.end())
+    bool eidPresent = false;
+    for (auto const& eidPair : eidPool)
     {
-        eidItr->second = assigned;
+        if (eidPair.first == endpointId)
+        {
+            eidPresent = true;
+            break;
+        }
+    }
+    // To implement EID pool in FIFO: The eid entry in the pool is removed and
+    // inserted at the end, so that the older EID from the pool is picked for
+    // registering the endpoint.
+
+    eidPool.erase(std::remove_if(eidPool.begin(), eidPool.end(),
+                                 [endpointId](auto const& eidPair) {
+                                     return (eidPair.first == endpointId);
+                                 }),
+                  eidPool.end());
+
+    if (eidPresent)
+    {
+        eidPool.push_back(std::make_pair(endpointId, assigned));
+
         if (assigned)
         {
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -793,14 +811,14 @@ mctp_eid_t MctpBinding::getAvailableEidFromPool()
     // Note:- No need to check for busowner role explicitly when accessing EID
     // pool since getAvailableEidFromPool will be called only in busowner mode.
 
-    for (auto& eidPair : eidPoolMap)
+    for (auto& [eid, eidAssignedStatus] : eidPool)
     {
-        if (!eidPair.second)
+        if (!eidAssignedStatus)
         {
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Allocated EID: " + std::to_string(eidPair.first)).c_str());
-            eidPair.second = true;
-            return eidPair.first;
+                ("Allocated EID: " + std::to_string(eid)).c_str());
+            eidAssignedStatus = true;
+            return eid;
         }
     }
     phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1886,63 +1904,115 @@ static std::string formatUUID(guid_t& uuid)
     return std::string(buf);
 }
 
+static std::optional<mctp_eid_t> checkEIDMismatchAndGetEID(mctp_eid_t eid,
+                                                           mctp_eid_t destEID)
+{
+    if (eid != destEID && eid != MCTP_EID_NULL && destEID != MCTP_EID_NULL)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "EID mismatch detected", phosphor::logging::entry("EID=%d", eid),
+            phosphor::logging::entry("EID_REPORTED=%d", destEID));
+        return std::nullopt;
+    }
+    if (eid == MCTP_EID_NULL)
+    {
+        eid = destEID;
+    }
+    return eid;
+}
+
+bool MctpBinding::isEIDRegistered(mctp_eid_t eid)
+{
+    if (getBindingPrivateData(eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Endpoint already Registered with EID " + std::to_string(eid))
+                .c_str());
+        return true;
+    }
+    return false;
+}
+
+bool MctpBinding::isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID)
+{
+    std::optional<mctp_eid_t> eidFromTable = getEIDFromUUID(destUUID);
+    if (eidFromTable.has_value())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("EID from table " + std::to_string(eidFromTable.value())).c_str());
+        if (eid == eidFromTable.value())
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Endpoint already Registered with EID " + std::to_string(eid))
+                    .c_str());
+            return true;
+        }
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Endpoint needs re-registration");
+        unregisterEndpoint(eid);
+        // Give priority for EID from UUID table while re-registering
+        eid = eidFromTable.value();
+    }
+    return false;
+}
+
 std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     boost::asio::yield_context& yield,
-    const std::vector<uint8_t>& bindingPrivate)
+    const std::vector<uint8_t>& bindingPrivate, mctp_eid_t eid)
 {
-    // Send getMctpVersionSupport for MCTP Control commands to a NULL EID
-
-    MctpVersionSupportCtrlResp getMctpControlVersion;
-    if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL,
+    MctpVersionSupportCtrlResp getMctpControlVersion = {};
+    if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, eid,
                                        MCTP_MESSAGE_TYPE_MCTP_CTRL,
                                        &getMctpControlVersion)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get MCTP Control Version failed");
+
         return std::nullopt;
     }
 
     // TODO: Validate MCTP Control message version supported
 
-    // Get EID
     std::vector<uint8_t> getEidResp = {};
-    if (!(getEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getEidResp)))
+    if (!(getEidCtrlCmd(yield, bindingPrivate, eid, getEidResp)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>("Get EID failed");
         return std::nullopt;
     }
-
     mctp_ctrl_resp_get_eid* getEidRespPtr =
         reinterpret_cast<mctp_ctrl_resp_get_eid*>(getEidResp.data());
-    mctp_eid_t destEid = getEidRespPtr->eid;
-
-    if (getEidRespPtr->eid != MCTP_EID_NULL)
+    std::optional<mctp_eid_t> destEID =
+        checkEIDMismatchAndGetEID(eid, getEidRespPtr->eid);
+    if (!destEID.has_value())
     {
-        updateEidStatus(destEid, true);
+        return std::nullopt;
     }
+    eid = destEID.value();
 
-    // Get UUID (Not mandatory to support)
     std::vector<uint8_t> getUuidResp = {};
-    if (!(getUuidCtrlCmd(yield, bindingPrivate, destEid, getUuidResp)))
+    if (!(getUuidCtrlCmd(yield, bindingPrivate, eid, getUuidResp)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get UUID failed");
-        // In case EP doesn't support Get UUID set to all 0
+        if (isEIDRegistered(eid))
+        {
+            return eid;
+        }
+        // In case EP doesn't support Get UUID set to all 0. This results in
+        // nullUUID
         getUuidResp.resize(sizeof(mctp_ctrl_resp_get_uuid), 0);
     }
 
-    // TODO: Check the obtained UUID from the route table and verify whether
-    // it had an entry in the route table
-    // TODO: Routing table construction
-    // TODO: Assigne pool of EID if the endpoint is a bridge
-    // TODO: Wait for T-reclame to free an EID
-    // TODO: Take care of EIDs(Static EID) which are not owned by us
-    // TODO: Set EID should use previously known EID if there was a UUID match
-
-    // Set EID
-    if (getEidRespPtr->eid == MCTP_EID_NULL)
+    mctp_ctrl_resp_get_uuid* getUuidRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
+    std::string destUUID = formatUUID(getUuidRespPtr->uuid);
+    if (isEIDMappedToUUID(eid, destUUID))
     {
-        mctp_eid_t eid;
+        return eid;
+    }
+
+    if (eid == MCTP_EID_NULL)
+    {
         try
         {
             eid = getAvailableEidFromPool();
@@ -1951,29 +2021,36 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         {
             return std::nullopt;
         }
-        std::vector<uint8_t> setEidResp = {};
-        if (!(setEidCtrlCmd(yield, bindingPrivate, 0x00, set_eid, eid,
-                            setEidResp)))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Set EID failed");
-            updateEidStatus(eid, false);
-            return std::nullopt;
-        }
-
-        mctp_ctrl_resp_set_eid* setEidRespPtr =
-            reinterpret_cast<mctp_ctrl_resp_set_eid*>(setEidResp.data());
-        destEid = setEidRespPtr->eid_set;
-
-        // If EID in the resp is different from the one sent in request,
-        // we need to check if that EID exists in the pool and update its
-        // status as assigned.
-        updateEidStatus(destEid, true);
     }
+
+    // TODO: Routing table construction
+    // TODO: Assigne pool of EID if the endpoint is a bridge
+    // TODO: Take care of EIDs(Static EID) which are not owned by us
+
+    // Set EID
+    std::vector<uint8_t> setEidResp = {};
+    if (!(setEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, set_eid, eid,
+                        setEidResp)))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>("Set EID failed");
+        updateEidStatus(eid, false);
+        return std::nullopt;
+    }
+    mctp_ctrl_resp_set_eid* setEidRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_set_eid*>(setEidResp.data());
+    if (eid != setEidRespPtr->eid_set)
+    {
+        // TODO: Force setEID if needed
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Set EID failed. Reported different EID in the response.");
+        updateEidStatus(eid, false);
+        return std::nullopt;
+    }
+    updateEidStatus(eid, true);
 
     // Get Message Type Support
     MsgTypeSupportCtrlResp msgTypeSupportResp;
-    if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, destEid,
+    if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, eid,
                                    &msgTypeSupportResp)))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1983,10 +2060,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
 
     // Expose interface as per the result
     EndpointProperties epProperties;
-    epProperties.endpointEid = destEid;
-    mctp_ctrl_resp_get_uuid* getUuidRespPtr =
-        reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
-    epProperties.uuid = formatUUID(getUuidRespPtr->uuid);
+    epProperties.endpointEid = eid;
+    epProperties.uuid = destUUID;
     try
     {
         epProperties.mode = getEndpointType(getEidRespPtr->eid_type);
@@ -1999,11 +2074,17 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     // Keep Network ID as zero and update it later if a change happend.
     epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
-    getVendorDefinedMessageTypes(yield, bindingPrivate, destEid, epProperties);
+    getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
 
     populateEndpointProperties(epProperties);
 
-    return destEid;
+    // Update the uuidTable with eid and the uuid of the endpoint registered.
+    if (destUUID != nullUUID && eid != MCTP_EID_NULL)
+    {
+        uuidTable.push_back(std::make_pair(eid, destUUID));
+    }
+
+    return eid;
 }
 
 void MctpBinding::getVendorDefinedMessageTypes(
@@ -2045,7 +2126,16 @@ std::optional<mctp_eid_t>
 {
     if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
     {
-        return busOwnerRegisterEndpoint(yield, bindingPrivate);
+        std::optional<mctp_eid_t> destEID =
+            busOwnerRegisterEndpoint(yield, bindingPrivate, eid);
+
+        // Handle the device if removed and the device reset due to Frimware
+        // update/hot plugged.
+        if (!destEID)
+        {
+            clearRegisteredDevice(eid);
+        }
+        return destEID;
     }
 
     MsgTypeSupportCtrlResp msgTypeSupportResp;
@@ -2105,7 +2195,9 @@ void MctpBinding::removeInterface(
 
 void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
 {
-    std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        ("Unregistering EID = " + std::to_string(eid)).c_str());
+    static const std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
     std::string mctpEpObj = mctpDevObj + std::to_string(eid);
 
     removeInterface(mctpEpObj, endpointInterface);
@@ -2113,4 +2205,33 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
     removeInterface(mctpEpObj, uuidInterface);
     // Vendor ID set Support
     removeInterface(mctpEpObj, vendorIdInterface);
+}
+
+std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)
+{
+    for (const auto& uuidEntry : uuidTable)
+    {
+        if (uuidStr.compare(std::get<1>(uuidEntry)) == 0)
+        {
+            return std::get<0>(uuidEntry);
+        }
+    }
+    return std::nullopt;
+}
+
+void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
+{
+    for (unsigned int tableItr = 0; tableItr < uuidTable.size(); tableItr++)
+    {
+        if (std::get<0>(uuidTable[tableItr]) == eid)
+        {
+            // Remove the entry from uuidTable and unregister the device.
+            uuidTable.erase(uuidTable.begin() + static_cast<int32_t>(tableItr));
+            unregisterEndpoint(eid);
+            // Return EID to the pool of EIDs available for assignment
+            // as the Endpoint is non-responsive.
+            updateEidStatus(eid, false);
+            break;
+        }
+    }
 }
