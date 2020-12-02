@@ -35,6 +35,35 @@ PDRManager::PDRManager(const pldm_tid_t tid) : _tid(tid)
 {
 }
 
+PDRManager::~PDRManager()
+{
+    auto objectServer = getObjServer();
+    for (const auto& iter : _systemHierarchyIntf)
+    {
+        objectServer->remove_interface(iter.second.first);
+    }
+
+    for (const auto& iter : _sensorIntf)
+    {
+        objectServer->remove_interface(iter.second.first);
+    }
+
+    for (const auto& iter : _effecterIntf)
+    {
+        objectServer->remove_interface(iter.second.first);
+    }
+
+    for (const auto& iter : _fruRecordSetIntf)
+    {
+        objectServer->remove_interface(iter.second.first);
+    }
+
+    if (pdrDumpInterface)
+    {
+        objectServer->remove_interface(pdrDumpInterface);
+    }
+}
+
 // TODO: remove this API after code complete
 static inline void printDebug(const std::string& message)
 {

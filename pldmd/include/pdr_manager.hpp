@@ -77,7 +77,7 @@ class PDRManager
     PDRManager(PDRManager&&) = delete;
     PDRManager& operator=(const PDRManager&) = delete;
     PDRManager& operator=(PDRManager&&) = delete;
-    ~PDRManager() = default;
+    ~PDRManager();
 
     PDRManager(const pldm_tid_t tid);
 
