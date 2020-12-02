@@ -45,6 +45,28 @@ void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
     return;
 }
 
+/** @brief API that deletes PLDM firmware device resorces. This API should be
+ * called when PLDM firmware update capable device is removed from the platform.
+ */
+bool deleteFWDevice(const pldm_tid_t tid)
+{
+    auto itr = terminusFwuProperties.find(tid);
+    if (itr == terminusFwuProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM firmware update device not matched for TID " +
+             std::to_string(tid))
+                .c_str());
+        return false;
+    }
+    terminusFwuProperties.erase(itr);
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("PLDM firmware update device resources deleted for TID " +
+         std::to_string(tid))
+            .c_str());
+    return true;
+}
+
 template <typename T>
 static void
     processDescriptor(const DescriptorHeader& header, const T& data,
