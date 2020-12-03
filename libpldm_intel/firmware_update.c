@@ -23,6 +23,80 @@ static bool check_comp_ver_str_type_valid(const uint8_t comp_type)
 		return false;
 	}
 }
+
+/** @brief Check whether Component Classification is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_comp_classification_valid(const uint16_t comp_classification)
+{
+	switch (comp_classification) {
+	case COMP_UNKNOWN:
+	case COMP_OTHER:
+	case COMP_DRIVER:
+	case COMP_CONFIGURATION_SOFTWARE:
+	case COMP_APPLICATION_SOFTWARE:
+	case COMP_INSTRUMENTATION:
+	case COMP_FIRMWARE_OR_BIOS:
+	case COMP_DIAGNOSTIC_SOFTWARE:
+	case COMP_OPERATING_SYSTEM:
+	case COMP_MIDDLEWARE:
+	case COMP_FIRMWARE:
+	case COMP_BIOS_OR_FCODE:
+	case COMP_SUPPORT_OR_SERVICEPACK:
+	case COMP_SOFTWARE_BUNDLE:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+/** @brief Check whether Component Response Code is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_resp_code_valid(const uint8_t comp_resp_code)
+{
+	switch (comp_resp_code) {
+	case COMP_CAN_BE_UPDATED:
+	case COMP_COMPARISON_STAMP_IDENTICAL:
+	case COMP_COMPARISON_STAMP_LOWER:
+	case INVALID_COMP_COMPARISON_STAMP:
+	case COMP_CONFLICT:
+	case COMP_PREREQUISITES:
+	case COMP_NOT_SUPPORTED:
+	case COMP_SECURITY_RESTRICTIONS:
+	case INCOMPLETE_COMP_IMAGE_SET:
+	case COMP_VER_STR_IDENTICAL:
+	case COMP_VER_STR_LOWER:
+		return true;
+
+	default:
+		if (comp_resp_code >= FD_VENDOR_COMP_STATUS_CODE_RANGE_MIN &&
+		    comp_resp_code <= FD_VENDOR_COMP_STATUS_CODE_RANGE_MAX) {
+			return true;
+		}
+		return false;
+	}
+}
+
+/** @brief Check whether Component Response is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_comp_resp_valid(const uint8_t comp_resp)
+{
+	switch (comp_resp) {
+	case COMP_CAN_BE_UPDATEABLE:
+	case COMP_MAY_BE_UPDATEABLE:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
 /** @brief Check validity of VerifyResult in VerifyComplete request
  *
  *	@param[in] verify_result - VerifyResult
@@ -556,70 +630,13 @@ int decode_activate_firmware_resp(const struct pldm_msg *msg,
 	return PLDM_SUCCESS;
 }
 
-/*PassComponentTable*/
-
-/** @brief Check whether Component Classification is valid
- *
- *  @return true if is from below mentioned values, false if not
- */
-static bool check_comp_classification_valid(const uint16_t comp_classification)
-{
-	switch (comp_classification) {
-	case COMP_UNKNOWN:
-	case COMP_OTHER:
-	case COMP_DRIVER:
-	case COMP_CONFIGURATION_SOFTWARE:
-	case COMP_APPLICATION_SOFTWARE:
-	case COMP_INSTRUMENTATION:
-	case COMP_FIRMWARE_OR_BIOS:
-	case COMP_DIAGNOSTIC_SOFTWARE:
-	case COMP_OPERATING_SYSTEM:
-	case COMP_MIDDLEWARE:
-	case COMP_FIRMWARE:
-	case COMP_BIOS_OR_FCODE:
-	case COMP_SUPPORT_OR_SERVICEPACK:
-	case COMP_SOFTWARE_BUNDLE:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-/** @brief Check whether Component Response Code is valid
- *
- *  @return true if is from below mentioned values, false if not
- */
-static bool check_resp_code_valid(const uint8_t comp_resp_code)
-{
-	switch (comp_resp_code) {
-	case COMP_CAN_BE_UPDATED:
-	case COMP_COMPARISON_STAMP_IDENTICAL:
-	case COMP_COMPARISON_STAMP_LOWER:
-	case INVALID_COMP_COMPARISON_STAMP:
-	case COMP_CONFLICT:
-	case COMP_PREREQUISITES:
-	case COMP_NOT_SUPPORTED:
-	case COMP_SECURITY_RESTRICTIONS:
-	case INCOMPLETE_COMP_IMAGE_SET:
-	case COMP_VER_STR_IDENTICAL:
-	case COMP_VER_STR_LOWER:
-		return true;
-
-	default:
-		return false;
-	}
-}
-
-/*PassComponentTable Encode Request API */
 int encode_pass_component_table_req(const uint8_t instance_id,
 				    struct pldm_msg *msg,
 				    const size_t payload_length,
 				    const struct pass_component_table_req *data,
 				    struct variable_field *comp_ver_str)
 {
-	if (msg == NULL || data == NULL || comp_ver_str == NULL ||
-	    msg->payload == NULL) {
+	if (msg == NULL || data == NULL || comp_ver_str == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -627,31 +644,39 @@ int encode_pass_component_table_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	struct pldm_header_info header = {0};
-	header.instance = instance_id;
-	header.msg_type = PLDM_REQUEST;
-	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_PASS_COMPONENT_TABLE;
+	int rc =
+	    encode_pldm_header(instance_id, PLDM_FWU, PLDM_PASS_COMPONENT_TABLE,
+			       PLDM_REQUEST, msg);
 
-	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
 		return rc;
 	}
 
+	struct pass_component_table_req *request =
+	    (struct pass_component_table_req *)msg->payload;
+
 	if (!check_transfer_flag_valid(data->transfer_flag)) {
 		return PLDM_INVALID_TRANSFER_OPERATION_FLAG;
 	}
+
+	request->transfer_flag = data->transfer_flag;
 
 	if (!check_comp_classification_valid(
 		htole16(data->comp_classification))) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
+	request->comp_classification = htole16(data->comp_classification);
+	request->comp_identifier = htole16(data->comp_identifier);
+	request->comp_classification_index = data->comp_classification_index;
+	request->comp_comparison_stamp = htole32(data->comp_comparison_stamp);
+
 	if (!check_comp_ver_str_type_valid(data->comp_ver_str_type)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	memcpy(msg->payload, data, sizeof(struct pass_component_table_req));
+	request->comp_ver_str_type = data->comp_ver_str_type;
+	request->comp_ver_str_len = data->comp_ver_str_len;
 
 	if (payload_length !=
 	    sizeof(struct pass_component_table_req) + comp_ver_str->length) {
@@ -668,7 +693,6 @@ int encode_pass_component_table_req(const uint8_t instance_id,
 	return PLDM_SUCCESS;
 }
 
-/*PassComponentTable decode Response API */
 int decode_pass_component_table_resp(const struct pldm_msg *msg,
 				     const size_t payload_length,
 				     uint8_t *completion_code,
@@ -676,7 +700,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 				     uint8_t *comp_resp_code)
 {
 	if (msg == NULL || completion_code == NULL || comp_resp == NULL ||
-	    comp_resp_code == NULL || msg->payload == NULL) {
+	    comp_resp_code == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -693,8 +717,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 	struct pass_component_table_resp *response =
 	    (struct pass_component_table_resp *)msg->payload;
 
-	if (response->comp_resp != COMP_CAN_BE_UPDATEABLE &&
-	    response->comp_resp != COMP_MAY_BE_UPDATEABLE) {
+	if (!check_comp_resp_valid(response->comp_resp)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 

@@ -74,6 +74,25 @@ enum comp_type {
 	COMP_UTF_16BE = 5
 };
 
+/** @brief PLDM FWU common values for Component Response Code and Component
+ * Compatibility Response Code
+ */
+enum comp_code {
+	COMP_CAN_BE_UPDATED = 0x00,
+	COMP_COMPARISON_STAMP_IDENTICAL = 0x01,
+	COMP_COMPARISON_STAMP_LOWER = 0x02,
+	INVALID_COMP_COMPARISON_STAMP = 0x03,
+	COMP_CONFLICT = 0x04,
+	COMP_PREREQUISITES = 0x05,
+	COMP_NOT_SUPPORTED = 0x06,
+	COMP_SECURITY_RESTRICTIONS = 0x07,
+	INCOMPLETE_COMP_IMAGE_SET = 0x08,
+	COMP_VER_STR_IDENTICAL = 0x0A,
+	COMP_VER_STR_LOWER = 0x0B,
+	FD_VENDOR_COMP_STATUS_CODE_RANGE_MIN = 0xD0,
+	FD_VENDOR_COMP_STATUS_CODE_RANGE_MAX = 0xEF
+};
+
 /** @brief PLDM Firmware Update States
  */
 enum pldm_firmware_update_state {
@@ -214,22 +233,6 @@ enum comp_compatability_resp_code {
 /** @brief PLDM FWU codes for Component Response
  */
 enum comp_resp { COMP_CAN_BE_UPDATEABLE = 0, COMP_MAY_BE_UPDATEABLE = 1 };
-
-/** @brief PLDM FWU codes for Component Response Code
- */
-enum comp_resp_code {
-	COMP_CAN_BE_UPDATED = 0x00,
-	COMP_COMPARISON_STAMP_IDENTICAL = 0x01,
-	COMP_COMPARISON_STAMP_LOWER = 0x02,
-	INVALID_COMP_COMPARISON_STAMP = 0x03,
-	COMP_CONFLICT = 0x04,
-	COMP_PREREQUISITES = 0x05,
-	COMP_NOT_SUPPORTED = 0x06,
-	COMP_SECURITY_RESTRICTIONS = 0x07,
-	INCOMPLETE_COMP_IMAGE_SET = 0x08,
-	COMP_VER_STR_IDENTICAL = 0x0A,
-	COMP_VER_STR_LOWER = 0x0B
-};
 
 /** @brief PLDM FWU codes for Self Contained Activation Request
  */
