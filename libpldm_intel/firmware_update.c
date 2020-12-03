@@ -487,7 +487,7 @@ int encode_get_device_meta_data_req(const uint8_t instance_id,
 				    const uint8_t transfer_operation_flag)
 {
 	if (msg == NULL || data_transfer_handle == NULL ||
-	    transfer_operation_flag == NULL || msg->payload == NULL) {
+	    transfer_operation_flag == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -495,13 +495,10 @@ int encode_get_device_meta_data_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	struct pldm_header_info header = {0};
-	header.instance = instance_id;
-	header.msg_type = PLDM_REQUEST;
-	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_GET_DEVICE_META_DATA;
+	int rc =
+	    encode_pldm_header(instance_id, PLDM_FWU, PLDM_GET_DEVICE_META_DATA,
+			       PLDM_REQUEST, msg);
 
-	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
 		return rc;
 	}
@@ -527,7 +524,7 @@ int decode_get_device_meta_data_resp(
 {
 	if (msg == NULL || completion_code == NULL ||
 	    next_data_transfer_handle == NULL || transfer_flag == NULL ||
-	    portion_of_meta_data == NULL || msg->payload == NULL) {
+	    portion_of_meta_data == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -552,6 +549,10 @@ int decode_get_device_meta_data_resp(
 	}
 
 	*transfer_flag = response->transfer_flag;
+
+	if (portion_of_meta_data->ptr == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	portion_of_meta_data->ptr =
 	    msg->payload + sizeof(struct get_device_meta_data_resp);

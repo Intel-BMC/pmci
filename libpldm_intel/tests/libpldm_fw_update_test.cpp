@@ -870,9 +870,6 @@ TEST(RequestUpdate, testBadDecodeResponse)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
-/* GetDeviceMetaData */
-
-/*GetDeviceMetaData Encode Request Test Cases*/
 TEST(GetDeviceMetaData, testGoodEncodeRequest)
 {
     std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_req)>
@@ -882,7 +879,7 @@ TEST(GetDeviceMetaData, testGoodEncodeRequest)
 
     auto request = reinterpret_cast<get_device_meta_data_req*>(msg->payload);
 
-    // Random value for data transfer handle and transfer operation flag
+    // Random value for data transfer handle
     uint32_t dataTransferHandle = 32;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
 
@@ -895,15 +892,56 @@ TEST(GetDeviceMetaData, testGoodEncodeRequest)
     EXPECT_EQ(msg->hdr.instance_id, 0u);
     EXPECT_EQ(msg->hdr.type, PLDM_FWU);
     EXPECT_EQ(msg->hdr.command, PLDM_GET_DEVICE_META_DATA);
-    EXPECT_EQ(dataTransferHandle, request->data_transfer_handle);
+    EXPECT_EQ(dataTransferHandle, le32toh(request->data_transfer_handle));
     EXPECT_EQ(transferOperationFlag, request->transfer_operation_flag);
+}
+
+TEST(GetDeviceMetaData, testBadEncodeRequest)
+{
+    std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_req)>
+        requestMsg{};
+
+    auto msg = reinterpret_cast<pldm_msg*>(requestMsg.data());
+
+    uint32_t dataTransferHandle = 0;
+    uint8_t transferOperationFlag = 0;
+
+    auto rc = encode_get_device_meta_data_req(
+        0, 0, sizeof(struct get_device_meta_data_req), dataTransferHandle,
+        transferOperationFlag);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_get_device_meta_data_req(0, msg, 0, dataTransferHandle,
+                                         transferOperationFlag);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_get_device_meta_data_req(
+        0, msg, sizeof(struct get_device_meta_data_req), 0,
+        transferOperationFlag);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = encode_get_device_meta_data_req(
+        0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle, 0);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    transferOperationFlag = PLDM_GET_FIRSTPART + 1;
+    rc = encode_get_device_meta_data_req(
+        0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle,
+        transferOperationFlag);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    transferOperationFlag = PLDM_GET_NEXTPART - 1;
+    rc = encode_get_device_meta_data_req(
+        0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle,
+        transferOperationFlag);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
 TEST(GetDeviceMetaData, testGoodDecodeResponse)
 {
-    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t completionCode = PLDM_ERROR;
     uint32_t nextDataTransferHandle = 0;
-    uint8_t transferFlag = 0;
+    uint8_t transferFlag = PLDM_START_AND_END;
     // portionOfMetaDataLen is not fixed here taking it as 6
     constexpr uint8_t portionOfMetaDataLen = 6;
     struct variable_field outPortionMetaData;
@@ -931,12 +969,101 @@ TEST(GetDeviceMetaData, testGoodDecodeResponse)
 
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(completionCode, PLDM_SUCCESS);
-    EXPECT_EQ(nextDataTransferHandle, inResp->next_data_transfer_handle);
+    EXPECT_EQ(nextDataTransferHandle,
+              htole32(inResp->next_data_transfer_handle));
     EXPECT_EQ(transferFlag, inResp->transfer_flag);
     EXPECT_EQ(0, memcmp(outPortionMetaData.ptr,
                         responseMsg.data() + hdrSize +
                             sizeof(struct get_device_meta_data_resp),
                         outPortionMetaData.length));
+}
+
+TEST(GetDeviceMetaData, testBadDecodeResponse)
+{
+    uint8_t completionCode = PLDM_ERROR;
+    uint32_t nextDataTransferHandle = 0;
+    uint8_t transferFlag = PLDM_START_AND_END;
+    constexpr uint8_t portionOfMetaDataLen = 6;
+
+    std::array<uint8_t, portionOfMetaDataLen> portionOfMetaDataArr;
+    struct variable_field outPortionMetaData;
+    outPortionMetaData.ptr = portionOfMetaDataArr.data();
+    outPortionMetaData.length = portionOfMetaDataLen;
+
+    std::array<uint8_t, hdrSize + sizeof(struct get_device_meta_data_resp) +
+                            portionOfMetaDataLen>
+        responseMsg{};
+    struct get_device_meta_data_resp* inResp =
+        reinterpret_cast<struct get_device_meta_data_resp*>(responseMsg.data() +
+                                                            hdrSize);
+
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->next_data_transfer_handle = 1;
+    inResp->transfer_flag = PLDM_START;
+
+    std::fill(portionOfMetaDataArr.data(), portionOfMetaDataArr.end(), 0xFF);
+
+    auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
+    auto rc = decode_get_device_meta_data_resp(
+        NULL, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_device_meta_data_resp(response, 0, &completionCode,
+                                          &nextDataTransferHandle,
+                                          &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, NULL, &nextDataTransferHandle,
+        &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode, NULL,
+        &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, NULL, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->transfer_flag = PLDM_START - 1;
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_INVALID_TRANSFER_OPERATION_FLAG);
+
+    inResp->transfer_flag = PLDM_START_AND_END + 1;
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_INVALID_TRANSFER_OPERATION_FLAG);
+
+    inResp->transfer_flag = 0x09;
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_INVALID_TRANSFER_OPERATION_FLAG);
+
+    inResp->transfer_flag = 0x01;
+    outPortionMetaData.ptr = NULL;
+    outPortionMetaData.length = 0;
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
 TEST(UpdateComponent, testGoodEncodeRequest)

@@ -515,7 +515,7 @@ struct get_device_meta_data_resp {
  *  @param[in] payload_length - Length of request message payload
  *  @param[in] data_transfer_handle - A handle that is used to identify a
  * package data transfer
- *  @param[in] transfer_operation_flag - The operation flag that indiates
+ *  @param[in] transfer_operation_flag - The operation flag that indicates
  * whether this is the start of the transfer
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
