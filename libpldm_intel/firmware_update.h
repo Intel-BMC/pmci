@@ -758,7 +758,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 int encode_cancel_update_component_req(const uint8_t instance_id,
 				       struct pldm_msg *msg);
 
-/** @brief Decode a CancelUpdateComponent response message
+/** @brief Decode CancelUpdateComponent response message
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
