@@ -42,6 +42,10 @@ static inline const std::map<uint8_t, const char*> fruRecordTypes{
 static bool addFRUObjectToDbus(const std::string& fruObjPath,
                                const pldm_tid_t tid);
 
+static void removeInterface(
+    std::string& interfacePath,
+    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>& interfaces);
+
 class PLDMFRUCmd
 {
   public:

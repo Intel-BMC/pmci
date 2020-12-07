@@ -440,6 +440,65 @@ static bool addFRUObjectToDbus(const std::string& fruObjPath,
     return true;
 }
 
+static void removeInterface(
+    std::string& interfacePath,
+    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>& interfaces)
+{
+    auto objServer = getObjServer();
+    for (auto dbusInterface = interfaces.begin();
+         dbusInterface != interfaces.end(); dbusInterface++)
+    {
+        if ((*dbusInterface)->get_object_path() == interfacePath)
+        {
+            std::shared_ptr<sdbusplus::asio::dbus_interface> tmpIf =
+                *dbusInterface;
+            objServer->remove_interface(tmpIf);
+            interfaces.erase(dbusInterface);
+            break;
+        }
+    }
+}
+
+/** @brief API that deletes PLDM fru device resorces. This API should be
+ * called when PLDM fru capable devide is removed from the platform.
+ */
+bool deleteFRUDevice(const pldm_tid_t tid)
+{
+    auto it = terminusFRUMetadata.find(tid);
+    if (it == terminusFRUMetadata.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM FRU device not matched for TID " + std::to_string(tid))
+                .c_str());
+        // If terminusFRUMetadata[tid] is not present, then it is safe to return
+        // as terminusFRUProperties / fruInterface will not be there.
+        return false;
+    }
+    terminusFRUMetadata.erase(it);
+
+    auto itr = terminusFRUProperties.find(tid);
+    if (itr == terminusFRUProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM FRU device properties not matched for TID " +
+             std::to_string(tid))
+                .c_str());
+        // Only terminusFRUMeta[tid] is present, which is cleared. No
+        // terminusFRUProperties[tid] is present meaning terminusFRUProperties /
+        // fruInterface will not be there to clear. So return true.
+        return true;
+    }
+    terminusFRUProperties.erase(itr);
+
+    std::string tidFRUObjPath = fruPath + std::to_string(tid);
+    removeInterface(tidFRUObjPath, fruInterface);
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("PLDM FRU device resource deleted for TID " + std::to_string(tid))
+            .c_str());
+    return true;
+}
+
 static void initializeFRUBase()
 {
     auto objServer = getObjServer();
