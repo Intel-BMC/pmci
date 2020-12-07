@@ -562,13 +562,29 @@ int decode_get_device_meta_data_resp(
 	return PLDM_SUCCESS;
 }
 
+/** @brief Check whether Self Contained Activation Request is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_self_contained_activation_req_valid(
+    const bool8_t self_contained_activation_req)
+{
+	switch (self_contained_activation_req) {
+	case NOT_CONTAINING_SELF_ACTIVATED_COMPONENTS:
+	case CONTAINS_SELF_ACTIVATED_COMPONENTS:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
 int encode_activate_firmware_req(const uint8_t instance_id,
 				 struct pldm_msg *msg,
 				 const size_t payload_length,
 				 const bool8_t self_contained_activation_req)
 {
-	if (msg == NULL || self_contained_activation_req == NULL ||
-	    msg->payload == NULL) {
+	if (msg == NULL || self_contained_activation_req == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -576,13 +592,9 @@ int encode_activate_firmware_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	struct pldm_header_info header = {0};
-	header.instance = instance_id;
-	header.msg_type = PLDM_REQUEST;
-	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_ACTIVATE_FIRMWARE;
+	int rc = encode_pldm_header(instance_id, PLDM_FWU,
+				    PLDM_ACTIVATE_FIRMWARE, PLDM_REQUEST, msg);
 
-	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
 		return rc;
 	}
@@ -590,10 +602,8 @@ int encode_activate_firmware_req(const uint8_t instance_id,
 	struct activate_firmware_req *request =
 	    (struct activate_firmware_req *)msg->payload;
 
-	if (self_contained_activation_req !=
-		NOT_CONTAINING_SELF_ACTIVATED_COMPONENTS &&
-	    self_contained_activation_req !=
-		CONTAINS_SELF_ACTIVATED_COMPONENTS) {
+	if (!check_self_contained_activation_req_valid(
+		self_contained_activation_req)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -608,7 +618,7 @@ int decode_activate_firmware_resp(const struct pldm_msg *msg,
 				  uint16_t *estimated_time_activation)
 {
 	if (msg == NULL || completion_code == NULL ||
-	    estimated_time_activation == NULL || msg->payload == NULL) {
+	    estimated_time_activation == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -626,7 +636,7 @@ int decode_activate_firmware_resp(const struct pldm_msg *msg,
 	    (struct activate_firmware_resp *)msg->payload;
 
 	*estimated_time_activation =
-	    le32toh(response->estimated_time_activation);
+	    le16toh(response->estimated_time_activation);
 
 	return PLDM_SUCCESS;
 }
