@@ -139,6 +139,51 @@ PLDMFRUTable::~PLDMFRUTable()
 {
 }
 
+bool PLDMFRUCmd::verifyCRC(std::vector<uint8_t>& fruTable)
+{
+    auto it = terminusFRUMetadata.find(tid);
+    if (it == terminusFRUMetadata.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFruRecordTable: no TID match found for CRC check",
+            phosphor::logging::entry("TID=%d", tid));
+        return false;
+    }
+
+    FRUMetadata& tmpMap = it->second;
+    auto crcFound = tmpMap.find("Checksum");
+    if (crcFound == tmpMap.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFruRecordTable: No CRC-32 available in metadata",
+            phosphor::logging::entry("TID=%d", tid));
+        return false;
+    }
+
+    constexpr size_t mod = 4;
+    size_t numPadBytes = 0;
+    if (fruTable.size() % mod)
+    {
+        numPadBytes = mod - (fruTable.size() % mod);
+    }
+
+    // fill padding with zeros
+    fruTable.resize(fruTable.size() + numPadBytes);
+
+    uint32_t checksum = crc32(fruTable.data(), fruTable.size());
+
+    if (crcFound->second != checksum)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "GetFruRecordTable: CRC match failure with metadata "
+            "CRC value",
+            phosphor::logging::entry("TID=%d", tid));
+        return false;
+    }
+    phosphor::logging::log<phosphor::logging::level::INFO>("CRC Match Done");
+    return true;
+}
+
 int PLDMFRUCmd::getFRURecordTableCmd()
 {
     uint32_t dataTransferHandle = 0;
@@ -238,7 +283,12 @@ int PLDMFRUCmd::getFRURecordTableCmd()
                   std::back_inserter(fruRecordTableData));
     }
 
-    // TODO: CRC32 check
+    if (!verifyCRC(fruRecordTableData))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed at CRC Match", phosphor::logging::entry("TID=%d", tid));
+        return PLDM_ERROR;
+    }
 
     PLDMFRUTable tableParse(std::move(fruRecordTableData), tid);
 

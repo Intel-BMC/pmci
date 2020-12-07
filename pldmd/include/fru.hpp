@@ -71,6 +71,13 @@ class PLDMFRUCmd
      */
     int getFRURecordTableCmd();
 
+    /** @brief verify Integrity checksum on the FRU Table Data with metadata
+     * checksum value
+     *
+     * @return true on success and false on checksum match failure
+     */
+    bool verifyCRC(std::vector<uint8_t>& fruTable);
+
     boost::asio::yield_context yield;
     pldm_tid_t tid;
 };
