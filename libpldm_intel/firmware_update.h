@@ -316,7 +316,7 @@ struct cancel_update_resp {
 	uint8_t completion_code;
 	bool8_t non_functioning_component_indication;
 	uint64_t non_functioning_component_bitmap;
-};
+} __attribute__((packed));
 
 /* @struct get_fd_data_req
  *
