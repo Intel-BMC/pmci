@@ -385,7 +385,7 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
     }
     else
     {
-        resp->vendor_id_set_selector = setIndex + 1;
+        resp->vendor_id_set_selector = static_cast<uint8_t>(setIndex + 1U);
     }
     resp->vendor_id_format = vdmSetDatabase[setIndex].idFormat;
     resp->vendor_id_data = vdmSetDatabase[setIndex].idData;
