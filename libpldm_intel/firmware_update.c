@@ -1318,14 +1318,14 @@ int encode_apply_complete_resp(const uint8_t instance_id,
 	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	return (encode_cc_only_resp(instance_id, PLDM_FWU, PLDM_APPLY_COMPLETE,
 				    completion_code, msg));
 }
 
-int decode_apply_complete_req(const struct pldm_msg *msg,
-			      const size_t payload_length,
-			      uint8_t *apply_result,
-			      uint16_t *comp_activation_methods_modification)
+int decode_apply_complete_req(
+    const struct pldm_msg *msg, const size_t payload_length,
+    uint8_t *apply_result, bitfield16_t *comp_activation_methods_modification)
 {
 	if (msg == NULL || apply_result == NULL ||
 	    comp_activation_methods_modification == NULL) {
@@ -1345,12 +1345,12 @@ int decode_apply_complete_req(const struct pldm_msg *msg,
 	*apply_result = request->apply_result;
 
 	if (!validate_comp_activation_methods_modification(
-		le16toh(request->comp_activation_methods_modification))) {
+		le16toh(request->comp_activation_methods_modification.value))) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	*comp_activation_methods_modification =
-	    le16toh(request->comp_activation_methods_modification);
+	comp_activation_methods_modification->value =
+	    le16toh(request->comp_activation_methods_modification.value);
 
 	return PLDM_SUCCESS;
 }

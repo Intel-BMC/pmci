@@ -984,7 +984,7 @@ int decode_get_status_resp(const struct pldm_msg *msg,
  */
 struct apply_complete_req {
 	uint8_t apply_result;
-	uint16_t comp_activation_methods_modification;
+	bitfield16_t comp_activation_methods_modification;
 } __attribute__((packed));
 
 /** @brief Create a PLDM response message for ApplyComplete
@@ -994,7 +994,7 @@ struct apply_complete_req {
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_apply_complete_resp(const uint8_t instance_id,
 			       const uint8_t completion_code,
@@ -1015,10 +1015,9 @@ int encode_apply_complete_resp(const uint8_t instance_id,
  * Activation Methods Modification
  *  @return pldm_completion_codes
  */
-int decode_apply_complete_req(const struct pldm_msg *msg,
-			      const size_t payload_length,
-			      uint8_t *apply_result,
-			      uint16_t *comp_activation_methods_modification);
+int decode_apply_complete_req(
+    const struct pldm_msg *msg, const size_t payload_length,
+    uint8_t *apply_result, bitfield16_t *comp_activation_methods_modification);
 
 #ifdef __cplusplus
 }
