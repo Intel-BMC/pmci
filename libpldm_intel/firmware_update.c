@@ -314,6 +314,9 @@ int decode_get_firmware_parameters_comp_img_set_resp(
 		    resp_data->active_comp_image_set_ver_str_len;
 		pending_comp_image_set_ver_str->length =
 		    resp_data->pending_comp_image_set_ver_str_len;
+	} else {
+		pending_comp_image_set_ver_str->ptr = NULL;
+		pending_comp_image_set_ver_str->length = 0;
 	}
 
 	return PLDM_SUCCESS;
@@ -386,6 +389,9 @@ int decode_get_firmware_parameters_comp_resp(
 		    component_resp->active_comp_ver_str_len;
 		pending_comp_ver_str->length =
 		    component_resp->pending_comp_ver_str_len;
+	} else {
+		pending_comp_ver_str->ptr = NULL;
+		pending_comp_ver_str->length = 0;
 	}
 	return PLDM_SUCCESS;
 }
