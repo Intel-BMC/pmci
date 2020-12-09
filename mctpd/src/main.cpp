@@ -384,7 +384,7 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     return configurationPair;
 }
 
-std::unique_ptr<MctpBinding>
+std::shared_ptr<MctpBinding>
     getBindingPtr(const Configuration& configuration,
                   std::shared_ptr<object_server>& objectServer,
                   boost::asio::io_context& ioc)
@@ -394,13 +394,13 @@ std::unique_ptr<MctpBinding>
     if (auto smbusConfig =
             dynamic_cast<const SMBusConfiguration*>(&configuration))
     {
-        return std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
+        return std::make_shared<SMBusBinding>(objectServer, mctpBaseObj,
                                               *smbusConfig, ioc);
     }
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
     {
-        return std::make_unique<PCIeBinding>(objectServer, mctpBaseObj,
+        return std::make_shared<PCIeBinding>(objectServer, mctpBaseObj,
                                              *pcieConfig, ioc);
     }
 
