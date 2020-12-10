@@ -213,21 +213,11 @@ enum comp_compatability_resp {
 	COMPONENT_CANNOT_BE_UPDATED = 1
 };
 
-/** @brief PLDM FWU codes for Component Compatibility Response Code
+/** @brief PLDM FWU codes for component compatibility response code
  */
 enum comp_compatability_resp_code {
 	NO_RESPONSE_CODE = 0x0,
-	COMPATABILITY_COMPARISON_STAMP_IDENTICAL = 0x01,
-	COMPATABILITY_COMPARISON_STAMP_LOWER = 0x02,
-	INVALID_COMPATABILITY_COMPARISON_STAMP = 0x03,
-	COMPATABILITY_CONFLICT = 0x04,
-	COMPATABILITY_PREREQUISITES = 0x05,
-	COMPATABILITY_NOT_SUPPORTED = 0x06,
-	COMPATABILITY_SECURITY_RESTRICTIONS = 0x07,
-	INCOMPLETE_COMPONENT_IMAGE_SET = 0x08,
-	COMPATABILITY_NO_MATCH = 0x09,
-	COMPATABILITY_VER_STR_IDENTICAL = 0x0A,
-	COMPATABILITY_VER_STR_LOWER = 0x0B
+	COMPATABILITY_NO_MATCH = 0x09
 };
 
 /** @brief PLDM FWU codes for Component Response
@@ -560,7 +550,7 @@ struct update_component_req {
 	uint8_t comp_classification_index;
 	uint32_t comp_comparison_stamp;
 	uint32_t comp_image_size;
-	uint32_t update_option_flags;
+	bitfield32_t update_option_flags;
 	uint8_t comp_ver_str_type;
 	uint8_t comp_ver_str_len;
 } __attribute__((packed));
@@ -573,7 +563,7 @@ struct update_component_resp {
 	uint8_t completion_code;
 	uint8_t comp_compatability_resp;
 	uint8_t comp_compatability_resp_code;
-	uint32_t update_option_flags_enabled;
+	bitfield32_t update_option_flags_enabled;
 	uint16_t estimated_time_req_fd;
 } __attribute__((packed));
 
@@ -587,7 +577,7 @@ struct update_component_resp {
  * information
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
 				const size_t payload_length,
@@ -620,7 +610,7 @@ int decode_update_component_resp(const struct pldm_msg *msg,
 				 uint8_t *completion_code,
 				 uint8_t *comp_compatability_resp,
 				 uint8_t *comp_compatability_resp_code,
-				 uint32_t *update_option_flags_enabled,
+				 bitfield32_t *update_option_flags_enabled,
 				 uint16_t *estimated_time_req_fd);
 
 /*ActivateFirmware*/

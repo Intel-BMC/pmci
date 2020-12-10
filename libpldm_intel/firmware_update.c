@@ -743,7 +743,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 	return PLDM_SUCCESS;
 }
 
-/** @brief Check whether Component Compatibility Response Code is valid
+/** @brief Check whether component compatibility response code is valid
  *
  *  @return true if is from below mentioned values, false if not
  */
@@ -752,17 +752,40 @@ check_compatability_resp_code_valid(const uint8_t comp_compatability_resp_code)
 {
 	switch (comp_compatability_resp_code) {
 	case NO_RESPONSE_CODE:
-	case COMPATABILITY_COMPARISON_STAMP_IDENTICAL:
-	case COMPATABILITY_COMPARISON_STAMP_LOWER:
-	case INVALID_COMPATABILITY_COMPARISON_STAMP:
-	case COMPATABILITY_CONFLICT:
-	case COMPATABILITY_PREREQUISITES:
-	case COMPATABILITY_NOT_SUPPORTED:
-	case COMPATABILITY_SECURITY_RESTRICTIONS:
-	case INCOMPLETE_COMPONENT_IMAGE_SET:
+	case COMP_COMPARISON_STAMP_IDENTICAL:
+	case COMP_COMPARISON_STAMP_LOWER:
+	case INVALID_COMP_COMPARISON_STAMP:
+	case COMP_CONFLICT:
+	case COMP_PREREQUISITES:
+	case COMP_NOT_SUPPORTED:
+	case COMP_SECURITY_RESTRICTIONS:
+	case INCOMPLETE_COMP_IMAGE_SET:
 	case COMPATABILITY_NO_MATCH:
-	case COMPATABILITY_VER_STR_IDENTICAL:
-	case COMPATABILITY_VER_STR_LOWER:
+	case COMP_VER_STR_IDENTICAL:
+	case COMP_VER_STR_LOWER:
+		return true;
+
+	default:
+		if (comp_compatability_resp_code >=
+			FD_VENDOR_COMP_STATUS_CODE_RANGE_MIN &&
+		    comp_compatability_resp_code <=
+			FD_VENDOR_COMP_STATUS_CODE_RANGE_MAX) {
+			return true;
+		}
+		return false;
+	}
+}
+
+/** @brief Check whether component compatibility response is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool
+check_compatability_resp_valid(const uint8_t comp_compatability_resp)
+{
+	switch (comp_compatability_resp) {
+	case COMPONENT_CAN_BE_UPDATED:
+	case COMPONENT_CANNOT_BE_UPDATED:
 		return true;
 
 	default:
@@ -775,8 +798,7 @@ int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
 				const struct update_component_req *data,
 				struct variable_field *comp_ver_str)
 {
-	if (msg == NULL || data == NULL || comp_ver_str == NULL ||
-	    msg->payload == NULL) {
+	if (msg == NULL || data == NULL || comp_ver_str == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -784,15 +806,18 @@ int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	struct pldm_header_info header = {0};
-	header.instance = instance_id;
-	header.msg_type = PLDM_REQUEST;
-	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_UPDATE_COMPONENT;
+	int rc = encode_pldm_header(instance_id, PLDM_FWU,
+				    PLDM_UPDATE_COMPONENT, PLDM_REQUEST, msg);
 
-	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
 		return rc;
+	}
+
+	struct update_component_req *request =
+	    (struct update_component_req *)msg->payload;
+
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
 	}
 
 	if (!check_comp_classification_valid(
@@ -800,11 +825,20 @@ int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
+	request->comp_classification = htole16(data->comp_classification);
+	request->comp_identifier = htole16(data->comp_identifier);
+	request->comp_classification_index = data->comp_classification_index;
+	request->comp_comparison_stamp = htole32(data->comp_comparison_stamp);
+	request->comp_image_size = htole32(data->comp_image_size);
+	request->update_option_flags.value =
+	    htole32(data->update_option_flags.value);
+
 	if (!check_comp_ver_str_type_valid(data->comp_ver_str_type)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	memcpy(msg->payload, data, sizeof(struct update_component_req));
+	request->comp_ver_str_type = data->comp_ver_str_type;
+	request->comp_ver_str_len = data->comp_ver_str_len;
 
 	if (payload_length !=
 	    sizeof(struct update_component_req) + comp_ver_str->length) {
@@ -826,14 +860,14 @@ int decode_update_component_resp(const struct pldm_msg *msg,
 				 uint8_t *completion_code,
 				 uint8_t *comp_compatability_resp,
 				 uint8_t *comp_compatability_resp_code,
-				 uint32_t *update_option_flags_enabled,
+				 bitfield32_t *update_option_flags_enabled,
 				 uint16_t *estimated_time_req_fd)
 {
 	if (msg == NULL || completion_code == NULL ||
 	    comp_compatability_resp == NULL ||
 	    comp_compatability_resp_code == NULL ||
 	    update_option_flags_enabled == NULL ||
-	    estimated_time_req_fd == NULL || msg->payload == NULL) {
+	    estimated_time_req_fd == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -850,8 +884,12 @@ int decode_update_component_resp(const struct pldm_msg *msg,
 	struct update_component_resp *response =
 	    (struct update_component_resp *)msg->payload;
 
-	if (response->comp_compatability_resp != COMPONENT_CAN_BE_UPDATED &&
-	    response->comp_compatability_resp != COMPONENT_CANNOT_BE_UPDATED) {
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (!check_compatability_resp_valid(
+		response->comp_compatability_resp)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -864,8 +902,8 @@ int decode_update_component_resp(const struct pldm_msg *msg,
 
 	*comp_compatability_resp_code = response->comp_compatability_resp_code;
 
-	*update_option_flags_enabled =
-	    le32toh(response->update_option_flags_enabled);
+	update_option_flags_enabled->value =
+	    le32toh(response->update_option_flags_enabled.value);
 
 	*estimated_time_req_fd = le16toh(response->estimated_time_req_fd);
 
