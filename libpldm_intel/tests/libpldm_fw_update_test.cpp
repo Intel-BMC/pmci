@@ -151,69 +151,123 @@ TEST(CancelUpdate, testBadEncodeRequest)
 
 TEST(CancelUpdate, testGoodDecodeResponse)
 {
-    uint8_t completionCode;
-    bool8_t nonFunctioningComponentIndication;
-    uint64_t nonFunctioningComponentBitmap;
+    uint8_t completionCode = PLDM_ERROR;
+    bool8_t nonFunctioningComponentIndication = COMPONENTS_FUNCTIONING;
+    bitfield64_t nonFunctioningComponentBitmap = {1};
+
     std::array<uint8_t, hdrSize + sizeof(struct cancel_update_resp)>
         responseMsg{};
+
     struct cancel_update_resp* inResp =
         reinterpret_cast<struct cancel_update_resp*>(responseMsg.data() +
                                                      hdrSize);
-    inResp->non_functioning_component_indication = 1;
-    inResp->non_functioning_component_bitmap = 0xff;
+
+    inResp->completion_code = PLDM_SUCCESS;
+    inResp->non_functioning_component_indication = 0;
+    inResp->non_functioning_component_bitmap = 1;
+
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
     response->hdr.command = PLDM_CANCEL_UPDATE;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
     response->hdr.type = PLDM_FWU;
     response->payload[0] = PLDM_SUCCESS;
+
     auto rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
     EXPECT_EQ(rc, PLDM_SUCCESS);
-    EXPECT_EQ(completionCode, inResp->completion_code);
+    EXPECT_EQ(completionCode, PLDM_SUCCESS);
     EXPECT_EQ(nonFunctioningComponentIndication,
               inResp->non_functioning_component_indication);
-    EXPECT_EQ(nonFunctioningComponentBitmap,
-              inResp->non_functioning_component_bitmap);
-    inResp->non_functioning_component_indication = 0;
-    nonFunctioningComponentBitmap = 0x5;
+    EXPECT_EQ(nonFunctioningComponentBitmap.value,
+              htole64(inResp->non_functioning_component_bitmap));
+    inResp->non_functioning_component_indication = COMPONENTS_FUNCTIONING;
+    nonFunctioningComponentBitmap = {0x5};
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(nonFunctioningComponentIndication,
               inResp->non_functioning_component_indication);
-    EXPECT_EQ(nonFunctioningComponentBitmap, 0x5);
+    EXPECT_EQ(nonFunctioningComponentBitmap.value, 0x5);
 }
 
 TEST(CancelUpdate, testBadDecodeResponse)
 {
-    uint8_t completionCode;
-    bool8_t nonFunctioningComponentIndication;
-    uint64_t nonFunctioningComponentBitmap;
+    uint8_t completionCode = PLDM_ERROR;
+    bool8_t nonFunctioningComponentIndication = COMPONENTS_NOT_FUNCTIONING;
+    bitfield64_t nonFunctioningComponentBitmap = {1};
+
     std::array<uint8_t, hdrSize + sizeof(struct cancel_update_resp)>
         responseMsg{};
+
     struct cancel_update_resp* inResp =
         reinterpret_cast<struct cancel_update_resp*>(responseMsg.data() +
                                                      hdrSize);
+
+    inResp->completion_code = PLDM_SUCCESS;
     inResp->non_functioning_component_indication = 1;
-    inResp->non_functioning_component_bitmap = 0xff;
+    inResp->non_functioning_component_bitmap = 1;
+
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
     response->hdr.command = PLDM_CANCEL_UPDATE;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
     response->hdr.type = PLDM_FWU;
     response->payload[0] = PLDM_SUCCESS;
+
     auto rc = decode_cancel_update_resp(response, 0, &completionCode,
                                         &nonFunctioningComponentIndication,
                                         &nonFunctioningComponentBitmap);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
-    response->payload[0] = PLDM_ERROR;
+
+    response->payload[0] = PLDM_ERROR_INVALID_DATA;
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
-    EXPECT_EQ(rc, PLDM_ERROR);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_cancel_update_resp(
+        NULL, responseMsg.size() - hdrSize, &completionCode,
+        &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_cancel_update_resp(response, responseMsg.size() - hdrSize, NULL,
+                                   &nonFunctioningComponentIndication,
+                                   &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_cancel_update_resp(response, responseMsg.size() - hdrSize,
+                                   &completionCode, NULL,
+                                   &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_cancel_update_resp(response, responseMsg.size() - hdrSize,
+                                   &completionCode,
+                                   &nonFunctioningComponentIndication, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->non_functioning_component_indication = COMPONENTS_FUNCTIONING - 1;
+    rc = decode_cancel_update_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->non_functioning_component_indication =
+        COMPONENTS_NOT_FUNCTIONING + 1;
+    rc = decode_cancel_update_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->non_functioning_component_indication = 0x0F;
+    rc = decode_cancel_update_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
 TEST(VerifyComplete, testGoodEncodeResponse)

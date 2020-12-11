@@ -231,6 +231,13 @@ enum self_contained_activation_req {
 	CONTAINS_SELF_ACTIVATED_COMPONENTS = 1
 };
 
+/** @brief PLDM FWU codes for non functioning component indication
+ */
+enum non_functioning_component_indication {
+	COMPONENTS_FUNCTIONING = 0,
+	COMPONENTS_NOT_FUNCTIONING = 1
+};
+
 /** @struct query_device_identifiers_resp
  *
  *  Structure representing query device identifiers response.
@@ -765,17 +772,19 @@ int decode_cancel_update_component_resp(const struct pldm_msg *msg,
 					const size_t payload_length,
 					uint8_t *completion_code);
 
+/* CancelUpdate */
+
 /** @brief Create a PLDM request message for CancelUpdate
  *
  *	@param[in] instance_id - Message's instance id
  *	@param[in,out] msg - Message will be written to this
  *	@return pldm_completion_codes
  *	@note  Caller is responsible for memory alloc and dealloc of param
- *		   'msg.payload'
+ *'msg.payload'
  */
 int encode_cancel_update_req(const uint8_t instance_id, struct pldm_msg *msg);
 
-/** @brief Decode a CancelUpdate response message
+/** @brief Decode CancelUpdate response message
  *
  *	Note:
  *	* If the return value is not PLDM_SUCCESS, it represents a
@@ -797,7 +806,7 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 			      const size_t payload_len,
 			      uint8_t *completion_code,
 			      bool8_t *non_functioning_component_indication,
-			      uint64_t *non_functioning_component_bitmap);
+			      bitfield64_t *non_functioning_component_bitmap);
 
 /** @brief Create a PLDM response message for VerifyComplete
  *
@@ -966,6 +975,7 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 			   uint8_t *aux_state_status, uint8_t *progress_percent,
 			   uint8_t *reason_code,
 			   bitfield32_t *update_option_flags_enabled);
+
 /*ApplyComplete*/
 
 /** @struct apply_complete_req

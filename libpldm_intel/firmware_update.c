@@ -932,6 +932,23 @@ int decode_cancel_update_component_resp(const struct pldm_msg *msg,
 	return (decode_cc_only_resp(msg, payload_length, completion_code));
 }
 
+/** @brief Check whether non functioning component indication is valid
+ *
+ *  @return true if is from below mentioned values, false if not
+ */
+static bool check_non_functioning_component_indication_valid(
+    const bool8_t non_functioning_component_indication)
+{
+	switch (non_functioning_component_indication) {
+	case COMPONENTS_FUNCTIONING:
+	case COMPONENTS_NOT_FUNCTIONING:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
 int encode_cancel_update_req(const uint8_t instance_id, struct pldm_msg *msg)
 {
 	if (msg == NULL) {
@@ -945,32 +962,42 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 			      const size_t payload_len,
 			      uint8_t *completion_code,
 			      bool8_t *non_functioning_component_indication,
-			      uint64_t *non_functioning_component_bitmap)
+			      bitfield64_t *non_functioning_component_bitmap)
 {
 	if (msg == NULL || completion_code == NULL ||
 	    non_functioning_component_indication == NULL ||
 	    non_functioning_component_bitmap == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	*completion_code = msg->payload[0];
 	if (PLDM_SUCCESS != *completion_code) {
 		return *completion_code;
 	}
+
 	if (payload_len != sizeof(struct cancel_update_resp)) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 	struct cancel_update_resp *response =
 	    (struct cancel_update_resp *)msg->payload;
+
 	if (response == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
+	if (!check_non_functioning_component_indication_valid(
+		response->non_functioning_component_indication)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	*non_functioning_component_indication =
-	    (response->non_functioning_component_indication == 0) ? false
-								  : true;
+	    response->non_functioning_component_indication;
+
 	if (*non_functioning_component_indication) {
-		*non_functioning_component_bitmap =
+		non_functioning_component_bitmap->value =
 		    le64toh(response->non_functioning_component_bitmap);
 	}
+
 	return PLDM_SUCCESS;
 }
 int encode_verify_complete_resp(const uint8_t instance_id,
