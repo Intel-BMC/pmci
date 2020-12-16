@@ -462,31 +462,40 @@ int main(void)
         boost::asio::spawn(
             *ioc, [&tid, &dummyEid](boost::asio::yield_context yield) {
                 pldm_tid_t assignedTID = 0x00;
-                if (!pldm::base::baseInit(yield, dummyEid, assignedTID))
+                pldm::base::CommandSupportTable cmdSupportTable;
+                if (!pldm::base::baseInit(yield, dummyEid, assignedTID,
+                                          cmdSupportTable))
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(
                         "PLDM base init failed",
                         phosphor::logging::entry("EID=%d", dummyEid));
                     return;
                 }
-                if (!pldm::platform::platformInit(yield, *tid, {}))
+
+                auto isSupported = [&cmdSupportTable](pldm_type_t type) {
+                    return cmdSupportTable.end() != cmdSupportTable.find(type);
+                };
+
+                if (isSupported(PLDM_PLATFORM) &&
+                    !pldm::platform::platformInit(yield, assignedTID, {}))
                 {
-                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
                         "PLDM platform init failed",
-                        phosphor::logging::entry("TID=%d", *tid));
-                    return;
+                        phosphor::logging::entry("TID=%d", assignedTID));
                 }
-                if (pldm::fru::fruInit(yield, *tid))
+                if (isSupported(PLDM_FRU) &&
+                    !pldm::fru::fruInit(yield, assignedTID))
                 {
-                    phosphor::logging::log<phosphor::logging::level::INFO>(
-                        "PLDM fru init success",
-                        phosphor::logging::entry("TID=%d", *tid));
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "PLDM fru init failed",
+                        phosphor::logging::entry("TID=%d", assignedTID));
                 }
-                if (pldm::fwu::fwuInit(yield, *tid))
+                if (isSupported(PLDM_FWU) &&
+                    !pldm::fwu::fwuInit(yield, assignedTID))
                 {
-                    phosphor::logging::log<phosphor::logging::level::INFO>(
-                        "PLDM firmware update init success",
-                        phosphor::logging::entry("TID=%d", *tid));
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "PLDM firmware update init failed",
+                        phosphor::logging::entry("TID=%d", assignedTID));
                 }
             });
     }

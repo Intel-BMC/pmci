@@ -27,17 +27,6 @@
 namespace std
 {
 template <>
-struct hash<ver32_t>
-{
-    std::size_t operator()(const ver32_t& ver) const
-    {
-        return std::hash<uint8_t>{}(ver.major) ^
-               std::hash<uint8_t>{}(ver.minor) ^
-               std::hash<uint8_t>{}(ver.update) ^
-               std::hash<uint8_t>{}(ver.alpha);
-    }
-};
-template <>
 struct hash<pldm::platform::UUID>
 {
     std::size_t operator()(const pldm::platform::UUID& uuid) const
@@ -48,11 +37,6 @@ struct hash<pldm::platform::UUID>
                                });
     }
 };
-bool operator==(const ver32_t& v1, const ver32_t& v2)
-{
-    return v1.major == v2.major && v1.minor == v2.minor &&
-           v1.update == v2.update && v1.alpha == v2.alpha;
-}
 } // namespace std
 
 namespace pldm
@@ -68,12 +52,6 @@ constexpr uint8_t defaultTID = 0x00;
 using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
 using VersionSupportTable = std::unordered_map<uint8_t, PLDMVersions>;
-// For bitfield8[N], where N = 0 to 31;
-// (bit M is set) => PLDM Command (N*8+M) Supported
-using SupportedCommands = std::array<bitfield8_t, 32>;
-// [PLDMType -> [PLDMVersion -> SupportedCommands]] Mapping
-using CommandSupportTable =
-    std::unordered_map<uint8_t, std::unordered_map<ver32_t, SupportedCommands>>;
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
@@ -473,7 +451,7 @@ static bool isSupported(const CommandSupportTable& cmdSupportTable,
 }
 
 bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
-              pldm_tid_t& tid)
+              pldm_tid_t& tid, CommandSupportTable& cmdSupportTable)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Base initialisation", phosphor::logging::entry("EID=%d", eid));
@@ -492,7 +470,7 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
 
     auto versionSupportTable = createVersionSupportTable(yield, eid, pldmTypes);
 
-    auto commandSupportTable =
+    cmdSupportTable =
         createCommandSupportTable(yield, eid, versionSupportTable);
 
     auto existingTID = getTID(yield, eid);
@@ -512,7 +490,7 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
     bool prevTIDExists = false;
     std::optional<pldm::platform::UUID> uuid;
-    if (isSupported(commandSupportTable, PLDM_PLATFORM, PLDM_GET_TERMINUS_UID))
+    if (isSupported(cmdSupportTable, PLDM_PLATFORM, PLDM_GET_TERMINUS_UID))
     {
         uuid = pldm::platform::getTerminusUID(yield, eid);
         if (uuid)
@@ -541,7 +519,7 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             uuidMapping.emplace(uuid.value(), tid);
         }
     }
-    if (isSupported(commandSupportTable, PLDM_BASE, PLDM_SET_TID) &&
+    if (isSupported(cmdSupportTable, PLDM_BASE, PLDM_SET_TID) &&
         !setTID(yield, eid, tid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(

@@ -20,6 +20,7 @@
 #include <memory>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/asio/object_server.hpp>
+#include <unordered_map>
 #include <vector>
 
 #include "base.h"
@@ -28,6 +29,26 @@
 std::shared_ptr<boost::asio::io_context> getIoContext();
 std::shared_ptr<sdbusplus::asio::connection> getSdBus();
 std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
+
+namespace std
+{
+template <>
+struct hash<ver32_t>
+{
+    std::size_t operator()(const ver32_t& ver) const
+    {
+        return std::hash<uint8_t>{}(ver.major) ^
+               std::hash<uint8_t>{}(ver.minor) ^
+               std::hash<uint8_t>{}(ver.update) ^
+               std::hash<uint8_t>{}(ver.alpha);
+    }
+};
+inline bool operator==(const ver32_t& v1, const ver32_t& v2)
+{
+    return v1.major == v2.major && v1.minor == v2.minor &&
+           v1.update == v2.update && v1.alpha == v2.alpha;
+}
+} // namespace std
 
 namespace pldm
 {
@@ -154,9 +175,15 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
 
 namespace base
 {
+// For bitfield8[N], where N = 0 to 31;
+// (bit M is set) => PLDM Command (N*8+M) Supported
+using SupportedCommands = std::array<bitfield8_t, 32>;
+// [PLDMType -> [PLDMVersion -> SupportedCommands]] Mapping
+using CommandSupportTable =
+    std::unordered_map<uint8_t, std::unordered_map<ver32_t, SupportedCommands>>;
 
 bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
-              pldm_tid_t& tid);
+              pldm_tid_t& tid, CommandSupportTable& cmdSupportTable);
 
 } // namespace base
 
