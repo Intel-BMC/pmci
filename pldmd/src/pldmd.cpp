@@ -479,6 +479,12 @@ int main(void)
                         phosphor::logging::entry("TID=%d", *tid));
                     return;
                 }
+                if (pldm::fru::fruInit(yield, *tid))
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "PLDM fru init success",
+                        phosphor::logging::entry("TID=%d", *tid));
+                }
             });
     }
     ioc->run();
