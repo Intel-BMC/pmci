@@ -485,6 +485,12 @@ int main(void)
                         "PLDM fru init success",
                         phosphor::logging::entry("TID=%d", *tid));
                 }
+                if (pldm::fwu::fwuInit(yield, *tid))
+                {
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "PLDM firmware update init success",
+                        phosphor::logging::entry("TID=%d", *tid));
+                }
             });
     }
     ioc->run();
