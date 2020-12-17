@@ -25,8 +25,19 @@
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
 
+// TODO. Expose these functions from header files
+namespace pldm::fru
+{
+bool deleteFRUDevice(const pldm_tid_t tid);
+}
+namespace pldm::fwu
+{
+bool deleteFWDevice(const pldm_tid_t tid);
+}
+
 namespace pldm
 {
+
 // Mapper will have 1:1 mapping between TID and EID
 using Mapper = std::unordered_map<
     pldm_tid_t, /*TID as key*/
@@ -252,22 +263,12 @@ static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
                                       std::vector<uint8_t>& pldmReq,
                                       std::vector<uint8_t>& pldmResp)
 {
-    // TODO: Use mctp-wrapper provided api to send/receive PLDM message
-    boost::system::error_code ec;
-    auto bus = getSdBus();
-    pldmResp = bus->yield_method_call<std::vector<uint8_t>>(
-        yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
-        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
-        "SendReceiveMctpMessagePayload", dstEid, pldmReq, timeout);
+    auto sendStatus = mctpWrapper->sendReceiveYield(
+        yield, dstEid, pldmReq, std::chrono::milliseconds(timeout));
+    pldmResp = sendStatus.second;
     utils::printVect("Request(MCTP payload):", pldmReq);
     utils::printVect("Response(MCTP payload):", pldmResp);
-    if (ec)
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            "PLDM message send/receive failed");
-        return false;
-    }
-    return true;
+    return sendStatus.first ? false : true;
 }
 
 bool sendReceivePldmMessage(boost::asio::yield_context yield,
@@ -434,43 +435,35 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
     payload.insert(payload.begin(), PLDM);
     utils::printVect("Send PLDM message(MCTP payload):", payload);
 
-    // TODO: Use mctp-wrapper provided api to send PLDM message
-    auto bus = getSdBus();
-    bus->async_method_call(
-        [tid](const boost::system::error_code ec) {
-            if (ec)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Error sending PLDM message",
-                    phosphor::logging::entry("TID=%d", tid));
-                return;
-            }
-        },
-        "xyz.openbmc_project.MCTP_SMBus_PCIe_slot", "/xyz/openbmc_project/mctp",
-        "xyz.openbmc_project.MCTP.Base", "SendMctpMessagePayload", dstEid,
-        msgTag, tagOwner, payload);
+    auto sendCallback = [](boost::system::error_code ec, int status) {
+        if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                (std::string("Send error ") + ec.message()).c_str());
+        }
+        if (status == -1)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "SendMCTPPayload returned -1");
+        }
+    };
+    mctpWrapper->sendAsync(sendCallback, dstEid, msgTag, tagOwner, payload);
     return true;
 }
 
-auto msgRecvCallback = [](sdbusplus::message::message& message) {
-    uint8_t messageType;
-    mctpw_eid_t srcEid;
-    uint8_t msgTag;
-    bool tagOwner;
-    std::vector<uint8_t> payload;
-
-    message.read(messageType, srcEid, msgTag, tagOwner, payload);
-
+auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
+                          uint8_t msgTag, const std::vector<uint8_t>& data,
+                          int) {
+    // Intentional copy. MCTPWrapper provides const reference in callback
+    auto payload = data;
     // Verify the response received is of type PLDM
-    if (messageType == PLDM && !payload.empty() && payload.at(0) == PLDM)
+    if (!payload.empty() && payload.at(0) == PLDM)
     {
-
         // Discard the packet if no matching TID is found
         // Why: We do not have to process packets from uninitialised Termini
         if (auto tid = getTidFromMapper(srcEid))
         {
             utils::printVect("PLDM message received(MCTP payload):", payload);
-
             payload.erase(payload.begin());
             if (auto pldmMsgType = getPldmMessageType(payload))
             {
@@ -494,21 +487,6 @@ auto msgRecvCallback = [](sdbusplus::message::message& message) {
         }
     }
 };
-
-std::unique_ptr<sdbusplus::bus::match::match> pldmMsgRecvMatch;
-void pldmMsgRecvCallbackInit()
-{
-    // TODO: Use mctp-wrapper provided api to receive PLDM message signals
-    const std::string filterMsgRecvdSignal =
-        sdbusplus::bus::match::rules::type::signal() +
-        sdbusplus::bus::match::rules::member("MessageReceivedSignal") +
-        sdbusplus::bus::match::rules::interface(
-            "xyz.openbmc_project.MCTP.Base");
-
-    auto bus = getSdBus();
-    pldmMsgRecvMatch = std::make_unique<sdbusplus::bus::match::match>(
-        *bus, filterMsgRecvdSignal, msgRecvCallback);
-}
 
 uint8_t createInstanceId(pldm_tid_t tid)
 {
@@ -642,18 +620,14 @@ int main(void)
     auto objManager =
         std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
 
-    // Register for PLDM message signals
-    pldm::pldmMsgRecvCallbackInit();
-
     // TODO - Read from entity manager about the transport bindings to be
     // supported by PLDM
     mctpw::MCTPConfiguration config(mctpw::MessageType::pldm,
                                     mctpw::BindingType::mctpOverSmBus);
 
     pldm::mctpWrapper = std::make_unique<mctpw::MCTPWrapper>(
-        conn, config, onDeviceUpdate, nullptr);
+        conn, config, onDeviceUpdate, pldm::msgRecvCallback);
 
-    // Create yield context for each new TID and pass to the Init methods
     boost::asio::spawn(*ioc, [](boost::asio::yield_context yield) {
         pldm::mctpWrapper->detectMctpEndpoints(yield);
         auto& eidMap = pldm::mctpWrapper->getEndpointMap();
