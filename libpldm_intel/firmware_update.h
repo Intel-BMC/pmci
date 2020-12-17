@@ -139,7 +139,7 @@ enum pldm_firmware_update_reason_code {
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
 
-/** @brief PLDM FWU codes for Transfer Result
+/** @brief PLDM FWU codes for transfer result
  */
 enum pldm_fwu_transfer_result {
 	PLDM_FWU_TRASFER_SUCCESS = 0x00,
@@ -149,7 +149,8 @@ enum pldm_fwu_transfer_result {
 	PLDM_FWU_VENDOR_TRANSFER_RESULT_RANGE_MAX = 0x8F
 };
 
-/**@brief PLDM FWU common error codes
+/**@brief PLDM FWU common error codes for transfer result, verify result and
+ * apply result
  */
 enum pldm_fwu_common_error_code {
 	PLDM_FWU_TIME_OUT = 0x09,
@@ -166,7 +167,7 @@ enum pldm_fwu_verify_result {
 	PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX = 0xAF
 };
 
-/**@brief PLDM FWU result of the Apply Result
+/**@brief PLDM FWU result of the apply result
  */
 enum pldm_fwu_apply_result {
 	PLDM_FWU_APPLY_SUCCESS = 0x00,
@@ -839,17 +840,17 @@ int decode_verify_complete_req(const struct pldm_msg *msg,
 /** @brief Create a PLDM response message for TransferComplete
  *
  *  @param[in] instance_id - Message's instance id
- *  @param[in] completion_code - completion code
+ *  @param[in] completion_code - Pointer to response msg's PLDM completion code
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_transfer_complete_resp(const uint8_t instance_id,
 				  const uint8_t completion_code,
 				  struct pldm_msg *msg);
 
-/** @brief Decode a TransferComplete request message
+/** @brief Decode TransferComplete request message
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
@@ -858,7 +859,7 @@ int encode_transfer_complete_resp(const uint8_t instance_id,
  * protocol layer error and all the out-parameters are invalid.
  *
  *  @param[in] msg - request message
- *  @param[out] transfer_result - Pointer to TransferResult
+ *  @param[out] transfer_result - Pointer to transfer result
  *  @return pldm_completion_codes
  */
 int decode_transfer_complete_req(const struct pldm_msg *msg,

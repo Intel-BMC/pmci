@@ -120,9 +120,9 @@ static bool validate_verify_result(const uint8_t verify_result)
 	}
 }
 
-/** @brief Check validity of TransferResult in TransferComplete
+/** @brief Check validity of transfer result in TransferComplete
  *
- *	@param[in] transfer_result - TransferResult
+ *	@param[in] transfer_result - Indicate the result of the Download stage
  *	@return validity
  */
 static bool validate_transfer_result(const uint8_t transfer_result)
@@ -1337,9 +1337,9 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	return PLDM_SUCCESS;
 }
 
-/** @brief Check validity of ApplyResult in ApplyComplete request
+/** @brief Check validity of apply result in ApplyComplete request
  *
- *	@param[in] apply_result - ApplyResult
+ *	@param[in] apply_result - Indicate the result of the Apply stage
  *	@return validity
  */
 static bool validate_apply_result(const uint8_t apply_result)
