@@ -68,17 +68,22 @@ include_directories(SYSTEM ${BOOST_SRC_DIR})
 
 include_directories(${PROJECT_SOURCE_DIR})
 
-add_library(mctpwplus SHARED mctpwrapper.cpp)
+add_library(mctpwplus SHARED mctp_wrapper.cpp)
 
 if(${BUILD_EXAMPLES})
-  add_executable(wrapperobject examples/wrapperobject.cpp)
-  add_dependencies(wrapperobject ${PROJECT_NAME})
-  target_link_libraries(wrapperobject mctpwplus sdbusplus -lsystemd
+  add_executable(wrapper_object examples/wrapper_object.cpp)
+  add_dependencies(wrapper_object ${PROJECT_NAME})
+  target_link_libraries(wrapper_object mctpwplus sdbusplus -lsystemd
                         -lboost_coroutine -lpthread)
+
+  add_executable(scan_endpoints examples/scan_endpoints.cpp)
+  add_dependencies(scan_endpoints ${PROJECT_NAME})
+  target_link_libraries(scan_endpoints mctpwplus sdbusplus -lboost_coroutine
+                        -lpthread)
 endif()
 
 set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
-set_target_properties(mctpwplus PROPERTIES PUBLIC_HEADER mctpwrapper.hpp)
+set_target_properties(mctpwplus PROPERTIES PUBLIC_HEADER mctp_wrapper.hpp)
 
 install(
   TARGETS ${PROJECT_NAME} mctpwplus

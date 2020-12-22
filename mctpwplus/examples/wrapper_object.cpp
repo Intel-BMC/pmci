@@ -14,7 +14,7 @@
 // limitations under the License.
 */
 
-#include "mctpwrapper.hpp"
+#include "mctp_wrapper.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio.hpp>
@@ -29,7 +29,7 @@ int main(int argc, char* argv[])
     uint16_t vdmType = 0;
     uint16_t vdmMask = 0;
     bool dbusAwareApp = false;
-    BindingType bindingType = BindingType::mcptOverSmBus;
+    BindingType bindingType = BindingType::mctpOverSmBus;
     MessageType msgType = MessageType::pldm;
 
     app.add_option("--mctpmsgtype", msgType,

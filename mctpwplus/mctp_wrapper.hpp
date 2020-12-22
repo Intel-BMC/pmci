@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
 #include <string>
@@ -38,7 +39,7 @@ using eid_t = uint8_t;
  */
 enum class BindingType : uint8_t
 {
-    mcptOverSmBus = 0x01,
+    mctpOverSmBus = 0x01,
     mctpOverPcieVdm = 0x02,
     mctpOverUsb = 0x03,
     mctpOverKcs = 0x04,
@@ -159,7 +160,7 @@ class MCTPWrapper
 {
   public:
     using ByteArray = std::vector<uint8_t>;
-    using RegisterCallback =
+    using StatusCallback =
         std::function<void(boost::system::error_code, void*)>;
     /* Endpoint map entry: eid_t,pair(bus,service) */
     using EndpointMap =
@@ -204,7 +205,26 @@ class MCTPWrapper
      */
     ~MCTPWrapper() noexcept;
     /**
-     * @brief Get a reference to internaly maintained EndPointMap
+     * @brief This method or its yield variant must be called before accessing
+     * any send receive functions. It scan and detect all mctp endpoints exposed
+     * on dbus.
+     *
+     * @param callback Callback to be invoked after mctp endpoint detection with
+     * status of the operation
+     */
+    void detectMctpEndpointsAsync(StatusCallback&& callback);
+    /**
+     * @brief This method or its async variant must be called before accessing
+     * any send receive functions. It scan and detect all mctp endpoints exposed
+     * on dbus.
+     *
+     * @param yield boost yield_context object to yield on dbus calls
+     * @return boost::system::error_code
+     */
+    boost::system::error_code
+        detectMctpEndpoints(boost::asio::yield_context yield);
+    /**
+     * @brief Get a reference to internaly maintained EndpointMap
      *
      * @return const EndpointMap&
      */
@@ -224,6 +244,17 @@ class MCTPWrapper
     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matchers;
     EndpointMap endpointMap;
     std::shared_ptr<sdbusplus::asio::connection> connection;
+
+    // Get list of pair<bus, service_name_string> which expose mctp object
+    std::optional<std::vector<std::pair<unsigned, std::string>>>
+        findBusByBindingType(boost::asio::yield_context yield);
+    /* Return format: map<EId, pair<bus, service_name_string>> */
+    EndpointMap buildMatchingEndpointMap(
+        boost::asio::yield_context yield,
+        std::vector<std::pair<unsigned, std::string>>& buses);
+    // Get bus id from servicename. Example: Returns 2 if device path is
+    // /dev/i2c-2
+    int getBusID(const std::string& serviceName);
 };
 
 } // namespace mctpw
