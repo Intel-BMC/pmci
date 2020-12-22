@@ -62,6 +62,16 @@ enum fw_update_error_completion_codes {
 	INVALID_TRANSFER_OPERATION_FLAG = 0x91
 };
 
+/** @brief PLDM FW update timing specification codes
+ */
+enum fw_update_agent_timeout_max {
+	UA_CANCEL_UPDATE_RETRY_INTERVAL_SECONDS = 5,
+	UA_FD_IDLE_TIMEOUT_SECONDS = 90,
+	UA_STATUS_CHANGE_TIMEOUT_SECONDS = 180,
+	UA_RETRY_REQUEST_UPDATE_SECONDS = 5,
+	UA_GET_PACKAGE_DATA_TIMEOUT_SECONDS = 5
+};
+
 /** @brief PLDM FWU values for Component Version String Type or Component Image
  * Set Version String Type
  */
