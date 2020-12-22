@@ -37,3 +37,13 @@ ExternalProject_Add(
   BUILD_COMMAND ""
   INSTALL_COMMAND ""
   UPDATE_COMMAND "")
+
+ExternalProject_Add(
+  CLIUtils
+  GIT_REPOSITORY "https://github.com/CLIUtils/CLI11.git"
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/CLIUtils"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/CLIUtils"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND cp -r "<SOURCE_DIR>/include" <BINARY_DIR>
+  UPDATE_COMMAND "")

@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(mctpwplus CXX)
 
 option(YOCTO_DEPENDENCIES "Use YOCTO depedencies system" OFF)
+option(BUILD_EXAMPLES "Build example applications inside examples directory"
+       OFF)
 
 set(BUILD_SHARED_LIBRARIES ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -41,7 +43,7 @@ endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
-if (NOT ${YOCTO_DEPENDENCIES})
+if(NOT ${YOCTO_DEPENDENCIES})
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-conversion \ ")
   set(CMAKE_PREFIX_PATH ${CMAKE_BINARY_DIR}/libs/googletest/
                         ${CMAKE_BINARY_DIR}/libs/boost/ ${CMAKE_PREFIX_PATH})
@@ -58,6 +60,7 @@ if (NOT ${YOCTO_DEPENDENCIES})
   link_directories(${CMAKE_BINARY_DIR}/src/phosphor-logging/.libs)
   include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/include)
   link_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/boost/lib)
+  include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/CLIUtils/include)
 endif()
 
 find_package(Boost 1.71 REQUIRED)
@@ -66,13 +69,13 @@ include_directories(SYSTEM ${BOOST_SRC_DIR})
 include_directories(${PROJECT_SOURCE_DIR})
 
 add_library(mctpwplus SHARED mctpwrapper.cpp)
-target_link_libraries(
-  mctpwplus
-  sdbusplus
-  -lsystemd
-  -lboost_coroutine
-  -lpthread
-  -lstdc++fs)
+
+if(${BUILD_EXAMPLES})
+  add_executable(wrapperobject examples/wrapperobject.cpp)
+  add_dependencies(wrapperobject ${PROJECT_NAME})
+  target_link_libraries(wrapperobject mctpwplus sdbusplus -lsystemd
+                        -lboost_coroutine -lpthread)
+endif()
 
 set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
 set_target_properties(mctpwplus PROPERTIES PUBLIC_HEADER mctpwrapper.hpp)
