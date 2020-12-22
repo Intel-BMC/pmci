@@ -1,0 +1,39 @@
+cmake_minimum_required(VERSION 3.5)
+
+include(ExternalProject)
+
+ExternalProject_Add(
+  Boost
+  URL https://dl.bintray.com/boostorg/release/1.71.0/source/boost_1_71_0.tar.gz
+  URL_MD5 5f521b41b79bf8616582c4a8a2c10177
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/boost"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/boost"
+  CONFIGURE_COMMAND cd <SOURCE_DIR> && ./bootstrap.sh
+  BUILD_COMMAND cd <SOURCE_DIR> && ./b2 --exec-prefix=<BINARY_DIR>
+                --prefix=<BINARY_DIR> --with-system --with-coroutine install
+  INSTALL_COMMAND ""
+  UPDATE_COMMAND "")
+
+# requires apt install autoconf-archive and autoconf
+ExternalProject_Add(
+  sdbusplus-project
+  GIT_REPOSITORY https://github.com/openbmc/sdbusplus.git
+  GIT_TAG afe80cf2e5dc4aefe3b041adeb0230e61929bf12
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/sdbusplus"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/sdbusplus"
+  CONFIGURE_COMMAND
+    cd <SOURCE_DIR> && ./bootstrap.sh && ./configure --enable-transaction
+    -exec-prefix=<BINARY_DIR> --prefix=<BINARY_DIR>
+  BUILD_COMMAND cd <SOURCE_DIR> && make -j libsdbusplus.la
+  INSTALL_COMMAND cd <SOURCE_DIR> && make install
+  UPDATE_COMMAND "")
+
+ExternalProject_Add(
+  phosphor-logging
+  GIT_REPOSITORY "https://github.com/openbmc/phosphor-logging.git"
+  SOURCE_DIR "${CMAKE_BINARY_DIR}/src/phosphor-logging"
+  BINARY_DIR "${CMAKE_BINARY_DIR}/libs/phosphor-logging"
+  CONFIGURE_COMMAND ""
+  BUILD_COMMAND ""
+  INSTALL_COMMAND ""
+  UPDATE_COMMAND "")
