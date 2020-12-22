@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <boost/asio/steady_timer.hpp>
 #include <fstream>
 #include <sdbusplus/asio/object_server.hpp>
 #include <vector>
@@ -173,6 +174,57 @@ class FWInventoryInfo
     std::string pendingCompImgSetVerStr;
 };
 
+class FWUpdate
+{
+  public:
+    FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord);
+    ~FWUpdate();
+    int runUpdate(const boost::asio::yield_context& yield);
+    void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t _msgTag,
+                                const bool _tagOwner,
+                                const std::vector<uint8_t>& req);
+    bool setMatchedFDDescriptors();
+
+  private:
+    bool isComponentApplicable();
+    int startTimer(const uint32_t interval);
+    uint64_t getApplicableComponents();
+
+    int requestUpdate(const boost::asio::yield_context& yield);
+    int sendPackageData(const boost::asio::yield_context& yield);
+    int getDeviceMetaData(const boost::asio::yield_context& yield);
+    int passComponentTable(const boost::asio::yield_context& yield);
+    int updateComponent(const boost::asio::yield_context& yield);
+    int requestFirmwareData(const boost::asio::yield_context& yield);
+    int transferComplete(const boost::asio::yield_context& yield);
+    int verifyComplete(const boost::asio::yield_context& yield);
+    int applyComplete(const boost::asio::yield_context& yield);
+    int sendMetaData(const boost::asio::yield_context& yield);
+    int activateFirmware(const boost::asio::yield_context& yield);
+    int getStatus(const boost::asio::yield_context& yield);
+    int cancelUpdateComponent(const boost::asio::yield_context& yield);
+    int cancelUpdate(const boost::asio::yield_context& yield);
+
+    pldm_tid_t currentTid;
+    uint8_t expectedCmd;
+    uint8_t msgTag;
+    bool tagOwner;
+    std::vector<uint8_t> fdReq;
+    bool reqMatched = false;
+    uint8_t deviceIDRecord;
+    bool updateMode = false;
+    pldm_firmware_update_state state;
+    uint16_t packageDataLength = 0;
+    uint16_t fwDeviceMetaDataLen = 0;
+    uint16_t currentComp = 0;
+    uint16_t compCount = 0;
+    uint8_t fdWillSendGetPkgDataCmd = 0;
+    uint16_t estimatedTimeForSelfContainedActivation = 0;
+    uint64_t applicableComponentsVal = 0;
+    boost::asio::steady_timer timer;
+    FDProperties targetFDProperties;
+};
+
 class PLDMImg
 {
   public:
@@ -183,9 +235,15 @@ class PLDMImg
      */
     bool processPkgHdr();
 
+    /** @brief API that gets PLDM firmware update package header property
+     */
+    template <typename T>
+    bool getPkgProperty(T& value, const std::string& name);
+
     /** @brief API that runs PLDM firmware package update
      */
     int runPkgUpdate(const boost::asio::yield_context& yield);
+    std::unique_ptr<FWUpdate> fwUpdate;
 
   private:
     /** @brief API that is used to read raw bytes from pldm firmware update

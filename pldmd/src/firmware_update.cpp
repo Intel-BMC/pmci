@@ -38,15 +38,21 @@ using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
 std::unique_ptr<PLDMImg> pldmImg = nullptr;
 
-void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t /*msgTag*/,
-                         const bool /*tagOwner*/,
-                         std::vector<uint8_t>& /*message*/)
+void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t /*tid*/,
+                                      const uint8_t /*_msgTag*/,
+                                      const bool /*_tagOwner*/,
+                                      const std::vector<uint8_t>& /*req*/)
 {
-    // TODO: Perform the actual init operations needed
+    // TODO implement actual code
+}
+
+void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t msgTag,
+                         const bool tagOwner, std::vector<uint8_t>& message)
+{
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "PLDM Firmware update message received",
         phosphor::logging::entry("EID=0x%X", tid));
-
+    pldmImg->fwUpdate->validateReqForFWUpdCmd(tid, msgTag, tagOwner, message);
     return;
 }
 
@@ -1148,6 +1154,198 @@ size_t PLDMImg::getDescriptorDataLen(const FWDevIdRecord& data,
     return (htole16(data.recordLength) - sizeof(FWDevIdRecord) -
             applicableComponentsLen - data.comImgSetVerStrLen -
             htole16(data.fwDevPkgDataLen));
+}
+
+FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
+    currentTid(_tid), deviceIDRecord(_deviceIDRecord), state(FD_IDLE),
+    timer(*getIoContext())
+{
+}
+
+FWUpdate::~FWUpdate()
+{
+}
+
+bool FWUpdate::setMatchedFDDescriptors()
+{
+    auto itr = terminusFwuProperties.find(currentTid);
+    if (itr == terminusFwuProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("setMatchedFDDescriptors: targetFDProperties not found for "
+             "TID: " +
+             std::to_string(currentTid))
+                .c_str());
+        return false;
+    }
+    targetFDProperties = itr->second;
+    return true;
+}
+
+template <typename T>
+bool PLDMImg::getPkgProperty(T& value, const std::string& name)
+{
+    auto it = pkgFWUProperties.find(name);
+    if (it != pkgFWUProperties.end())
+    {
+        if (auto itr = std::get_if<T>(&it->second))
+        {
+            value = *itr;
+            return true;
+        }
+    }
+    phosphor::logging::log<phosphor::logging::level::ERR>(
+        ("getPkgProperty: Failed to property " + name).c_str());
+    return false;
+}
+
+int FWUpdate::requestUpdate(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO implement the command code
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::passComponentTable(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO implement the command code
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::updateComponent(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO implement the command code
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::activateFirmware(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO implement the command code
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::getStatus(const boost::asio::yield_context& /*yield*/)
+{
+    // TODO implement the command code
+    return PLDM_SUCCESS;
+}
+
+uint64_t FWUpdate::getApplicableComponents()
+{
+    // TODO implement actual code.
+    return 0;
+}
+
+bool FWUpdate::isComponentApplicable()
+{
+    return (applicableComponentsVal >> currentComp) & 1;
+}
+
+int FWUpdate::startTimer(const uint32_t /*interval*/)
+{
+    // TODO implement actual code.
+    return 0;
+}
+
+int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
+{
+
+    if (updateMode || state != FD_IDLE)
+    {
+        return ALREADY_IN_UPDATE_MODE;
+    }
+
+    // send requestUpdate command
+    int retVal = requestUpdate(yield);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "requestUpdate: Failed to run requestUpdate command",
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+
+    // fdWillSendGetPkgDataCmd will be set to 0x01 if there was package data
+    // that the FD should obtain
+    if (fdWillSendGetPkgDataCmd == 0x01)
+    {
+        pldmImg->getPkgProperty<uint16_t>(packageDataLength, "FWDevPkgDataLen");
+        if (packageDataLength)
+        {
+            // TODO wait for FD to send GetPackageData and respond back to it.
+        }
+    }
+
+    if (fwDeviceMetaDataLen)
+    {
+        // TODO send GetDeviceMetaData command to FD
+    }
+
+    pldmImg->getPkgProperty<uint16_t>(compCount, "CompImageCount");
+
+    applicableComponentsVal = getApplicableComponents();
+
+    for (uint16_t i = 0; i < compCount; ++i)
+    {
+
+        currentComp = i;
+        if (!isComponentApplicable())
+        {
+            continue;
+        }
+        // send PassComponentTable command
+        retVal = passComponentTable(yield);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "passComponentTable: Failed to send passComponentTable command",
+                phosphor::logging::entry("RETVAL=%d", retVal),
+                phosphor::logging::entry("COMPONENT=%d", currentComp));
+            return retVal;
+        }
+        // send UpdateComponent command
+        retVal = updateComponent(yield);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "updateComponent: Failed to run updateComponent command",
+                phosphor::logging::entry("RETVAL=%d", retVal),
+                phosphor::logging::entry("COMPONENT=%d", currentComp));
+            return retVal;
+        }
+        // TODO wait for FD to send RequestFirmwareData, TransferComplete,
+        // VerifyComplete, ApplyComplete commands and respond back to them.
+        retVal = getStatus(yield);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "getStatus: Failed to run getStatus command",
+                phosphor::logging::entry("RETVAL=%d", retVal),
+                phosphor::logging::entry("COMPONENT=%d", currentComp));
+            return retVal;
+        }
+    }
+
+    if (fwDeviceMetaDataLen)
+    {
+        // TODO wait for FD to send GetMetaData command and respond back to it.
+    }
+
+    // send ActivateFirmware command
+    retVal = activateFirmware(yield);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "activateFirmware: Failed to send activateFirmware command",
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+    if (estimatedTimeForSelfContainedActivation)
+    {
+        // TODO UA should wait until estimatedTimeForSelfContainedActivation is
+        // elapsed.
+    }
+    return PLDM_SUCCESS;
 }
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
