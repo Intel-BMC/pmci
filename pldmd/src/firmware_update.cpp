@@ -46,8 +46,9 @@ void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t /*tid*/,
     // TODO implement actual code
 }
 
-void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t msgTag,
-                         const bool tagOwner, std::vector<uint8_t>& message)
+void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
+                              const bool tagOwner,
+                              std::vector<uint8_t>& message)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "PLDM Firmware update message received",

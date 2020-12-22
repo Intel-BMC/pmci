@@ -376,8 +376,8 @@ auto msgRecvCallback = [](sdbusplus::message::message& message) {
                 switch (*pldmMsgType)
                 {
                     case PLDM_FWU:
-                        pldm::fwu::pldmMsgRecvCallback(*tid, msgTag, tagOwner,
-                                                       payload);
+                        pldm::fwu::pldmMsgRecvFwUpdCallback(*tid, msgTag,
+                                                            tagOwner, payload);
                         break;
                         // No use case for other PLDM message types
                     default:

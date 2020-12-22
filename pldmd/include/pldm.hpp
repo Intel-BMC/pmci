@@ -203,8 +203,9 @@ namespace fwu
 {
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid);
-void pldmMsgRecvCallback(const pldm_tid_t tid, const uint8_t msgTag,
-                         const bool tagOwner, std::vector<uint8_t>& message);
+void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
+                              const bool tagOwner,
+                              std::vector<uint8_t>& message);
 
 } // namespace fwu
 
