@@ -46,6 +46,12 @@ class StateSensor
     /** @brief Read sensor value and update interfaces*/
     bool populateSensorValue(boost::asio::yield_context& yield);
 
+    /**@brief Check sensor is disabled or not*/
+    bool isSensorDisabled()
+    {
+        return sensorDisabled;
+    }
+
   private:
     /** @brief Enable/Disable sensor*/
     bool setStateSensorEnables(boost::asio::yield_context& yield);
@@ -72,7 +78,7 @@ class StateSensor
     void updateState(const uint8_t currentState, const uint8_t previousState);
 
     /** @brief Handle sensor reading*/
-    void handleStateSensorReading(get_sensor_state_field& stateReading);
+    bool handleSensorReading(get_sensor_state_field& stateReading);
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
@@ -88,6 +94,9 @@ class StateSensor
 
     /** @brief Error counter*/
     size_t errCount;
+
+    /** @brief Sensor disabled flag*/
+    bool sensorDisabled = false;
 
     /** @brief Cache readings for later use*/
     bool isAvailableReading = std::numeric_limits<bool>::min();

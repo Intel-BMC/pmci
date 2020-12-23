@@ -60,6 +60,12 @@ class SensorManager
     /** @brief Read sensor value and update interfaces*/
     bool populateSensorValue(boost::asio::yield_context& yield);
 
+    /**@brief Check sensor is disabled or not*/
+    bool isSensorDisabled()
+    {
+        return sensorDisabled;
+    }
+
   private:
     /** @brief  Enable sensor*/
     bool setNumericSensorEnable(boost::asio::yield_context& yield);
@@ -73,6 +79,11 @@ class SensorManager
 
     /** @brief fetch the sensor value*/
     bool getSensorReading(boost::asio::yield_context& yield);
+
+    /** @brief Decode sensor value and D-Bus interfaces*/
+    bool handleSensorReading(uint8_t sensorOperationalState,
+                             uint8_t sensorDataSize,
+                             union_sensor_data_size& presentReading);
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
@@ -88,6 +99,9 @@ class SensorManager
 
     /** @brief Sensor*/
     std::shared_ptr<Sensor> _sensor;
+
+    /** @brief Sensor disabled flag*/
+    bool sensorDisabled = false;
 };
 
 } // namespace platform

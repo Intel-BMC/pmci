@@ -208,17 +208,54 @@ void StateSensor::updateState(const uint8_t currentState,
     }
 }
 
-void StateSensor::handleStateSensorReading(get_sensor_state_field& stateReading)
+bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
 {
-    if (stateReading.sensor_op_state != PLDM_SENSOR_ENABLED)
+    switch (stateReading.sensor_op_state)
     {
-        markAvailable(true);
-        markFunctional(false);
-        initializeInterface();
-        return;
+        case PLDM_SENSOR_DISABLED: {
+            markFunctional(false);
+            markAvailable(true);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State sensor disabled",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            break;
+        }
+        case PLDM_SENSOR_UNAVAILABLE: {
+            markFunctional(false);
+            markAvailable(false);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State sensor unavailable",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
+        case PLDM_SENSOR_ENABLED: {
+            updateState(stateReading.present_state,
+                        stateReading.previous_state);
+            initializeInterface();
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "GetStateSensorReadings success",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            break;
+        }
+        default: {
+            // TODO: Handle other sensor operational states like statusUnknown,
+            // initializing etc.
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "State sensor operational status unknown",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
     }
-    updateState(stateReading.present_state, stateReading.previous_state);
-    initializeInterface();
+    return true;
 }
 
 bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
@@ -227,7 +264,8 @@ bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
     switch (_pdr->stateSensorData.sensor_init)
     {
         case PLDM_NO_INIT:
-            return true;
+            sensorOpState = PLDM_SENSOR_ENABLED;
+            break;
         case PLDM_USE_INIT_PDR:
             // TODO: State Sensor Initialization PDR support
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -240,7 +278,9 @@ bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
             break;
         case PLDM_DISABLE_SENSOR:
             sensorOpState = PLDM_SENSOR_DISABLED;
-            markAvailable(false);
+            /** @brief Sensor disabled flag*/
+            sensorDisabled = true;
+            markAvailable(true);
             markFunctional(false);
             initializeInterface();
             break;
@@ -343,13 +383,7 @@ bool StateSensor::getStateSensorReadings(boost::asio::yield_context& yield)
     }
 
     // Handle only first value. Composite sensor not supported.
-    handleStateSensorReading(stateField[0]);
-
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "GetStateSensorReadings success",
-        phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
-        phosphor::logging::entry("TID=%d", _tid));
-    return true;
+    return handleSensorReading(stateField[0]);
 }
 
 bool StateSensor::populateSensorValue(boost::asio::yield_context& yield)

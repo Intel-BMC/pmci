@@ -40,7 +40,8 @@ bool SensorManager::setNumericSensorEnable(boost::asio::yield_context& yield)
     switch (_pdr.sensor_init)
     {
         case PLDM_NO_INIT:
-            return true;
+            sensorOpState = PLDM_SENSOR_ENABLED;
+            break;
         case PLDM_USE_INIT_PDR:
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "Numeric Sensor Initialization PDR not supported",
@@ -207,12 +208,17 @@ bool SensorManager::initSensor()
     std::vector<thresholds::Threshold> thresholdData;
     getSupportedThresholds(thresholdData);
 
+    if (_pdr.sensor_init == PLDM_DISABLE_SENSOR)
+    {
+        sensorDisabled = true;
+    }
     try
     {
         _sensor = std::make_shared<Sensor>(
             _name, thresholdData,
             pdr::sensor::calculateSensorValue(_pdr, *maxVal),
-            pdr::sensor::calculateSensorValue(_pdr, *minVal), *baseUnit);
+            pdr::sensor::calculateSensorValue(_pdr, *minVal), *baseUnit,
+            sensorDisabled);
     }
     catch (const std::exception& e)
     {
@@ -226,6 +232,78 @@ bool SensorManager::initSensor()
         "Sensor Init success",
         phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
         phosphor::logging::entry("TID=%d", _tid));
+    return true;
+}
+
+bool SensorManager::handleSensorReading(uint8_t sensorOperationalState,
+                                        uint8_t sensorDataSize,
+                                        union_sensor_data_size& presentReading)
+{
+    switch (sensorOperationalState)
+    {
+        case PLDM_SENSOR_DISABLED: {
+            _sensor->markFunctional(false);
+            _sensor->markAvailable(true);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Numeric sensor disabled",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            break;
+        }
+        case PLDM_SENSOR_UNAVAILABLE: {
+            _sensor->markFunctional(false);
+            _sensor->markAvailable(false);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Numeric sensor unavailable",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
+        case PLDM_SENSOR_ENABLED: {
+            if (_pdr.sensor_data_size != sensorDataSize)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Invalid sensor reading. Sensor data size missmatch",
+                    phosphor::logging::entry("TID=%d", _tid),
+                    phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                    phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
+                return false;
+            }
+
+            std::optional<double> sensorReading =
+                pdr::sensor::fetchSensorValue(_pdr, presentReading);
+            if (sensorReading == std::nullopt)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Numeric sensor value decode failed",
+                    phosphor::logging::entry("TID=%d", _tid),
+                    phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                    phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
+                return false;
+            }
+
+            _sensor->updateValue(
+                pdr::sensor::calculateSensorValue(_pdr, *sensorReading));
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "GetSensorReading success",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid),
+                phosphor::logging::entry("VALUE=%lf", *sensorReading));
+            break;
+        }
+        default: {
+            // TODO: Handle other sensor operational states like statusUnknown,
+            // initializing etc.
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Numeric sensor operational status unknown",
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
+    }
     return true;
 }
 
@@ -276,52 +354,17 @@ bool SensorManager::getSensorReading(boost::asio::yield_context& yield)
         return false;
     }
 
-    if (sensorOperationalState != PLDM_SENSOR_ENABLED)
-    {
-        _sensor->markFunctional(false);
-
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            "Sensor is not enabled",
-            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
-            phosphor::logging::entry("TID=%d", _tid));
-        return false;
-    }
-
-    if (_pdr.sensor_data_size != sensorDataSize)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Invalid sensor reading. Sensor data size missmatch",
-            phosphor::logging::entry("TID=%d", _tid),
-            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
-            phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
-        return false;
-    }
-
-    std::optional<double> sensorReading =
-        pdr::sensor::fetchSensorValue(_pdr, presentReading);
-    if (sensorReading == std::nullopt)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Sensor value decode failed",
-            phosphor::logging::entry("TID=%d", _tid),
-            phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
-            phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));
-        return false;
-    }
-
-    _sensor->updateValue(
-        pdr::sensor::calculateSensorValue(_pdr, *sensorReading));
-
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "GetSensorReading success",
-        phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
-        phosphor::logging::entry("TID=%d", _tid),
-        phosphor::logging::entry("VALUE=%lf", *sensorReading));
-    return true;
+    return handleSensorReading(sensorOperationalState, sensorDataSize,
+                               presentReading);
 }
 
 bool SensorManager::populateSensorValue(boost::asio::yield_context& yield)
 {
+    // No need to read the sensor if it is disabled
+    if (_pdr.sensor_init == PLDM_DISABLE_SENSOR)
+    {
+        return false;
+    }
     if (!getSensorReading(yield))
     {
         _sensor->incrementError();

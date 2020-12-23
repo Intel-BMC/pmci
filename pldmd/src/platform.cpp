@@ -65,6 +65,10 @@ void pollAllSensors(boost::asio::yield_context& yield)
         for (auto const& [sensorID, sensorManager] :
              platformMC.sensorManagerMap)
         {
+            if (sensorManager->isSensorDisabled())
+            {
+                continue;
+            }
             sensorManager->populateSensorValue(yield);
             if (!introduceDelayInPolling(yield))
             {
@@ -75,6 +79,10 @@ void pollAllSensors(boost::asio::yield_context& yield)
         }
         for (auto const& [sensorID, stateSensor] : platformMC.stateSensorMap)
         {
+            if (stateSensor->isSensorDisabled())
+            {
+                continue;
+            }
             stateSensor->populateSensorValue(yield);
             if (!introduceDelayInPolling(yield))
             {
@@ -127,11 +135,6 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
             }
 
             platformMC.sensorManagerMap[sensorID] = std::move(sensorManager);
-
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "Sensor Manager Init Success",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
-                phosphor::logging::entry("TID=%d", tid));
         }
 
         if (auto pdr = platformMC.pdrManager->getStateSensorPDR(sensorID))
@@ -161,11 +164,6 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
             }
 
             platformMC.stateSensorMap[sensorID] = std::move(stateSensor);
-
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "State Sensor Init Success",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
-                phosphor::logging::entry("TID=%d", tid));
         }
     }
 }
@@ -208,7 +206,7 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     initSensorPoll();
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        " Platform Monitoring and Control initialisation success",
+        "Platform Monitoring and Control initialisation success",
         phosphor::logging::entry("TID=%d", tid));
 
     return true;

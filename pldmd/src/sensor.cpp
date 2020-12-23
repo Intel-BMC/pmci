@@ -20,7 +20,6 @@
 #include <phosphor-logging/log.hpp>
 #include <regex>
 
-constexpr const char* sensorValueInterface = "xyz.openbmc_project.Sensor.Value";
 constexpr const char* availableInterfaceName =
     "xyz.openbmc_project.State.Decorator.Availability";
 constexpr const char* operationalInterfaceName =
@@ -29,8 +28,8 @@ constexpr const size_t errorThreshold = 5;
 
 Sensor::Sensor(const std::string& sensorName,
                std::vector<thresholds::Threshold>& thresholdData,
-               const double max, const double min,
-               const SensorUnit sensorUnit) :
+               const double max, const double min, const SensorUnit sensorUnit,
+               const bool sensorDisabled) :
     name(std::regex_replace(sensorName, std::regex("[^a-zA-Z0-9_/]+"), "_")),
     maxValue(max), minValue(min), thresholds(thresholdData), unit(sensorUnit),
     hysteresisTrigger((max - min) * 0.01),
@@ -77,7 +76,7 @@ Sensor::Sensor(const std::string& sensorName,
 
     // TODO: Support to update associations
 
-    setInitialProperties();
+    setInitialProperties(sensorDisabled);
 }
 
 Sensor::~Sensor()
@@ -146,7 +145,7 @@ std::optional<ThresholdInterface>
     return thresholdIntf;
 }
 
-void Sensor::setInitialProperties()
+void Sensor::setInitialProperties(bool sensorDisabled)
 {
     sensorInterface->register_property("MaxValue", maxValue);
     sensorInterface->register_property("MinValue", minValue);
@@ -206,7 +205,7 @@ void Sensor::setInitialProperties()
 
     operationalInterface = std::make_shared<sdbusplus::asio::dbus_interface>(
         conn, sensorInterface->get_object_path(), operationalInterfaceName);
-    operationalInterface->register_property("Functional", true);
+    operationalInterface->register_property("Functional", !sensorDisabled);
     operationalInterface->initialize();
 }
 

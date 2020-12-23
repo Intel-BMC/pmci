@@ -36,7 +36,8 @@ struct Sensor
 {
     Sensor(const std::string& sensorName,
            std::vector<thresholds::Threshold>& thresholdData, const double max,
-           const double min, const SensorUnit sensorUnit);
+           const double min, const SensorUnit sensorUnit,
+           const bool sensorDisabled);
 
     ~Sensor();
 
@@ -85,5 +86,5 @@ struct Sensor
 
     void checkThresholds();
 
-    void setInitialProperties();
+    void setInitialProperties(const bool sensorDisabled);
 };
