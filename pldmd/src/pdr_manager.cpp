@@ -498,7 +498,9 @@ void PDRManager::parseEntityAuxNamesPDR()
                                               record, &pdrData, &pdrSize);
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "Entity Auxiliary Names PDR parsing complete");
+        ("Number of Entity Auxiliary Names PDR parsed: " +
+         std::to_string(_entityAuxNames.size()))
+            .c_str());
 }
 
 // Create Entity Association node from parsed Entity Association PDR
@@ -681,10 +683,14 @@ void PDRManager::parseEntityAssociationPDR()
                                               PLDM_PDR_ENTITY_ASSOCIATION,
                                               record, &pdrData, &pdrSize);
     }
-
-    createEntityAssociationTree(entityAssociations);
+    if (entityAssociations.size())
+    {
+        createEntityAssociationTree(entityAssociations);
+    }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "Entity Association PDR parsing complete ");
+        ("Number of Entity Association PDR parsed: " +
+         std::to_string(entityAssociations.size()))
+            .c_str());
 }
 
 void PDRManager::getEntityAssociationPaths(EntityNode::NodePtr& node,
@@ -878,24 +884,6 @@ std::optional<DBusObjectPath>
                                     const SensorID& sensorID,
                                     const bool8_t auxNamePDR)
 {
-    DBusObjectPath entityPath;
-
-    // Verify the Entity associated
-    if (auto path = getEntityObjectPath(entity))
-    {
-        entityPath = *path;
-    }
-    else
-    {
-        // Discard the sensor if there is no entity info matching with Entity
-        // Association PDR
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Unable to find Entity Associated with Sensor ID",
-            phosphor::logging::entry("TID=%d", _tid),
-            phosphor::logging::entry("SENSOR_ID=0x%x", sensorID));
-        return std::nullopt;
-    }
-
     // Find sensor name
     std::string sensorName;
     if (auxNamePDR)
@@ -909,6 +897,24 @@ std::optional<DBusObjectPath>
     {
         // Dummy name if no Sensor Name found
         sensorName = createSensorName(sensorID);
+    }
+
+    DBusObjectPath entityPath;
+
+    // Verify the Entity associated
+    if (auto path = getEntityObjectPath(entity))
+    {
+        entityPath = *path;
+    }
+    else
+    {
+        // If no entity associated, sensor will not be exposed on system
+        // hierarchy
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Unable to find Entity Associated with Sensor ID",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("SENSOR_ID=0x%x", sensorID));
+        return std::nullopt;
     }
 
     DBusInterfacePtr sensorIntf;
@@ -930,27 +936,23 @@ void PDRManager::parseNumericSensorPDR(std ::vector<uint8_t>& pdrData)
     }
     pldm_numeric_sensor_value_pdr* sensorPDR =
         reinterpret_cast<pldm_numeric_sensor_value_pdr*>(pdrOut.data());
-
     uint16_t sensorID = sensorPDR->sensor_id;
+
+    _numericSensorPDR[sensorID] = *sensorPDR;
+
     pldm_entity entity = {sensorPDR->entity_type,
                           sensorPDR->entity_instance_num,
                           sensorPDR->container_id};
-    DBusObjectPath sensorPath;
-    if (auto path = createSensorObjPath(entity, sensorID,
-                                        sensorPDR->sensor_auxiliary_names_pdr))
-    {
-        sensorPath = *path;
-    }
-    else
+    std::optional<DBusObjectPath> sensorPath = createSensorObjPath(
+        entity, sensorID, sensorPDR->sensor_auxiliary_names_pdr);
+    if (!sensorPath)
     {
         return;
     }
 
     DBusInterfacePtr sensorIntf;
-    populateNumericSensor(sensorIntf, sensorPath);
-    _sensorIntf[sensorID] = std::make_pair(sensorIntf, sensorPath);
-
-    _numericSensorPDR[sensorID] = *sensorPDR;
+    populateNumericSensor(sensorIntf, *sensorPath);
+    _sensorIntf[sensorID] = std::make_pair(sensorIntf, *sensorPath);
 }
 
 static void populateStateSensor(DBusInterfacePtr& sensorIntf,
@@ -1096,18 +1098,6 @@ std::optional<DBusObjectPath>
                                       const EffecterID& effecterID,
                                       const bool8_t auxNamePDR)
 {
-    std::optional<DBusObjectPath> entityPath = getEntityObjectPath(entity);
-    if (!entityPath)
-    {
-        // Discard the effecter if there is no entity info matching with
-        // Entity Association PDR
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Unable to find Entity Associated with Effecter ID",
-            phosphor::logging::entry("TID=%d", _tid),
-            phosphor::logging::entry("EFFECTER_ID=0x%x", effecterID));
-        return std::nullopt;
-    }
-
     // Find effecter name
     std::optional<std::string> effecterName;
     if (auxNamePDR)
@@ -1118,6 +1108,18 @@ std::optional<DBusObjectPath>
     {
         // Dummy name if no effecter Name found
         effecterName = createEffecterName(effecterID);
+    }
+
+    std::optional<DBusObjectPath> entityPath = getEntityObjectPath(entity);
+    if (!entityPath)
+    {
+        // If no entity associated, effecter will not be exposed on system
+        // hierarchy
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Unable to find Entity Associated with Effecter ID",
+            phosphor::logging::entry("TID=%d", _tid),
+            phosphor::logging::entry("EFFECTER_ID=0x%x", effecterID));
+        return std::nullopt;
     }
 
     return *entityPath + "/" + *effecterName;
@@ -1261,7 +1263,7 @@ void PDRManager::parseFRURecordSetPDR(std::vector<uint8_t>& pdrData)
     {
         // Discard the FRU if there is no entity info matching with Entity
         // Association PDR
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
             "Unable to find Entity Associated with FRU",
             phosphor::logging::entry("TID=%d", _tid),
             phosphor::logging::entry("FRU_RSI=0x%x", fruRSI));
@@ -1276,6 +1278,7 @@ void PDRManager::parseFRURecordSetPDR(std::vector<uint8_t>& pdrData)
 template <pldm_pdr_types pdrType>
 void PDRManager::parsePDR()
 {
+    size_t count = 0;
     uint8_t* pdrData = nullptr;
     uint32_t pdrSize{};
     auto record = pldm_pdr_find_record_by_type(_pdrRepo.get(), pdrType, NULL,
@@ -1320,13 +1323,16 @@ void PDRManager::parsePDR()
             return;
         }
 
+        count++;
         pdrData = nullptr;
         pdrSize = 0;
         record = pldm_pdr_find_record_by_type(_pdrRepo.get(), pdrType, record,
                                               &pdrData, &pdrSize);
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Type " + std::to_string(pdrType) + " PDR parsing complete").c_str());
+        ("Number of type " + std::to_string(pdrType) +
+         " PDR parsed: " + std::to_string(count))
+            .c_str());
 }
 
 std::optional<pldm_numeric_sensor_value_pdr>
