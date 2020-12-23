@@ -20,6 +20,7 @@
 #include "pldm.hpp"
 
 #include <codecvt>
+#include <fstream>
 #include <phosphor-logging/log.hpp>
 #include <queue>
 
@@ -1368,6 +1369,8 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     {
         return false;
     }
+    initializePDRDumpIntf();
+
     parseEntityAuxNamesPDR();
     parseEntityAssociationPDR();
     getEntityAssociationPaths(_entityAssociationTree, {});
@@ -1383,5 +1386,75 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     return true;
 }
 
+struct PDRDump
+{
+    PDRDump(const std::string& fileName) : pdrFile(fileName)
+    {
+    }
+    void dumpPDRData(const std::vector<uint8_t>& pdr)
+    {
+        std::stringstream ss;
+        const pldm_pdr_hdr* pdrHdr =
+            reinterpret_cast<const pldm_pdr_hdr*>(pdr.data());
+        ss << "PDR Type: " << static_cast<int>(pdrHdr->type) << std::endl;
+        ss << "Length: " << pdr.size() << std::endl;
+        ss << "Data: ";
+        for (auto re : pdr)
+        {
+            ss << " 0x" << std::hex << std::setfill('0') << std::setw(2)
+               << static_cast<int>(re);
+        }
+        pdrFile << ss.rdbuf() << std::endl;
+    }
+
+  private:
+    std::ofstream pdrFile;
+};
+
+void PDRManager::initializePDRDumpIntf()
+{
+    std::string pldmDevObj =
+        "/xyz/openbmc_project/system/" + std::to_string(_tid);
+    auto objServer = getObjServer();
+    pdrDumpInterface =
+        objServer->add_interface(pldmDevObj, "xyz.openbmc_project.PLDM.PDR");
+    pdrDumpInterface->register_method("DumpPDR", [this](void) {
+        uint32_t noOfRecords = pldm_pdr_get_record_count(_pdrRepo.get());
+        if (!noOfRecords)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "PDR repo empty!");
+            return;
+        }
+
+        std::unique_ptr<PDRDump> pdrDump = std::make_unique<PDRDump>(
+            "/tmp/pldm_pdr_dump_" + std::to_string(_tid) + ".txt");
+
+        for (uint8_t pdrType = PLDM_TERMINUS_LOCATOR_PDR;
+             pdrType != PLDM_OEM_PDR; pdrType++)
+        {
+
+            uint8_t* pdrData = nullptr;
+            uint32_t pdrSize{};
+            auto record = pldm_pdr_find_record_by_type(
+                _pdrRepo.get(), pdrType, NULL, &pdrData, &pdrSize);
+            while (record)
+            {
+                std::vector<uint8_t> pdrVec(pdrData, pdrData + pdrSize);
+                pdrDump->dumpPDRData(pdrVec);
+
+                if (!(--noOfRecords))
+                {
+                    return;
+                }
+                pdrData = nullptr;
+                pdrSize = 0;
+                record = pldm_pdr_find_record_by_type(
+                    _pdrRepo.get(), pdrType, record, &pdrData, &pdrSize);
+            }
+        }
+    });
+    pdrDumpInterface->initialize();
+}
 } // namespace platform
 } // namespace pldm

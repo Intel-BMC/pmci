@@ -192,6 +192,9 @@ class PDRManager
     /** @brief Create effecter name with effecter ID*/
     std::string createEffecterName(const EffecterID effecterID);
 
+    /** @brief Initialize interface to dump PDR repo*/
+    void initializePDRDumpIntf();
+
     /** @brief PDR Repository Info of this terminus*/
     pldm_pdr_repository_info pdrRepoInfo;
 
@@ -245,6 +248,9 @@ class PDRManager
     /** @brief Holds State Sensor PDR */
     std::unordered_map<SensorID, std::shared_ptr<StateSensorPDR>>
         _stateSensorPDR;
+
+    /** @brief D-Bus interfaces to dump PDR */
+    DBusInterfacePtr pdrDumpInterface;
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
