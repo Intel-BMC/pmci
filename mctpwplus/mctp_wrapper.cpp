@@ -142,7 +142,7 @@ boost::system::error_code
     return ec;
 }
 
-int MCTPWrapper::getBusID(const std::string& serviceName)
+int MCTPWrapper::getBusId(const std::string& serviceName)
 {
     int bus = -1;
     if (config.bindingType == BindingType::mctpOverSmBus)
@@ -210,7 +210,7 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
 
         for (const auto& [service, intfs] : services)
         {
-            int bus = this->getBusID(service);
+            int bus = this->getBusId(service);
             buses.emplace_back(bus, service);
         }
         // buses will contain list of {busid servicename}. Sample busid may be
@@ -226,7 +226,7 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
 }
 
 /* Return format:
- * map<EId, pair<bus, service_name_string>>
+ * map<Eid, pair<bus, service_name_string>>
  */
 MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
     boost::asio::yield_context yield,
@@ -300,4 +300,56 @@ MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
         }
     }
     return eids;
+}
+
+void MCTPWrapper::sendReceiveAsync(ReceiveCallback callback, eid_t dstEId,
+                                   const ByteArray& request,
+                                   std::chrono::milliseconds timeout)
+{
+    ByteArray response;
+
+    auto it = this->endpointMap.find(dstEId);
+    if (this->endpointMap.end() == it)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SendReceiveAsync: Eid not found in end point map",
+            phosphor::logging::entry("EID=%d", dstEId));
+        boost::system::error_code ec =
+            boost::system::errc::make_error_code(boost::system::errc::io_error);
+        callback(ec, response);
+    }
+
+    connection->async_method_call(
+        callback, it->second.second, "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP.Base", "SendReceiveMctpMessagePayload",
+        dstEId, request, static_cast<uint16_t>(timeout.count()));
+}
+
+std::pair<boost::system::error_code, ByteArray>
+    MCTPWrapper::sendReceiveYield(boost::asio::yield_context yield,
+                                  eid_t dstEId, const ByteArray& request,
+                                  std::chrono::milliseconds timeout)
+{
+    auto receiveResult = std::make_pair(
+        boost::system::errc::make_error_code(boost::system::errc::success),
+        ByteArray());
+
+    auto it = this->endpointMap.find(dstEId);
+    if (this->endpointMap.end() == it)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SendReceiveYield: Eid not found in end point map",
+            phosphor::logging::entry("EID=%d", dstEId));
+        receiveResult.first =
+            boost::system::errc::make_error_code(boost::system::errc::io_error);
+        return receiveResult;
+    }
+
+    receiveResult.second = connection->yield_method_call<ByteArray>(
+        yield, receiveResult.first, it->second.second,
+        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
+        "SendReceiveMctpMessagePayload", dstEId, request,
+        static_cast<uint16_t>(timeout.count()));
+
+    return receiveResult;
 }

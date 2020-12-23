@@ -32,6 +32,7 @@ namespace mctpw
 {
 /// MCTP Endpoint Id
 using eid_t = uint8_t;
+using ByteArray = std::vector<uint8_t>;
 
 /**
  * @brief MCTP Binding Type
@@ -149,8 +150,8 @@ struct Event
 
 using ReconfigurationCallback =
     std::function<void(void*, const Event&, boost::asio::yield_context& yield)>;
-using ReceiveMessageCallback = std::function<void(
-    void*, eid_t, bool, uint8_t, const std::vector<uint8_t>&, int)>;
+using ReceiveMessageCallback =
+    std::function<void(void*, eid_t, bool, uint8_t, const ByteArray&, int)>;
 
 /**
  * @brief Wrapper class to access MCTP functionalities
@@ -159,12 +160,13 @@ using ReceiveMessageCallback = std::function<void(
 class MCTPWrapper
 {
   public:
-    using ByteArray = std::vector<uint8_t>;
     using StatusCallback =
         std::function<void(boost::system::error_code, void*)>;
     /* Endpoint map entry: eid_t,pair(bus,service) */
     using EndpointMap =
         std::unordered_map<uint8_t, std::pair<unsigned, std::string>>;
+    using ReceiveCallback =
+        std::function<void(boost::system::error_code, ByteArray&)>;
 
     /**
      * @brief Construct a new MCTPWrapper object
@@ -233,6 +235,34 @@ class MCTPWrapper
         return this->endpointMap;
     }
 
+    /**
+     * @brief Send request to dstEId and receive response asynchronously in
+     * receiveCb
+     *
+     * @param receiveCb Callback to be executed when response is ready
+     * @param dstEId Destination MCTP Endpoint ID
+     * @param request MCTP request byte array
+     * @param timeout MCTP receive timeout
+     */
+    void sendReceiveAsync(ReceiveCallback receiveCb, eid_t dstEId,
+                          const ByteArray& request,
+                          std::chrono::milliseconds timeout);
+
+    /**
+     * @brief Send request to dstEId and receive response using yield_context
+     *
+     * @param yield Boost yield_context to use on dbus call
+     * @param dstEId Destination MCTP Endpoint ID
+     * @param request MCTP request byte array
+     * @param timeout MCTP receive timeout
+     * @return std::pair<boost::system::error_code, ByteArray> Pair of boost
+     * error code and response byte array
+     */
+    std::pair<boost::system::error_code, ByteArray>
+        sendReceiveYield(boost::asio::yield_context yield, eid_t dstEId,
+                         const ByteArray& request,
+                         std::chrono::milliseconds timeout);
+
     /// Callback to be executed when a network change occurs
     ReconfigurationCallback networkChangeCallback = nullptr;
     /// Callback to be executed when a MCTP message received
@@ -248,13 +278,13 @@ class MCTPWrapper
     // Get list of pair<bus, service_name_string> which expose mctp object
     std::optional<std::vector<std::pair<unsigned, std::string>>>
         findBusByBindingType(boost::asio::yield_context yield);
-    /* Return format: map<EId, pair<bus, service_name_string>> */
+    /* Return format: map<Eid, pair<bus, service_name_string>> */
     EndpointMap buildMatchingEndpointMap(
         boost::asio::yield_context yield,
         std::vector<std::pair<unsigned, std::string>>& buses);
     // Get bus id from servicename. Example: Returns 2 if device path is
     // /dev/i2c-2
-    int getBusID(const std::string& serviceName);
+    int getBusId(const std::string& serviceName);
 };
 
 } // namespace mctpw

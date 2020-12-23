@@ -80,6 +80,11 @@ if(${BUILD_EXAMPLES})
   add_dependencies(scan_endpoints ${PROJECT_NAME})
   target_link_libraries(scan_endpoints mctpwplus sdbusplus -lboost_coroutine
                         -lpthread)
+
+  add_executable(send_receive examples/send_receive.cpp)
+  add_dependencies(send_receive ${PROJECT_NAME})
+  target_link_libraries(send_receive mctpwplus sdbusplus -lboost_coroutine
+                        -lpthread)
 endif()
 
 set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
