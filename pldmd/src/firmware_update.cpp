@@ -38,12 +38,33 @@ using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
 std::unique_ptr<PLDMImg> pldmImg = nullptr;
 
-void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t /*tid*/,
-                                      const uint8_t /*_msgTag*/,
-                                      const bool /*_tagOwner*/,
-                                      const std::vector<uint8_t>& /*req*/)
+void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
+                                      const uint8_t messageTag,
+                                      const bool _tagOwner,
+                                      const std::vector<uint8_t>& req)
 {
-    // TODO implement actual code
+    if (req.size() < hdrSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid FW request");
+        return;
+    }
+    const struct pldm_msg_hdr* msgHdr =
+        reinterpret_cast<const pldm_msg_hdr*>(req.data());
+
+    if (tid != currentTid || msgHdr->command != expectedCmd)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Firmware update in progress for TID: " +
+             std::to_string(currentTid))
+                .c_str());
+        return;
+    }
+    msgTag = messageTag;
+    tagOwner = _tagOwner;
+    fdReq = req;
+    timer.cancel();
+    return;
 }
 
 void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
@@ -848,9 +869,32 @@ bool PLDMImg::processPkgHdrInfo()
     return true;
 }
 
-int PLDMImg::runPkgUpdate(const boost::asio::yield_context& /*yield*/)
+static bool updateMode = false;
+int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
 {
-    // TODO run firmware update for all matched terminus.
+    for (const auto& it : matchedTermini)
+    {
+        pldm_tid_t matchedTid = it.second;
+        uint8_t matchedDevIdRecord = it.first;
+        fwUpdate = std::make_unique<FWUpdate>(matchedTid, matchedDevIdRecord);
+        if (!fwUpdate->setMatchedFDDescriptors())
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("runPkgUpdate: Failed to set TargetFDProperties for "
+                 "TID: " +
+                 std::to_string(matchedTid))
+                    .c_str());
+            continue;
+        }
+        if (fwUpdate->runUpdate(yield) != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("runUpdate failed for TID: " + std::to_string(matchedTid))
+                    .c_str());
+            updateMode = false;
+            // TODO call cancelUpdate command
+        }
+    }
     return PLDM_SUCCESS;
 }
 
@@ -1241,10 +1285,34 @@ bool FWUpdate::isComponentApplicable()
     return (applicableComponentsVal >> currentComp) & 1;
 }
 
-int FWUpdate::startTimer(const uint32_t /*interval*/)
+constexpr uint32_t convertSecondsToMilliseconds(const uint16_t seconds)
 {
-    // TODO implement actual code.
-    return 0;
+    return (seconds * 1000);
+}
+
+int FWUpdate::startTimer(const uint16_t interval)
+{
+    timer.expires_after(
+        std::chrono::milliseconds(convertSecondsToMilliseconds(interval)));
+    timer.async_wait([this](const boost::system::error_code& ec) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            // timer aborted do nothing
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "startTimer: timer operation_aborted");
+            fdReqMatched = true;
+        }
+        else if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Timer error");
+            fdReqMatched = false;
+            return;
+        }
+        return;
+    });
+
+    return PLDM_SUCCESS;
 }
 
 int FWUpdate::runUpdate(const boost::asio::yield_context& yield)

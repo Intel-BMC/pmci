@@ -180,14 +180,14 @@ class FWUpdate
     FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord);
     ~FWUpdate();
     int runUpdate(const boost::asio::yield_context& yield);
-    void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t _msgTag,
+    void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t messageTag,
                                 const bool _tagOwner,
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
 
   private:
     bool isComponentApplicable();
-    int startTimer(const uint32_t interval);
+    int startTimer(const uint16_t interval);
     uint64_t getApplicableComponents();
 
     int requestUpdate(const boost::asio::yield_context& yield);
@@ -210,9 +210,8 @@ class FWUpdate
     uint8_t msgTag;
     bool tagOwner;
     std::vector<uint8_t> fdReq;
-    bool reqMatched = false;
+    bool fdReqMatched = false;
     uint8_t deviceIDRecord;
-    bool updateMode = false;
     pldm_firmware_update_state state;
     uint16_t packageDataLength = 0;
     uint16_t fwDeviceMetaDataLen = 0;
