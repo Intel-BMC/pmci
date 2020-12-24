@@ -86,6 +86,23 @@ using PLDMCommandTable = std::vector<std::map<
  * @return PLDM Instance ID
  */
 uint8_t createInstanceId(pldm_tid_t tid);
+
+/** @brief Reserves Bandwidth for firmware device to send command to update
+agent
+ *
+ * During firmware update firmware device need to send commands to update agent.
+With this API PLDM daemon tells MCTP daemon to hold the MUX. So that FD can send
+the commands to UA(BMC)
+ * @param yield - Context object that represents the currently executing
+ * coroutine.
+ * @param tid - TID of the PLDM device
+ * @param timeout - Maximum time period in seconds to hold the mux
+ *
+ * @return Status of the operation
+ */
+bool reserveBandwidth(const boost::asio::yield_context& yield,
+                      const pldm_tid_t tid, const uint16_t timeout);
+
 // TODO: Add an API to free the Instance ID after usage.
 
 /** @brief Returns PLDM message Instance ID

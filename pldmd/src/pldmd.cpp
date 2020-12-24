@@ -29,6 +29,47 @@ using Mapper = std::unordered_map<
     mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
 static Mapper tidMapper;
 
+static bool isReserveBandwidthActive = false;
+static pldm_tid_t reservedTID = 0;
+bool reserveBandwidth(const boost::asio::yield_context& yield,
+                      const pldm_tid_t tid, const uint16_t timeout)
+{
+    if (isReserveBandwidthActive && tid != reservedTID)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (("reserveBandwidth is active for TID: ") +
+             std::to_string(reservedTID))
+                .c_str());
+        return false;
+    }
+    mctpw_eid_t eid = 0;
+    if (auto eidPtr = getEidFromMapper(tid))
+    {
+        eid = *eidPtr;
+    }
+    else
+    {
+        return false;
+    }
+    boost::system::error_code ec;
+    auto bus = getSdBus();
+    int rc = bus->yield_method_call<int>(
+        yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
+        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
+        "ReserveBandwidth", eid, timeout);
+
+    if (ec || rc < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (("ReserveBandwidth: failed for EID: ") + std::to_string(eid))
+                .c_str());
+        return false;
+    }
+    isReserveBandwidthActive = true;
+    reservedTID = tid;
+    return true;
+}
+
 std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
 {
     for (auto& eidMap : tidMapper)
@@ -197,6 +238,15 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
                             std::vector<uint8_t>& pldmResp,
                             std::optional<mctpw_eid_t> eid)
 {
+    if (isReserveBandwidthActive && tid != reservedTID)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("sendReceivePldmMessage is not allowed. Firmware update in "
+             "progress for TID: " +
+             std::to_string(reservedTID))
+                .c_str());
+        return false;
+    }
     // Retry the request if
     //  1) No response
     //  2) payload.size() < 4
@@ -316,6 +366,15 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
 bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
                      const bool tagOwner, std::vector<uint8_t> payload)
 {
+    if (isReserveBandwidthActive && tid != reservedTID)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("sendPldmMessage is not allowed. Firmware update in progress for "
+             "TID: " +
+             std::to_string(reservedTID))
+                .c_str());
+        return false;
+    }
     mctpw_eid_t dstEid;
     if (auto eidPtr = getEidFromMapper(tid))
     {
