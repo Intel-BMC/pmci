@@ -443,7 +443,7 @@ int main(int argc, char* argv[])
     }
 
     auto& [mctpdName, mctpdConfiguration] = *mctpdConfigurationPair;
-    auto objectServer = std::make_shared<object_server>(conn);
+    auto objectServer = std::make_shared<object_server>(conn, true);
     const std::string mctpServiceName = "xyz.openbmc_project." + mctpdName;
     conn->request_name(mctpServiceName.c_str());
 

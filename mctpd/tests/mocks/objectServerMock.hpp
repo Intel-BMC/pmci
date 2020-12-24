@@ -122,6 +122,10 @@ class object_server_mock
     {
         return true;
     }
+
+    void add_manager(__attribute__((unused)) const std::string& path)
+    {
+    }
 };
 
 } // namespace impl

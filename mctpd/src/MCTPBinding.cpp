@@ -359,6 +359,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
     io(ioc),
     objectServer(objServer), ctrlTxTimer(io)
 {
+    objServer->add_manager(objPath);
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
     try
