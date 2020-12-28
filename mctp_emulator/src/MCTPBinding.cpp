@@ -19,6 +19,8 @@
 #include "libmctp-vdpci.h"
 #include "libmctp.h"
 
+#define MCTP_MESSAGE_TYPE_SECURE_SPDM 0x06
+
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
 
 using json = nlohmann::json;
@@ -101,6 +103,9 @@ static std::string getMessageType(uint8_t msgType)
             break;
         case MCTP_MESSAGE_TYPE_SPDM: // 0x05
             msgTypeValue = "SPDM";
+            break;
+        case MCTP_MESSAGE_TYPE_SECURE_SPDM: // 0x06
+            msgTypeValue = "SECURESPDM";
             break;
         case MCTP_MESSAGE_TYPE_VDPCI: // 0x7E
             msgTypeValue = "VDPCI";
@@ -327,6 +332,23 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
             reqHeader.push_back(msgType);
             reqHeader.push_back(rqDInstanceID);
         }
+        else if (messageType == "SECURESPDM")
+        {
+            // MCTPMsgType | SessionId | SPDMVersion | RequestResponseCode
+            constexpr size_t minSpdmReqSize = 4;
+            if (payload.size() < minSpdmReqSize)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "mctp-emulator: Invalid SPDM message: Insufficient bytes "
+                    "in "
+                    "Payload");
+                return std::nullopt;
+            }
+            uint8_t rqDSessionID = payload.at(1);
+
+            reqHeader.push_back(msgType);
+            reqHeader.push_back(rqDSessionID);
+        }
         else
         {
             reqHeader.push_back(msgType);
@@ -365,14 +387,18 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                     }
 
                     // Fill the response header as per the MCTP message type
-                    // Note:- PLDM requests and responses in the JSON file
-                    // should starts from second byte of PLDM message
-                    // header(HdrVer | PLDMType)
+                    // Note:- PLDM requests and responses in the JSON
+                    // file should starts from second byte of message
+                    // header(HdrVer | PLDMType )
                     if (messageType == "PLDM")
                     {
                         constexpr uint8_t makeResp = 0x7F;
                         response.assign(reqHeader.begin(), reqHeader.end());
                         response.at(1) = response.at(1) & makeResp;
+                    }
+                    if (messageType == "SECURESPDM")
+                    {
+                        response.assign(reqHeader.begin(), reqHeader.end());
                     }
                     response.insert(response.end(),
                                     std::begin(iter["response"]),

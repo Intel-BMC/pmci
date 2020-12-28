@@ -1117,6 +1117,30 @@
             ]
         }
     ],
+    "SECURESPDM": [
+        {
+            "description": "GetVersion SPDM",
+            "processing-delay": 20,
+            "request": [
+                16,
+                132,
+                0,
+                0
+            ],
+            "response": [
+                16,
+                4,
+                0,
+                0,
+                0,
+                2,
+                0,
+                16,
+                0,
+                17
+            ]
+        }
+    ],
     "VDPCI": {
         "Intel": {
             "2": [
