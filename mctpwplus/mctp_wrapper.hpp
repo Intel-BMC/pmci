@@ -167,6 +167,7 @@ class MCTPWrapper
         std::unordered_map<uint8_t, std::pair<unsigned, std::string>>;
     using ReceiveCallback =
         std::function<void(boost::system::error_code, ByteArray&)>;
+    using SendCallback = std::function<void(boost::system::error_code, int)>;
 
     /**
      * @brief Construct a new MCTPWrapper object
@@ -262,6 +263,38 @@ class MCTPWrapper
         sendReceiveYield(boost::asio::yield_context yield, eid_t dstEId,
                          const ByteArray& request,
                          std::chrono::milliseconds timeout);
+    /**
+     * @brief Send MCTP request to dstEID and receive status of send operation
+     * in callback
+     *
+     * @param callback Callback that will be invoked with status of send
+     * operation
+     * @param dstEId Destination MCTP Endpoint ID
+     * @param msgTag MCTP message tag value
+     * @param tagOwner MCTP tag owner bit. Identifies whether the message tag
+     * was originated by the endpoint that is the source of the message
+     * @param request MCTP request byte array
+     */
+    void sendAsync(const SendCallback& callback, const eid_t dstEId,
+                   const uint8_t msgTag, const bool tagOwner,
+                   const ByteArray& request);
+
+    /**
+     * @brief Send MCTP request to dstEID and receive status of send operation
+     *
+     * @param yield boost yiled_context object to yield on dbus calls
+     * @param dstEId Destination MCTP Endpoint ID
+     * @param msgTag MCTP message tag value
+     * @param tagOwner MCTP tag owner bit. Identifies whether the message tag
+     * was originated by the endpoint that is the source of the message
+     * @param request MCTP request byte array
+     * @return std::pair<boost::system::error_code, int> Pair of boost
+     * error_code and dbus send method call return value
+     */
+    std::pair<boost::system::error_code, int>
+        sendYield(boost::asio::yield_context& yield, const eid_t dstEId,
+                  const uint8_t msgTag, const bool tagOwner,
+                  const ByteArray& request);
 
     /// Callback to be executed when a network change occurs
     ReconfigurationCallback networkChangeCallback = nullptr;

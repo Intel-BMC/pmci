@@ -68,7 +68,7 @@ include_directories(SYSTEM ${BOOST_SRC_DIR})
 
 include_directories(${PROJECT_SOURCE_DIR})
 
-add_library(mctpwplus SHARED mctp_wrapper.cpp)
+add_library(mctpwplus SHARED mctp_wrapper.cpp dbus_cb.cpp)
 
 if(${BUILD_EXAMPLES})
   add_executable(wrapper_object examples/wrapper_object.cpp)
@@ -84,6 +84,11 @@ if(${BUILD_EXAMPLES})
   add_executable(send_receive examples/send_receive.cpp)
   add_dependencies(send_receive ${PROJECT_NAME})
   target_link_libraries(send_receive mctpwplus sdbusplus -lboost_coroutine
+                        -lpthread)
+
+  add_executable(receive_callback examples/receive_callback.cpp)
+  add_dependencies(receive_callback ${PROJECT_NAME})
+  target_link_libraries(receive_callback mctpwplus sdbusplus -lboost_coroutine
                         -lpthread)
 endif()
 
