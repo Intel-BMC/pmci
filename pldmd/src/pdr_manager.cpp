@@ -101,13 +101,15 @@ static void printVector(const std::string& msg, const std::vector<uint8_t>& vec)
 }
 
 // TODO: remove this API after code complete
-static void printPDRResp(const RecordHandle& nextRecordHandle,
+static void printPDRResp(const RecordHandle& recordHandle,
+                         const RecordHandle& nextRecordHandle,
                          const transfer_op_flag& transferOpFlag,
                          const uint16_t& recordChangeNumber,
                          const DataTransferHandle& nextDataTransferHandle,
                          const bool& transferComplete,
                          const std::vector<uint8_t>& pdrRecord)
 {
+    printDebug("GetPDR: recordHandle -" + std::to_string(recordHandle));
     printDebug("GetPDR: nextRecordHandle -" + std::to_string(nextRecordHandle));
     printDebug("GetPDR: transferOpFlag -" + std::to_string(transferOpFlag));
     printDebug("GetPDR: recordChangeNumber -" +
@@ -199,7 +201,7 @@ static bool handleGetPDRResp(pldm_tid_t tid, std::vector<uint8_t>& resp,
     if (transferFlag == PLDM_START)
     {
         auto pdrHdr = reinterpret_cast<pldm_pdr_hdr*>(pdrRecord.data());
-        recordChangeNumber = pdrHdr->record_change_num;
+        recordChangeNumber = le16toh(pdrHdr->record_change_num);
     }
 
     dataTransferHandle = nextDataTransferHandle;
@@ -276,8 +278,9 @@ bool PDRManager::getDevicePDRRecord(boost::asio::yield_context& yield,
         }
 
         // TODO: remove after code complete
-        printPDRResp(nextRecordHandle, transferOpFlag, recordChangeNumber,
-                     dataTransferHandle, transferComplete, pdrRecord);
+        printPDRResp(recordHandle, nextRecordHandle, transferOpFlag,
+                     recordChangeNumber, dataTransferHandle, transferComplete,
+                     pdrRecord);
 
         // Limit the number of middle packets
         // Discard the record if exceeeded.
@@ -323,6 +326,9 @@ bool PDRManager::getDevicePDRRepo(
         // Discard if an empty record
         if (!pdrRecord.empty())
         {
+            pldm_pdr_hdr* pdrHdr =
+                reinterpret_cast<pldm_pdr_hdr*>(pdrRecord.data());
+            recordHandle = le32toh(pdrHdr->record_handle);
             devicePDRs.emplace(std::make_pair(recordHandle, pdrRecord));
         }
         recordHandle = nextRecordHandle;
