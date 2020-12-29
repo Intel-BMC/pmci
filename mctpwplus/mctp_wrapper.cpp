@@ -27,15 +27,6 @@
 
 using namespace mctpw;
 
-static const std::unordered_map<MessageType, const std::string>
-    msgTypeToPropertyName = {{MessageType::pldm, "PLDM"},
-                             {MessageType::ncsi, "NCSI"},
-                             {MessageType::ethernet, "Ethernet"},
-                             {MessageType::nvmeMgmtMsg, "NVMeMgmtMsg"},
-                             {MessageType::spdm, "SPDM "},
-                             {MessageType::vdpci, "VDPCI"},
-                             {MessageType::vdiana, "VDIANA"}};
-
 static const std::unordered_map<BindingType, const std::string>
     bindingToInterface = {
         {BindingType::mctpOverSmBus, "xyz.openbmc_project.MCTP.Binding.SMBus"},
@@ -54,9 +45,9 @@ using MctpPropertiesVariantType =
 
 template <typename Property>
 static auto
-    read_property_value(sdbusplus::bus::bus& bus, const std::string& service,
-                        const std::string& path, const std::string& interface,
-                        const std::string& property)
+    readPropertyValue(sdbusplus::bus::bus& bus, const std::string& service,
+                      const std::string& path, const std::string& interface,
+                      const std::string& property)
 {
     auto msg = bus.new_method_call(service.c_str(), path.c_str(),
                                    "org.freedesktop.DBus.Properties", "Get");
@@ -133,12 +124,6 @@ MCTPWrapper::~MCTPWrapper() noexcept
 {
 }
 
-template <typename Arr, typename Key>
-inline static bool containsKey(const Arr& c, const Key& x)
-{
-    return c.find(x) != std::end(c);
-}
-
 void MCTPWrapper::detectMctpEndpointsAsync(StatusCallback&& registerCB)
 {
     boost::asio::spawn(connection->get_io_context(),
@@ -171,7 +156,24 @@ boost::system::error_code
     }
     for (auto& [busId, serviceName] : bus_vector.value())
     {
-        // TODO Network Configuraion CB
+        if (networkChangeCallback)
+        {
+            matchers.push_back(registerSignalHandler(
+                static_cast<sdbusplus::bus::bus&>(*connection),
+                onPropertiesChanged, static_cast<void*>(this),
+                "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                serviceName, ""));
+            matchers.push_back(registerSignalHandler(
+                static_cast<sdbusplus::bus::bus&>(*connection),
+                onInterfacesAdded, static_cast<void*>(this),
+                "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
+                serviceName, ""));
+            matchers.push_back(registerSignalHandler(
+                static_cast<sdbusplus::bus::bus&>(*connection),
+                onInterfacesRemoved, static_cast<void*>(this),
+                "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
+                serviceName, ""));
+        }
         if (receiveCallback)
         {
             matchers.push_back(registerSignalHandler(
@@ -181,7 +183,6 @@ boost::system::error_code
                 serviceName, ""));
         }
     }
-
     return ec;
 }
 
@@ -190,7 +191,7 @@ int MCTPWrapper::getBusId(const std::string& serviceName)
     int bus = -1;
     if (config.bindingType == BindingType::mctpOverSmBus)
     {
-        std::string pv = read_property_value<std::string>(
+        std::string pv = readPropertyValue<std::string>(
             static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
             "/xyz/openbmc_project/mctp",
             bindingToInterface.at(config.bindingType), "BusPath");
@@ -213,7 +214,7 @@ int MCTPWrapper::getBusId(const std::string& serviceName)
     }
     else if (config.bindingType == BindingType::mctpOverPcieVdm)
     {
-        bus = read_property_value<uint16_t>(
+        bus = readPropertyValue<uint16_t>(
             static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
             "/xyz/openbmc_project/mctp",
             bindingToInterface.at(config.bindingType), "BDF");
@@ -236,8 +237,8 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
     try
     {
         interfaces.push_back(bindingToInterface.at(config.bindingType));
-        // find the services, with their interfaces, that implement a certain
-        // object path
+        // find the services, with their interfaces, that implement a
+        // certain object path
         services = connection->yield_method_call<decltype(services)>(
             yield, ec, "xyz.openbmc_project.ObjectMapper",
             "/xyz/openbmc_project/object_mapper",
@@ -256,8 +257,8 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
             int bus = this->getBusId(service);
             buses.emplace_back(bus, service);
         }
-        // buses will contain list of {busid servicename}. Sample busid may be
-        // from i2cdev-2
+        // buses will contain list of {busid servicename}. Sample busid may
+        // be from i2cdev-2
         return buses;
     }
     catch (const std::exception& e)
@@ -284,8 +285,8 @@ MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
                  DictType<std::string,
                           DictType<std::string, MctpPropertiesVariantType>>>
             values;
-        // get all objects, interfaces and properties in a single method call
-        // DICT<OBJPATH,DICT<STRING,DICT<STRING,VARIANT>>>
+        // get all objects, interfaces and properties in a single method
+        // call DICT<OBJPATH,DICT<STRING,DICT<STRING,VARIANT>>>
         // objpath_interfaces_and_properties
         values = connection->yield_method_call<decltype(values)>(
             yield, ec, bus.second.c_str(), "/xyz/openbmc_project/mctp",
@@ -306,7 +307,8 @@ MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
                      DictType<std::string, MctpPropertiesVariantType>>
                 interface;
 
-            if (containsKey(interfaces, "xyz.openbmc_project.MCTP.Endpoint"))
+            if (interfaces.find("xyz.openbmc_project.MCTP.Endpoint") !=
+                interfaces.end())
             {
                 try
                 {
@@ -327,7 +329,8 @@ MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
                                      boost::is_any_of("/"));
                         if (splitted.size())
                         {
-                            /* take the last element and convert it to eid */
+                            /* take the last element and convert it to eid
+                             */
                             uint8_t eid = static_cast<eid_t>(
                                 std::stoi(splitted[splitted.size() - 1]));
                             eids[eid] = bus;
@@ -446,4 +449,19 @@ std::pair<boost::system::error_code, int>
         msgTag, tagOwner, request);
 
     return std::make_pair(ec, status);
+}
+
+void MCTPWrapper::addToEidMap(boost::asio::yield_context yield,
+                              const std::string& serviceName)
+{
+    int busID = getBusId(serviceName);
+    std::vector<std::pair<unsigned, std::string>> buses;
+    buses.emplace_back(busID, serviceName);
+    auto eidMap = buildMatchingEndpointMap(yield, buses);
+    this->endpointMap.insert(eidMap.begin(), eidMap.end());
+}
+
+size_t MCTPWrapper::eraseDevice(eid_t eid)
+{
+    return endpointMap.erase(eid);
 }

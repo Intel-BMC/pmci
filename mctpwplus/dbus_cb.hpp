@@ -18,8 +18,18 @@
 
 #include <systemd/sd-bus.h>
 
+#include <sdbusplus/asio/connection.hpp>
+#include <sdbusplus/bus/match.hpp>
+
 namespace mctpw
 {
 int onMessageReceivedSignal(sd_bus_message* rawMsg, void* userData,
                             sd_bus_error* retError);
-}
+int onPropertiesChanged(sd_bus_message* rawMsg, void* userData,
+                        sd_bus_error* retError);
+int onInterfacesAdded(sd_bus_message* rawMsg, void* userData,
+                      sd_bus_error* retError);
+int onInterfacesRemoved(sd_bus_message* rawMsg, void* userData,
+                        sd_bus_error* retError);
+
+} // namespace mctpw

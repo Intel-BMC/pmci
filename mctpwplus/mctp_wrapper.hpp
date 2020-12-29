@@ -264,7 +264,7 @@ class MCTPWrapper
                          const ByteArray& request,
                          std::chrono::milliseconds timeout);
     /**
-     * @brief Send MCTP request to dstEID and receive status of send operation
+     * @brief Send MCTP request to dstEId and receive status of send operation
      * in callback
      *
      * @param callback Callback that will be invoked with status of send
@@ -280,7 +280,7 @@ class MCTPWrapper
                    const ByteArray& request);
 
     /**
-     * @brief Send MCTP request to dstEID and receive status of send operation
+     * @brief Send MCTP request to dstEId and receive status of send operation
      *
      * @param yield boost yiled_context object to yield on dbus calls
      * @param dstEId Destination MCTP Endpoint ID
@@ -296,12 +296,26 @@ class MCTPWrapper
                   const uint8_t msgTag, const bool tagOwner,
                   const ByteArray& request);
 
+    void addToEidMap(boost::asio::yield_context yield,
+                     const std::string& serviceName);
+
+    size_t eraseDevice(eid_t eid);
+
     /// Callback to be executed when a network change occurs
     ReconfigurationCallback networkChangeCallback = nullptr;
     /// Callback to be executed when a MCTP message received
     ReceiveMessageCallback receiveCallback = nullptr;
     /// MCTP Configuration to store message type and vendor defined properties
     MCTPConfiguration config{};
+
+    static const inline std::unordered_map<MessageType, const std::string>
+        msgTypeToPropertyName = {{MessageType::pldm, "PLDM"},
+                                 {MessageType::ncsi, "NCSI"},
+                                 {MessageType::ethernet, "Ethernet"},
+                                 {MessageType::nvmeMgmtMsg, "NVMeMgmtMsg"},
+                                 {MessageType::spdm, "SPDM "},
+                                 {MessageType::vdpci, "VDPCI"},
+                                 {MessageType::vdiana, "VDIANA"}};
 
   private:
     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matchers;
