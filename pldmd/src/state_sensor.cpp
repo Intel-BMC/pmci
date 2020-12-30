@@ -368,7 +368,9 @@ bool StateSensor::getStateSensorReadings(boost::asio::yield_context& yield)
     }
 
     uint8_t completionCode;
-    uint8_t compositeSensorCount;
+    // Pass compositeSensorCount as 1 to indicate that only one sensor instance
+    // is supported
+    uint8_t compositeSensorCount = 1;
     constexpr size_t maxCompositeSensorCount = 0x08;
     std::array<get_sensor_state_field, maxCompositeSensorCount> stateField{};
     auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
