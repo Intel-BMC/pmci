@@ -99,10 +99,10 @@ class StateSensor
     bool sensorDisabled = false;
 
     /** @brief Cache readings for later use*/
-    bool isAvailableReading = std::numeric_limits<bool>::min();
-    bool isFuntionalReading = std::numeric_limits<bool>::min();
-    uint8_t previousStateReading = std::numeric_limits<uint8_t>::max();
-    uint8_t currentStateReading = std::numeric_limits<uint8_t>::max();
+    bool isAvailableReading = false;
+    bool isFuntionalReading = false;
+    uint8_t previousStateReading = PLDM_INVALID_VALUE;
+    uint8_t currentStateReading = PLDM_INVALID_VALUE;
 
     /** @brief Sensor Interfaces*/
     std::unique_ptr<sdbusplus::asio::dbus_interface> sensorInterface = nullptr;

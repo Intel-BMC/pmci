@@ -28,6 +28,11 @@ namespace platform
 const static constexpr char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
+static bool sensorIntfReady = false;
+static bool availableIntfReady = false;
+static bool operationalIntfReady = false;
+static bool interfaceInitialized = false;
+
 StateSensor::StateSensor(const pldm_tid_t tid, const SensorID sensorID,
                          const std::string& name,
                          const std::shared_ptr<StateSensorPDR>& pdr) :
@@ -68,25 +73,22 @@ void StateSensor::setInitialProperties()
 
 void StateSensor::initializeInterface()
 {
-    static bool interfaceInitialized = false;
-    if (interfaceInitialized)
+    if (!interfaceInitialized && sensorIntfReady && availableIntfReady &&
+        operationalIntfReady)
     {
-        return;
-    }
-
-    if (!sensorInterface->is_initialized())
-    {
+        sensorInterface->register_property("PreviousState",
+                                           previousStateReading);
+        sensorInterface->register_property("CurrentState", currentStateReading);
         sensorInterface->initialize();
-    }
-    if (!availableInterface->is_initialized())
-    {
+
+        availableInterface->register_property("Available", isAvailableReading);
         availableInterface->initialize();
-    }
-    if (!operationalInterface->is_initialized())
-    {
+
+        operationalInterface->register_property("Functional",
+                                                isFuntionalReading);
         operationalInterface->initialize();
+        interfaceInitialized = true;
     }
-    interfaceInitialized = true;
 }
 
 void StateSensor::markFunctional(bool isFunctional)
@@ -100,19 +102,16 @@ void StateSensor::markFunctional(bool isFunctional)
         return;
     }
 
-    if (!operationalInterface->is_initialized())
+    if (!interfaceInitialized)
     {
-        operationalInterface->register_property("Functional", isFunctional);
+        isFuntionalReading = isFunctional;
+        operationalIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (isFuntionalReading == isFunctional)
-        {
-            return;
-        }
         operationalInterface->set_property("Functional", isFunctional);
     }
-    isFuntionalReading = isFunctional;
 
     if (isFunctional)
     {
@@ -120,8 +119,7 @@ void StateSensor::markFunctional(bool isFunctional)
     }
     else
     {
-        updateState(std::numeric_limits<uint8_t>::max(),
-                    std::numeric_limits<uint8_t>::max());
+        updateState(PLDM_INVALID_VALUE, PLDM_INVALID_VALUE);
     }
 }
 
@@ -136,20 +134,16 @@ void StateSensor::markAvailable(bool isAvailable)
         return;
     }
 
-    if (!availableInterface->is_initialized())
+    if (!interfaceInitialized)
     {
-        availableInterface->register_property("Available", isAvailable);
+        isAvailableReading = isAvailable;
+        availableIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (isAvailableReading == isAvailable)
-        {
-            return;
-        }
         availableInterface->set_property("Available", isAvailable);
     }
-    isAvailableReading = isAvailable;
-    errCount = 0;
 }
 
 void StateSensor::incrementError()
@@ -179,31 +173,24 @@ void StateSensor::updateState(const uint8_t currentState,
             "Sensor interface not initialized");
         return;
     }
-    if (!sensorInterface->is_initialized())
+
+    if (!interfaceInitialized)
     {
-        sensorInterface->register_property("PreviousState", previousState);
-        sensorInterface->register_property("CurrentState", currentState);
+        currentStateReading = currentState;
+        previousStateReading = previousState;
+        sensorIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (currentStateReading == currentState &&
-            previousStateReading == previousState)
-        {
-            return;
-        }
-        sensorInterface->set_property("PreviousState", previousState);
         sensorInterface->set_property("CurrentState", currentState);
+        sensorInterface->set_property("PreviousState", previousState);
     }
-    // cache the last read state value from the sensor
-    currentStateReading = currentState;
-    previousStateReading = previousState;
 
-    if (!isFuntionalReading)
+    if (currentState != PLDM_INVALID_VALUE &&
+        previousState != PLDM_INVALID_VALUE)
     {
         markFunctional(true);
-    }
-    if (!isAvailableReading)
-    {
         markAvailable(true);
     }
 }
@@ -215,7 +202,6 @@ bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
         case PLDM_SENSOR_DISABLED: {
             markFunctional(false);
             markAvailable(true);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "State sensor disabled",
@@ -226,7 +212,6 @@ bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
         case PLDM_SENSOR_UNAVAILABLE: {
             markFunctional(false);
             markAvailable(false);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "State sensor unavailable",
@@ -237,7 +222,6 @@ bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
         case PLDM_SENSOR_ENABLED: {
             updateState(stateReading.present_state,
                         stateReading.previous_state);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "GetStateSensorReadings success",
@@ -282,7 +266,6 @@ bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
             sensorDisabled = true;
             markAvailable(true);
             markFunctional(false);
-            initializeInterface();
             break;
         default:
             phosphor::logging::log<phosphor::logging::level::ERR>(
