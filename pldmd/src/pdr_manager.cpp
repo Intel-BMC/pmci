@@ -712,13 +712,16 @@ void PDRManager::parseEntityAssociationPDR()
                                               PLDM_PDR_ENTITY_ASSOCIATION,
                                               record, &pdrData, &pdrSize);
     }
-    if (entityAssociations.size())
+    // createEntityAssociationTree erases the entityAssociation vector. Thus
+    // cache the number of entity associations
+    size_t entityAssociationsCount = entityAssociations.size();
+    if (entityAssociationsCount)
     {
         createEntityAssociationTree(entityAssociations);
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Number of Entity Association PDR parsed: " +
-         std::to_string(entityAssociations.size()))
+         std::to_string(entityAssociationsCount))
             .c_str());
 }
 
