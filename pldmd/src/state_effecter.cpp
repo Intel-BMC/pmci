@@ -27,6 +27,11 @@ namespace platform
 static const char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
+static bool effecterIntfReady = false;
+static bool availableIntfReady = false;
+static bool operationalIntfReady = false;
+static bool interfaceInitialized = false;
+
 StateEffecter::StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
                              const std::string& name,
                              const std::shared_ptr<StateEffecterPDR>& pdr) :
@@ -67,25 +72,23 @@ void StateEffecter::setInitialProperties()
 
 void StateEffecter::initializeInterface()
 {
-    static bool interfaceInitialized = false;
-    if (interfaceInitialized)
+    if (!interfaceInitialized && effecterIntfReady && availableIntfReady &&
+        operationalIntfReady)
     {
-        return;
-    }
-
-    if (!effecterInterface->is_initialized())
-    {
+        effecterInterface->register_property("PendingState",
+                                             pendingStateReading);
+        effecterInterface->register_property("CurrentState",
+                                             currentStateReading);
         effecterInterface->initialize();
-    }
-    if (!availableInterface->is_initialized())
-    {
+
+        availableInterface->register_property("Available", isAvailableReading);
         availableInterface->initialize();
-    }
-    if (!operationalInterface->is_initialized())
-    {
+
+        operationalInterface->register_property("Functional",
+                                                isFuntionalReading);
         operationalInterface->initialize();
+        interfaceInitialized = true;
     }
-    interfaceInitialized = true;
 }
 
 void StateEffecter::markFunctional(bool isFunctional)
@@ -99,19 +102,16 @@ void StateEffecter::markFunctional(bool isFunctional)
         return;
     }
 
-    if (!operationalInterface->is_initialized())
+    if (!interfaceInitialized)
     {
-        operationalInterface->register_property("Functional", isFunctional);
+        isFuntionalReading = isFunctional;
+        operationalIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (isFuntionalReading == isFunctional)
-        {
-            return;
-        }
         operationalInterface->set_property("Functional", isFunctional);
     }
-    isFuntionalReading = isFunctional;
 
     if (isFunctional)
     {
@@ -119,8 +119,7 @@ void StateEffecter::markFunctional(bool isFunctional)
     }
     else
     {
-        updateState(std::numeric_limits<uint8_t>::max(),
-                    std::numeric_limits<uint8_t>::max());
+        updateState(PLDM_INVALID_VALUE, PLDM_INVALID_VALUE);
     }
 }
 
@@ -135,20 +134,16 @@ void StateEffecter::markAvailable(bool isAvailable)
         return;
     }
 
-    if (!availableInterface->is_initialized())
+    if (!interfaceInitialized)
     {
-        availableInterface->register_property("Available", isAvailable);
+        isAvailableReading = isAvailable;
+        availableIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (isAvailableReading == isAvailable)
-        {
-            return;
-        }
         availableInterface->set_property("Available", isAvailable);
     }
-    isAvailableReading = isAvailable;
-    errCount = 0;
 }
 
 void StateEffecter::incrementError()
@@ -178,32 +173,25 @@ void StateEffecter::updateState(const uint8_t currentState,
             "Effecter interface not initialized");
         return;
     }
-    if (!effecterInterface->is_initialized())
+
+    if (!interfaceInitialized)
     {
-        effecterInterface->register_property("PendingState", pendingState);
-        effecterInterface->register_property("CurrentState", currentState);
+        currentStateReading = currentState;
+        pendingStateReading = pendingState;
+        effecterIntfReady = true;
+        initializeInterface();
     }
     else
     {
-        if (currentStateReading != currentState)
-        {
-            effecterInterface->set_property("CurrentState", currentState);
-        }
-        if (pendingStateReading != pendingState)
-        {
-            effecterInterface->set_property("PendingState", pendingState);
-        }
+        effecterInterface->set_property("CurrentState", currentState);
+        effecterInterface->set_property("PendingState", pendingState);
     }
-    // cache the last read state value from the effecter
-    currentStateReading = currentState;
-    pendingStateReading = pendingState;
 
-    if (!isFuntionalReading)
+    if (currentState != PLDM_INVALID_VALUE &&
+        pendingState != PLDM_INVALID_VALUE)
     {
+
         markFunctional(true);
-    }
-    if (!isAvailableReading)
-    {
         markAvailable(true);
     }
 }
@@ -291,7 +279,6 @@ bool StateEffecter::handleStateEffecterState(
         // TODO: Read again after transition interval before setting value
         case EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING: {
             updateState(stateReading.present_state, stateReading.pending_state);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "GetStateEffecterStates success",
@@ -302,7 +289,6 @@ bool StateEffecter::handleStateEffecterState(
         case EFFECTER_OPER_STATE_DISABLED: {
             markFunctional(false);
             markAvailable(true);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "State effecter disabled",
@@ -313,7 +299,6 @@ bool StateEffecter::handleStateEffecterState(
         case EFFECTER_OPER_STATE_UNAVAILABLE: {
             markFunctional(false);
             markAvailable(false);
-            initializeInterface();
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "State effecter unavailable",
