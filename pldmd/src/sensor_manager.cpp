@@ -335,7 +335,7 @@ bool SensorManager::getSensorReading(boost::asio::yield_context& yield)
     }
 
     uint8_t completionCode;
-    uint8_t sensorDataSize;
+    uint8_t sensorDataSize = _pdr.sensor_data_size;
     uint8_t sensorOperationalState;
     uint8_t sensorEventMessageEnable;
     uint8_t presentState;
