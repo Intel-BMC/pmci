@@ -569,62 +569,30 @@ static bool getEntityAssociation(const std::shared_ptr<pldm_entity[]>& entities,
     return true;
 }
 
-// Extract root node from the list of Entity Associations parsed by matching
-// container ID. Remove the same from list once it is found. Note:- Merge the
-// Entity Association PDRs if there is more than one with same root node
-// container ID
-static EntityNode::NodePtr
-    extractRootNode(std::vector<EntityNode::NodePtr>& entityAssociations,
-                    ContainerID containerID)
-{
-    EntityNode::NodePtr entityNode = nullptr;
-
-    entityAssociations.erase(
-        std::remove_if(
-            entityAssociations.begin(), entityAssociations.end(),
-            [&entityNode,
-             &containerID](EntityNode::NodePtr& entityAssociation) {
-                if (entityAssociation->containerEntity.entity_container_id !=
-                    containerID)
-                {
-                    return false;
-                }
-                if (!entityNode)
-                {
-                    entityNode = std::move(entityAssociation);
-                }
-                else
-                {
-                    std::move(
-                        entityAssociation->containedEntities.begin(),
-                        entityAssociation->containedEntities.end(),
-                        std::back_inserter(entityNode->containedEntities));
-                }
-                return true;
-            }),
-        entityAssociations.end());
-
-    return entityNode;
-}
-
 // Get the matching node from Entity Association Tree
-static EntityNode::NodePtr getContainedNode(EntityNode::NodePtr& root,
-                                            ContainerID containerID)
+static EntityNode::NodePtr
+    getContainedNode(const EntityNode::NodePtr& rootNode,
+                     const EntityNode::NodePtr& inputNode)
 {
-    if (!root)
+    if (!rootNode || !inputNode)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Root node empty");
+            "Invalid node input");
         return nullptr;
     }
 
     std::queue<EntityNode::NodePtr> containedEntityQueue;
-    containedEntityQueue.push(root); // Enqueue root
-    // Search for EntityNode with matching ContainerID
+    containedEntityQueue.push(rootNode); // Enqueue root
+    // Search for EntityNode with matching entity info
     while (!containedEntityQueue.empty())
     {
         EntityNode::NodePtr node = containedEntityQueue.front();
-        if (node->containerEntity.entity_container_id == containerID)
+        if (node->containerEntity.entity_type ==
+                inputNode->containerEntity.entity_type &&
+            node->containerEntity.entity_instance_num ==
+                inputNode->containerEntity.entity_instance_num &&
+            node->containerEntity.entity_container_id ==
+                inputNode->containerEntity.entity_container_id)
         {
             return node;
         }
@@ -637,9 +605,76 @@ static EntityNode::NodePtr getContainedNode(EntityNode::NodePtr& root,
             containedEntityQueue.push(entityNode);
         }
     }
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "No matching contained Node found");
     return nullptr;
+}
+
+static void insertToAssociationTree(EntityNode::NodePtr& parentNode,
+                                    EntityNode::NodePtr& entityAssociation)
+{
+    if (!parentNode || !entityAssociation)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Invalid NodePtr");
+        return;
+    }
+
+    auto checkCyclicEntityAssociation =
+        [&parentNode](const EntityNode::NodePtr& containedEntity) {
+            if (getContainedNode(parentNode, containedEntity) == nullptr)
+            {
+                return true;
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Discarding cyclic entity association");
+                return false;
+            }
+        };
+
+    std::back_insert_iterator<EntityNode::ContainedEntities>
+        containedEntityBackItr(parentNode->containedEntities);
+
+    std::copy_if(entityAssociation->containedEntities.begin(),
+                 entityAssociation->containedEntities.end(),
+                 containedEntityBackItr, checkCyclicEntityAssociation);
+}
+
+// Extract root node from the list of Entity Associations parsed by matching
+// container ID. Remove the same from list once it is found. Note:- Merge the
+// Entity Association PDRs if there is more than one with same root node
+// container ID
+static EntityNode::NodePtr
+    extractRootNode(std::vector<EntityNode::NodePtr>& entityAssociations,
+                    ContainerID containerID)
+{
+    EntityNode::NodePtr rootNode = nullptr;
+
+    entityAssociations.erase(
+        std::remove_if(
+            entityAssociations.begin(), entityAssociations.end(),
+            [&rootNode, &containerID](EntityNode::NodePtr& entityAssociation) {
+                if (entityAssociation->containerEntity.entity_container_id !=
+                    containerID)
+                {
+                    return false;
+                }
+
+                if (!rootNode)
+                {
+                    rootNode = std::make_shared<EntityNode>();
+                    rootNode->containerEntity =
+                        entityAssociation->containerEntity;
+                }
+
+                insertToAssociationTree(rootNode, entityAssociation);
+                return true;
+            }),
+        entityAssociations.end());
+
+    return rootNode;
 }
 
 void PDRManager::createEntityAssociationTree(
@@ -662,22 +697,19 @@ void PDRManager::createEntityAssociationTree(
         size_t associationPDRCount = entityAssociations.size();
 
         entityAssociations.erase(
-            std::remove_if(
-                entityAssociations.begin(), entityAssociations.end(),
-                [&rootNode](EntityNode::NodePtr& entityAssociation) {
-                    EntityNode::NodePtr node = getContainedNode(
-                        rootNode,
-                        entityAssociation->containerEntity.entity_container_id);
+            std::remove_if(entityAssociations.begin(), entityAssociations.end(),
+                           [&rootNode](EntityNode::NodePtr& entityAssociation) {
+                               EntityNode::NodePtr node = getContainedNode(
+                                   rootNode, entityAssociation);
 
-                    if (node)
-                    {
-                        std::move(entityAssociation->containedEntities.begin(),
-                                  entityAssociation->containedEntities.end(),
-                                  std::back_inserter(node->containedEntities));
-                        return true;
-                    }
-                    return false;
-                }),
+                               if (node)
+                               {
+                                   insertToAssociationTree(node,
+                                                           entityAssociation);
+                                   return true;
+                               }
+                               return false;
+                           }),
             entityAssociations.end());
 
         // Safe check in case there is an invalid PDR
@@ -766,6 +798,8 @@ static void populateEntity(DBusInterfacePtr& entityIntf,
                            const DBusObjectPath& path,
                            const pldm_entity& entity)
 {
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Entity object path: " + path).c_str());
     auto objServer = getObjServer();
 
     entityIntf =
