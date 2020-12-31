@@ -404,34 +404,41 @@ void NumericEffecterManager::registerSetEffecter()
 
             auto refreshEffecterInterfaces = [this]() {
                 boost::system::error_code ec;
-                boost::asio::steady_timer timer(*getIoContext());
-                timer.expires_after(boost::asio::chrono::seconds(
-                    static_cast<int64_t>(_pdr.transition_interval)));
-                timer.async_wait([this](const boost::system::error_code& e) {
-                    if (e)
-                    {
-                        phosphor::logging::log<phosphor::logging::level::ERR>(
-                            "SetNumericEffecterValue: async_wait error");
-                    }
-                    boost::asio::spawn(
-                        *getIoContext(),
-                        [this](boost::asio::yield_context yieldCtx) {
-                            if (!populateEffecterValue(yieldCtx))
-                            {
-                                phosphor::logging::log<
-                                    phosphor::logging::level::ERR>(
-                                    "Read state effecter failed",
-                                    phosphor::logging::entry(
-                                        "EFFECTER_ID=0x%0X", _effecterID),
-                                    phosphor::logging::entry("TID=%d", _tid));
-                            }
-                        });
-                });
+                transitionIntervalTimer =
+                    std::make_unique<boost::asio::steady_timer>(
+                        *getIoContext());
+                transitionIntervalTimer->expires_after(
+                    boost::asio::chrono::seconds(
+                        static_cast<int64_t>(_pdr.transition_interval)));
+                transitionIntervalTimer->async_wait(
+                    [this](const boost::system::error_code& e) {
+                        if (e)
+                        {
+                            phosphor::logging::log<
+                                phosphor::logging::level::ERR>(
+                                "SetNumericEffecterValue: async_wait error");
+                        }
+                        boost::asio::spawn(
+                            *getIoContext(),
+                            [this](boost::asio::yield_context yieldCtx) {
+                                if (!populateEffecterValue(yieldCtx))
+                                {
+                                    phosphor::logging::log<
+                                        phosphor::logging::level::ERR>(
+                                        "Read state effecter failed",
+                                        phosphor::logging::entry(
+                                            "EFFECTER_ID=0x%0X", _effecterID),
+                                        phosphor::logging::entry("TID=%d",
+                                                                 _tid));
+                                }
+                            });
+                    });
             };
 
             // Refresh the value on D-Bus
             getIoContext()->post(refreshEffecterInterfaces);
         });
+    setEffecterInterface->initialize();
 }
 
 bool NumericEffecterManager::effecterManagerInit(

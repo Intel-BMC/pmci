@@ -86,6 +86,10 @@ class NumericEffecterManager
 
     /** @brief Set Effecter interface*/
     std::shared_ptr<sdbusplus::asio::dbus_interface> setEffecterInterface;
+
+    /** @brief Timer to wait for trasition interval after
+     * SetNumericEffecterValue*/
+    std::unique_ptr<boost::asio::steady_timer> transitionIntervalTimer;
 };
 
 } // namespace platform

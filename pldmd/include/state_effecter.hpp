@@ -113,6 +113,9 @@ class StateEffecter
         nullptr;
     std::unique_ptr<sdbusplus::asio::dbus_interface> setEffecterInterface =
         nullptr;
+
+    /** @brief Timer to wait for trasition interval after setStateEffecter*/
+    std::unique_ptr<boost::asio::steady_timer> transitionIntervalTimer;
 };
 
 } // namespace platform
