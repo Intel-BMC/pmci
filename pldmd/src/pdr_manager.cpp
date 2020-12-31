@@ -407,17 +407,17 @@ bool PDRManager::constructPDRRepo(boost::asio::yield_context& yield)
     }
 
     uint32_t noOfRecordsFetched = pldm_pdr_get_record_count(_pdrRepo.get());
-    if (!noOfRecordsFetched)
+    if (noOfRecordsFetched != recordCount)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "No PDR records are added to repo",
+            "Unable to fetch all PDR records",
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
 
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        ("GetPDR success. " + std::to_string(noOfRecordsFetched) +
-         " records fetched out of " + std::to_string(pdrRepoInfo.record_count))
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("GetPDR success. Total number of records:" +
+         std::to_string(noOfRecordsFetched))
             .c_str(),
         phosphor::logging::entry("TID=%d", _tid));
     return true;
