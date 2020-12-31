@@ -103,6 +103,16 @@ the commands to UA(BMC)
 bool reserveBandwidth(const boost::asio::yield_context& yield,
                       const pldm_tid_t tid, const uint16_t timeout);
 
+/** @brief Release Bandwidth for tid
+ *
+ * @param yield - Context object that represents the currently executing
+ * coroutine.
+ * @param tid - TID of the PLDM device
+ *
+ * @return Status of the operation
+ */
+bool releaseBandwidth(const boost::asio::yield_context& yield,
+                      const pldm_tid_t tid);
 // TODO: Add an API to free the Instance ID after usage.
 
 /** @brief Returns PLDM message Instance ID
