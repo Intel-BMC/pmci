@@ -23,6 +23,7 @@
 #include <fstream>
 #include <phosphor-logging/log.hpp>
 #include <queue>
+#include <regex>
 
 #include "utils.h"
 
@@ -476,12 +477,17 @@ static std::optional<std::string> getAuxName(const uint8_t nameStrCount,
                 std::wstring_convert<std::codecvt_utf8_utf16<char16_t>,
                                      char16_t>{}
                     .to_bytes(u16_str);
-            // non printable characters cause sdbusplus exceptions, so better to
-            // handle it by replacing with space
-            std::replace_if(
-                auxName.begin(), auxName.end(),
-                [](const char& c) { return !isprint(c); }, ' ');
-            return auxName;
+
+            // Auxiliary names are used to create D-Bus object paths.
+            // Replacing all non-alphanumeric with underscore
+            std::string formattedAuxName =
+                std::regex_replace(auxName, std::regex("[^a-zA-Z0-9_/]+"), "_");
+            // Discard the name if all characters are non printable
+            if (formattedAuxName == "_")
+            {
+                return std::nullopt;
+            }
+            return formattedAuxName;
         }
         next += (u16_str.size() * codeUnitSize) + strUTF16nullSize;
         advanced = next - auxNamesStart;
