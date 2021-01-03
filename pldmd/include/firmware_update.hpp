@@ -184,10 +184,13 @@ class FWUpdate
                                 const bool _tagOwner,
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
+    void terminateFwUpdate(const boost::asio::yield_context& yield);
 
   private:
     bool isComponentApplicable();
-    int startTimer(const uint16_t interval);
+    boost::system::error_code
+        startTimer(const boost::asio::yield_context& yield,
+                   const uint16_t interval);
     uint64_t getApplicableComponents();
 
     int doRequestUpdate(const boost::asio::yield_context& yield,
@@ -275,6 +278,13 @@ class FWUpdate
     bool sendErrorCompletionCode(const uint8_t fdInstanceId,
                                  const uint8_t complCode,
                                  const uint8_t command);
+    bool prepareRequestUpdateCommand(std::string& vrnStr);
+    bool preparePassComponentRequest(
+        struct pass_component_table_req& componentTable,
+        const uint16_t compCnt);
+    uint8_t initTransferFlag(const uint16_t compCnt);
+    bool prepareUpdateComponentRequest(struct update_component_req& component,
+                                       const uint16_t compCnt);
 
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
@@ -282,9 +292,13 @@ class FWUpdate
     bool tagOwner;
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
-    uint8_t deviceIDRecord;
+    bool isReserveBandwidthActive = false;
+    uint8_t currentDeviceIDRecord;
     const uint16_t timeout = 100;
+    const uint16_t fdCmdTimeout = 5000;
+    const uint16_t reserveEidTimeOut = 900;
     const size_t retryCount = 3;
+    const uint16_t delayBtw = 500;
     const uint16_t retryRequestForUpdateDelay = 5000;
     bool updateMode = false;
     uint8_t fdState = FD_IDLE;
@@ -301,10 +315,10 @@ class FWUpdate
     uint8_t auxStateStatus = 0;
     uint8_t progressPercent = 0;
     uint8_t reasonCode = 0;
+    bool fdTransferCompleted = false;
     bitfield32_t updateOptionFlagsEnabled = {0};
     uint8_t completionCode = PLDM_SUCCESS;
     struct request_update_req updateProperties = {};
-    boost::asio::steady_timer timer;
     FDProperties targetFDProperties;
     std::set<uint8_t> cancelUpdateComponentState = {FD_DOWNLOAD, FD_VERIFY,
                                                     FD_APPLY};
@@ -319,11 +333,34 @@ class PLDMImg
     /** @brief API that process PLDM firmware update package header
      */
     bool processPkgHdr();
+    constexpr uint16_t getHeaderLen()
+    {
+        return pkgHdrLen;
+    }
+    constexpr uint16_t getDevIDRecordCount()
+    {
+        return deviceIDRecordCount;
+    }
+    constexpr uint16_t getTotalCompCount()
+    {
+        return totalCompCount;
+    }
 
     /** @brief API that gets PLDM firmware update package header property
      */
     template <typename T>
     bool getPkgProperty(T& value, const std::string& name);
+
+    /** @brief API that gets PLDM firmware update component property
+     */
+    template <typename T>
+    bool getCompProperty(T& value, const std::string& name, uint16_t compCount);
+
+    /** @brief API that gets PLDM firmware update device record property
+     */
+    template <typename T>
+    bool getDevIdRcrdProperty(T& value, const std::string& name,
+                              uint8_t recordCount);
 
     /** @brief API that runs PLDM firmware package update
      */
@@ -415,7 +452,8 @@ class PLDMImg
     uint8_t pkgVersionStringLen = 0;
     uint16_t compBitmapBitLength = 0;
     uint16_t fwDevPkgDataLen = 0;
-
+    uint8_t deviceIDRecordCount = 0;
+    uint16_t totalCompCount = 0;
     FWUProperties pkgFWUProperties;
     DevIDRecordsMap pkgDevIDRecords;
     CompPropertiesMap pkgCompProperties;
