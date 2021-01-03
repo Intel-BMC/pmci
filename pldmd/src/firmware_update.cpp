@@ -1832,6 +1832,123 @@ int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
+int FWUpdate::processRequestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+                                         uint32_t& offset, uint32_t& length,
+                                         const uint32_t componentSize,
+                                         const uint32_t componentOffset)
+{
+    if (!updateMode || fdState != FD_DOWNLOAD)
+    {
+        const struct pldm_msg* msgReq =
+            reinterpret_cast<const pldm_msg*>(pldmReq.data());
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     COMMAND_NOT_EXPECTED,
+                                     PLDM_REQUEST_FIRMWARE_DATA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "RequestFirmwareData: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return COMMAND_NOT_EXPECTED;
+    }
+    return requestFirmwareData(pldmReq, offset, length, componentOffset,
+                               componentSize);
+}
+
+int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+                                  uint32_t& offset, uint32_t& length,
+                                  const uint32_t componentSize,
+                                  const uint32_t componentOffset)
+{
+
+    const struct pldm_msg* msgReq =
+        reinterpret_cast<const pldm_msg*>(pldmReq.data());
+    int retVal = decode_request_firmware_data_req(
+        msgReq, pldmReq.size() - hdrSize, &offset, &length);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "requestfirmware: decode request failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_REQUEST_FIRMWARE_DATA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "RequestFirmwareData: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return retVal;
+    }
+
+    /* completion code plus requested data length */
+    size_t payload_length = 1 + length;
+
+    std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse + length);
+    std ::vector<uint8_t> data(length);
+    if (offset + length > componentSize)
+    {
+        if (offset < componentSize)
+        {
+            length = componentSize - offset;
+        }
+        else
+        {
+            if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
+                                         PLDM_REQUEST_FIRMWARE_DATA))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "RequestFirmwareData: Failed to send PLDM message",
+                    phosphor::logging::entry("TID=%d", currentTid));
+            }
+            return PLDM_ERROR;
+        }
+    }
+
+    if (!pldmImg->readData(offset + componentOffset, data, length))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "update image read failed",
+            phosphor::logging::entry("TID=%d", currentTid));
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
+                                     PLDM_REQUEST_FIRMWARE_DATA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "RequestFirmwareData: Failed to send PLDM message",
+                phosphor::logging::entry("TID=%d", currentTid));
+        }
+        return PLDM_ERROR;
+    }
+
+    struct variable_field componentImagePortion = {};
+    componentImagePortion.length = data.size();
+    componentImagePortion.ptr = data.data();
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = encode_request_firmware_data_resp(msgReq->hdr.instance_id, msgResp,
+                                               payload_length, completionCode,
+                                               &componentImagePortion);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "requestfirmware: encode request failed",
+            phosphor::logging::entry("TID=%d", currentTid),
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+
+    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "requestFirmwareData: Failed to send PLDM message",
+            phosphor::logging::entry("TID=%d", currentTid));
+        return PLDM_ERROR;
+    }
+
+    return PLDM_SUCCESS;
+}
+
 int FWUpdate::doActivateFirmware(
     const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)

@@ -231,7 +231,14 @@ class FWUpdate
                         uint8_t& compCompatabilityRespCode,
                         bitfield32_t& updateOptFlagsEnabled,
                         uint16_t& estimatedTimeReqFd);
-    int requestFirmwareData(const boost::asio::yield_context& yield);
+    int processRequestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+                                   uint32_t& offset, uint32_t& length,
+                                   const uint32_t componentSize,
+                                   const uint32_t componentOffset);
+    int requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+                            uint32_t& offset, uint32_t& length,
+                            const uint32_t componentSize,
+                            const uint32_t componentOffset);
     uint8_t validateTransferComplete(const uint8_t transferResult);
     int processTransferComplete(const std::vector<uint8_t>& pldmReq,
                                 uint8_t& transferResult);
@@ -322,14 +329,17 @@ class PLDMImg
      */
     int runPkgUpdate(const boost::asio::yield_context& yield);
     std::unique_ptr<FWUpdate> fwUpdate;
-
-  private:
     /** @brief API that is used to read raw bytes from pldm firmware update
      * image
      */
     bool readData(const size_t startAddr, std::vector<uint8_t>& data,
                   const size_t dataLen);
+    constexpr uint32_t getImagesize()
+    {
+        return static_cast<uint32_t>(pldmImgSize);
+    };
 
+  private:
     /** @brief API that gets descriptor identifiers data length
      */
     size_t getDescriptorDataLen(const FWDevIdRecord& data,
