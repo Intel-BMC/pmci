@@ -13,6 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "base.hpp"
+
 #include "platform.hpp"
 #include "pldm.hpp"
 
@@ -52,6 +54,13 @@ constexpr uint8_t defaultTID = 0x00;
 using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
 using VersionSupportTable = std::unordered_map<uint8_t, PLDMVersions>;
+
+struct DiscoveryData
+{
+    CommandSupportTable cmdSupportTable;
+};
+
+static std::unordered_map<pldm_tid_t, DiscoveryData> discoveryDataTable;
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
@@ -428,8 +437,8 @@ CommandSupportTable
     return cmdSupportTable;
 }
 
-static bool isSupported(const CommandSupportTable& cmdSupportTable,
-                        const pldm_type_t type, const uint8_t cmd)
+bool isSupported(const CommandSupportTable& cmdSupportTable,
+                 const pldm_type_t type, const uint8_t cmd)
 {
     auto itCmd = cmdSupportTable.find(type);
     if (cmdSupportTable.end() == itCmd)
@@ -533,7 +542,26 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
         return false;
     }
     addToMapper(tid, eid);
+    discoveryDataTable.insert_or_assign(tid, DiscoveryData({cmdSupportTable}));
     return true;
+}
+
+bool baseDestroy(pldm_tid_t tid)
+{
+    return discoveryDataTable.erase(tid) == 1;
+}
+
+bool isSupported(pldm_tid_t tid, const uint8_t type, const uint8_t cmd)
+{
+    try
+    {
+        DiscoveryData& discoveryData = discoveryDataTable.at(tid);
+        return isSupported(discoveryData.cmdSupportTable, type, cmd);
+    }
+    catch (std::out_of_range&)
+    {
+        return false;
+    }
 }
 
 } // namespace base

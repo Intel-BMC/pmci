@@ -14,6 +14,7 @@
 // limitations under the License.
 */
 
+#include "base.hpp"
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
