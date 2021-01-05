@@ -407,9 +407,17 @@ void NumericEffecterManager::registerSetEffecter()
                 transitionIntervalTimer =
                     std::make_unique<boost::asio::steady_timer>(
                         *getIoContext());
+                uint64_t transitionIntervalMilliSec = 0;
+                if (!std::isnan(_pdr.transition_interval) &&
+                    _pdr.transition_interval > 0)
+                {
+                    // Convert to millisec to get more accurate value
+                    transitionIntervalMilliSec = static_cast<uint64_t>(
+                        std::round(_pdr.transition_interval * 1000));
+                }
                 transitionIntervalTimer->expires_after(
-                    boost::asio::chrono::seconds(
-                        static_cast<int64_t>(_pdr.transition_interval)));
+                    boost::asio::chrono::milliseconds(
+                        transitionIntervalMilliSec));
                 transitionIntervalTimer->async_wait(
                     [this](const boost::system::error_code& e) {
                         if (e)
