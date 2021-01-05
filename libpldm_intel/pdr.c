@@ -1510,8 +1510,7 @@ bool pldm_numeric_effecter_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
 	LE32TOH(effecter_pdr_out->transition_interval);
 
 	const uint8_t *iter =
-	    (const uint8_t *)(&effecter_pdr_in->transition_interval +
-			      sizeof(effecter_pdr_in->transition_interval));
+	    (const uint8_t *)(&effecter_pdr_in->max_set_table.value_u8);
 	if (!numeric_effecter_pdr_effecter_data_size_parse(effecter_pdr_out,
 							   &iter, pdr_len)) {
 		return false;

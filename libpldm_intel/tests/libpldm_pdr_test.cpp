@@ -1239,7 +1239,8 @@ TEST(NumericEffecterPDR, testParse)
     EXPECT_EQ(status, true);
 
     const struct pldm_numeric_effecter_value_pdr* effecter_pdr_out =
-        (const struct pldm_numeric_effecter_value_pdr*)pdr.data();
+        (const struct pldm_numeric_effecter_value_pdr*)
+            numeric_effecter_pdr.data();
     EXPECT_EQ(effecter_pdr_out->effecter_data_size,
               PLDM_EFFECTER_DATA_SIZE_UINT32);
     EXPECT_EQ(effecter_pdr_out->range_field_format,
