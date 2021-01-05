@@ -90,6 +90,12 @@ class NumericEffecterManager
     /** @brief Timer to wait for trasition interval after
      * SetNumericEffecterValue*/
     std::unique_ptr<boost::asio::steady_timer> transitionIntervalTimer;
+
+    /** @brief Maximum settable Effecter value*/
+    double maxSettable;
+
+    /** @brief Minimum settable Effecter value*/
+    double minSettable;
 };
 
 } // namespace platform

@@ -116,7 +116,7 @@ bool NumericEffecterManager::enableNumericEffecter(
 
 bool NumericEffecterManager::initEffecter()
 {
-    std::optional<double> maxVal =
+    std::optional<float> maxVal =
         pdr::effecter::fetchEffecterValue(_pdr, _pdr.max_set_table);
     if (maxVal == std::nullopt)
     {
@@ -126,8 +126,9 @@ bool NumericEffecterManager::initEffecter()
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
+    maxSettable = pdr::effecter::calculateEffecterValue(_pdr, *maxVal);
 
-    std::optional<double> minVal =
+    std::optional<float> minVal =
         pdr::effecter::fetchEffecterValue(_pdr, _pdr.min_set_table);
     if (minVal == std::nullopt)
     {
@@ -137,13 +138,12 @@ bool NumericEffecterManager::initEffecter()
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
+    minSettable = pdr::effecter::calculateEffecterValue(_pdr, *minVal);
 
     try
     {
         _effecter = std::make_shared<NumericEffecter>(
-            _name, _tid, pdr::effecter::calculateEffecterValue(_pdr, *maxVal),
-            pdr::effecter::calculateEffecterValue(_pdr, *minVal),
-            _pdr.base_unit);
+            _name, _tid, maxSettable, minSettable, _pdr.base_unit);
     }
     catch (std::exception& e)
     {
@@ -180,7 +180,7 @@ bool NumericEffecterManager::handleEffecterReading(
                 return false;
             }
 
-            std::optional<double> effecterReading =
+            std::optional<float> effecterReading =
                 pdr::effecter::fetchEffecterValue(_pdr, presentReading);
             if (effecterReading == std::nullopt)
             {
@@ -332,19 +332,27 @@ bool NumericEffecterManager::setEffecter(boost::asio::yield_context& yield,
     std::vector<uint8_t> req(pldmMsgHdrSize + payloadLength);
     pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
 
-    double effecterValue;
-    if (auto settableValue =
-            pdr::effecter::calculateSettableEffecterValue(_pdr, value))
-    {
-        effecterValue = *settableValue;
-    }
-    else
+    std::optional<double> settableValue =
+        pdr::effecter::calculateSettableEffecterValue(_pdr, value);
+    if (settableValue == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Effecter value calculation failed");
         return false;
     }
 
+    // Largest settable value for an effecter is 4 bytes in length.
+    double largestSettable = std::numeric_limits<float>::max();
+    double smallestSettable = std::numeric_limits<float>::min();
+    if (*settableValue > largestSettable || *settableValue < smallestSettable ||
+        *settableValue < minSettable || *settableValue > maxSettable)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid effecter value");
+        return false;
+    }
+
+    real32_t effecterValue = static_cast<real32_t>(*settableValue);
     rc = encode_set_numeric_effecter_value_req(
         createInstanceId(_tid), _effecterID, _pdr.effecter_data_size,
         reinterpret_cast<uint8_t*>(&effecterValue), reqMsg, payloadLength);

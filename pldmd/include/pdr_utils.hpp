@@ -50,7 +50,7 @@ namespace effecter
 
 /** @brief Calculate effecter value*/
 double calculateEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,
-                              const double& value);
+                              const float& value);
 
 /** @brief Calculate setable effecter value*/
 std::optional<double>
@@ -58,12 +58,12 @@ std::optional<double>
                                    const double& value);
 
 /** @brief Fetch the effecter value as per data size*/
-std::optional<double>
+std::optional<float>
     fetchEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,
                        const union_effecter_data_size& data);
 
 /** @brief Fetch range field value as per range field format*/
-std::optional<double>
+std::optional<float>
     fetchRangeFieldValue(const pldm_numeric_effecter_value_pdr& pdr,
                          const union_range_field_format& data);
 
