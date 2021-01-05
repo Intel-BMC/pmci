@@ -149,6 +149,9 @@ class MctpBinding
     mctp_eid_t reservedEID = 0;
     MctpTransmissionQueue transmissionQueue;
 
+    std::unordered_map<uint8_t, version_entry>
+        versionNumbersForUpperLayerResponder;
+
     void initializeMctp();
     void initializeLogging(void);
     virtual std::optional<std::vector<uint8_t>>
@@ -201,6 +204,11 @@ class MctpBinding
         const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
         uint8_t msgTypeNo,
         MctpVersionSupportCtrlResp* mctpVersionSupportCtrlResp);
+
+    bool registerUpperLayerResponder(uint8_t typeNo,
+                                     std::vector<uint8_t>& list);
+    bool manageVersionInfo(uint8_t typeNo, std::vector<uint8_t>& list);
+
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,
                                 const mctp_eid_t destEid);

@@ -17,10 +17,6 @@ constexpr unsigned int ctrlTxPollInterval = 5;
 constexpr size_t minCmdRespSize = 4;
 constexpr int completionCodeIndex = 3;
 
-const std::unordered_map<uint8_t, version_entry> versionNumbers = {
-    {MCTP_MESSAGE_TYPE_MCTP_CTRL, {0xF1, 0xF3, 0xF1, 0}},
-    {MCTP_GET_VERSION_SUPPORT_BASE_INFO, {0xF1, 0xF3, 0xF1, 0}}};
-
 /* According DSP0239(Version: 1.7.0) */
 static const std::unordered_map<uint8_t,
                                 mctp_server::MctpPhysicalMediumIdentifiers>
@@ -374,6 +370,14 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
     objServer->add_manager(objPath);
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);
 
+    /*initialize the map*/
+    versionNumbersForUpperLayerResponder.insert(
+        std::pair<uint8_t, version_entry>{MCTP_MESSAGE_TYPE_MCTP_CTRL,
+                                          {0xF1, 0xF3, 0xF1, 0}});
+    versionNumbersForUpperLayerResponder.insert(
+        std::pair<uint8_t, version_entry>{MCTP_GET_VERSION_SUPPORT_BASE_INFO,
+                                          {0xF1, 0xF3, 0xF1, 0}});
+
     try
     {
         ownEid = conf.defaultEid;
@@ -559,6 +563,13 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                                        std::vector<uint8_t>>(
             "MessageReceivedSignal");
 
+        mctpInterface->register_method(
+            "RegisterResponder",
+            [this](uint8_t msgTypeName,
+                   std::vector<uint8_t> inputVersion) -> bool {
+                return registerUpperLayerResponder(msgTypeName, inputVersion);
+            });
+
         if (mctpInterface->initialize() == false)
         {
             throw std::system_error(
@@ -572,6 +583,55 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             phosphor::logging::entry("Exception:", e.what()));
         throw;
     }
+}
+
+bool MctpBinding::registerUpperLayerResponder(uint8_t typeNo,
+                                              std::vector<uint8_t>& versionData)
+{
+    bool ret = false;
+    switch (typeNo)
+    {
+        case MCTP_MESSAGE_TYPE_PLDM:
+        case MCTP_MESSAGE_TYPE_NCSI:
+        case MCTP_MESSAGE_TYPE_ETHERNET:
+        case MCTP_MESSAGE_TYPE_NVME:
+        case MCTP_MESSAGE_TYPE_SPDM:
+            ret = manageVersionInfo(typeNo, versionData);
+            break;
+        default:
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Invalid Type for Registration To MCTP");
+            break;
+    }
+    return ret;
+}
+
+bool MctpBinding::manageVersionInfo(uint8_t typeNo,
+                                    std::vector<uint8_t>& versionInfo)
+{
+    struct version_entry verString;
+
+    if (versionInfo.size() != 4)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "The Version info is of invalid length...");
+        return false;
+    }
+
+    if (versionNumbersForUpperLayerResponder.find(typeNo) ==
+        versionNumbersForUpperLayerResponder.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "No existing Data for typeNo, So pushing into map");
+        std::copy_n(versionInfo.begin(), sizeof(version_entry),
+                    reinterpret_cast<uint8_t*>(&verString));
+
+        versionNumbersForUpperLayerResponder.emplace(typeNo, verString);
+        return true;
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Existing Data In Map for the typeNo");
+    return false;
 }
 
 MctpBinding::~MctpBinding()
@@ -925,14 +985,16 @@ bool MctpBinding::handleGetVersionSupport(mctp_eid_t, void*,
 
     std::vector<version_entry> versions = {};
 
-    if (versionNumbers.find(req->msg_type_number) == versionNumbers.end())
+    if (versionNumbersForUpperLayerResponder.find(req->msg_type_number) ==
+        versionNumbersForUpperLayerResponder.end())
     {
         resp->completion_code =
             MCTP_CTRL_CC_GET_MCTP_VER_SUPPORT_UNSUPPORTED_TYPE;
     }
     else
     {
-        versions.push_back(versionNumbers.at(req->msg_type_number));
+        versions.push_back(
+            versionNumbersForUpperLayerResponder.at(req->msg_type_number));
         resp->completion_code = MCTP_CTRL_CC_SUCCESS;
     }
     resp->number_of_entries = static_cast<uint8_t>(versions.size());
