@@ -270,7 +270,7 @@ std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
 }
 
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
-                  const PLDMCommandTable& /*commandTable*/)
+                  const pldm::base::CommandSupportTable& /*commandTable*/)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Platform Monitoring and Control initialisation",

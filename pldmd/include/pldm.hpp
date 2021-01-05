@@ -15,6 +15,8 @@
  */
 #pragma once
 
+#include "base.hpp"
+
 #include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
 #include <memory>
@@ -50,12 +52,6 @@ struct PLDMEmptyRequest
 {
     struct pldm_msg_hdr header;
 } __attribute__((packed));
-
-using PLDMCommandTable = std::vector<std::map<
-    ver32_t, /*Supported PLDM Version*/
-    std::array<bitfield8_t, PLDM_MAX_CMDS_PER_TYPE / 8> /*Supported PLDM
-                                                           Commands*/
-    >>;
 
 /** @brief Creates new Instance ID for PLDM messages
  *
@@ -196,7 +192,7 @@ namespace platform
  * @return Status of the operation
  */
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
-                  const PLDMCommandTable& commandTable);
+                  const pldm::base::CommandSupportTable& commandTable);
 
 /** @brief Destroy Platform Monitoring and Control
  *
