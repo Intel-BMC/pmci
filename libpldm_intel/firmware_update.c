@@ -520,6 +520,10 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 	struct request_update_req *request =
 	    (struct request_update_req *)msg->payload;
 
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	if (data->max_transfer_size < PLDM_FWU_BASELINE_TRANSFER_SIZE) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
@@ -580,6 +584,10 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 	struct request_update_resp *response =
 	    (struct request_update_resp *)msg->payload;
 
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	*fd_meta_data_len = le16toh(response->fd_meta_data_len);
 
 	*fd_pkg_data = response->fd_pkg_data;
@@ -612,6 +620,10 @@ int encode_get_device_meta_data_req(const uint8_t instance_id,
 
 	struct get_device_meta_data_req *request =
 	    (struct get_device_meta_data_req *)msg->payload;
+
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	request->data_transfer_handle = htole32(data_transfer_handle);
 
@@ -647,6 +659,10 @@ int decode_get_device_meta_data_resp(
 
 	struct get_device_meta_data_resp *response =
 	    (struct get_device_meta_data_resp *)msg->payload;
+
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	*next_data_transfer_handle =
 	    le32toh(response->next_data_transfer_handle);
@@ -709,6 +725,10 @@ int encode_activate_firmware_req(const uint8_t instance_id,
 	struct activate_firmware_req *request =
 	    (struct activate_firmware_req *)msg->payload;
 
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	if (!check_self_contained_activation_req_valid(
 		self_contained_activation_req)) {
 		return PLDM_ERROR_INVALID_DATA;
@@ -742,6 +762,10 @@ int decode_activate_firmware_resp(const struct pldm_msg *msg,
 	struct activate_firmware_resp *response =
 	    (struct activate_firmware_resp *)msg->payload;
 
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	*estimated_time_activation =
 	    le16toh(response->estimated_time_activation);
 
@@ -772,6 +796,10 @@ int encode_pass_component_table_req(const uint8_t instance_id,
 
 	struct pass_component_table_req *request =
 	    (struct pass_component_table_req *)msg->payload;
+
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	if (!check_transfer_flag_valid(data->transfer_flag)) {
 		return PLDM_INVALID_TRANSFER_OPERATION_FLAG;
@@ -834,6 +862,10 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 
 	struct pass_component_table_resp *response =
 	    (struct pass_component_table_resp *)msg->payload;
+
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	if (!check_comp_resp_valid(response->comp_resp)) {
 		return PLDM_ERROR_INVALID_DATA;
@@ -1216,6 +1248,11 @@ static int decode_firmware_device_data_req(const struct pldm_msg *msg,
 	}
 	struct get_fd_data_req *request =
 	    (struct get_fd_data_req *)msg->payload;
+
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	if (request->transfer_operation_flag > PLDM_GET_FIRSTPART) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
@@ -1424,6 +1461,11 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	}
 	struct get_status_resp *response =
 	    (struct get_status_resp *)msg->payload;
+
+	if (response == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	if (!check_response_msg_validity(response)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
@@ -1509,6 +1551,10 @@ int decode_apply_complete_req(
 	}
 	struct apply_complete_req *request =
 	    (struct apply_complete_req *)msg->payload;
+
+	if (request == NULL) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
 
 	if (!validate_apply_result(request->apply_result)) {
 		return PLDM_ERROR_INVALID_DATA;
