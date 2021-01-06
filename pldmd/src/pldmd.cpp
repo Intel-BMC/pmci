@@ -35,7 +35,7 @@ std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
     {
         if (eidMap.second == eid)
         {
-            return eidMap.second;
+            return eidMap.first;
         }
     }
     phosphor::logging::log<phosphor::logging::level::WARNING>(
