@@ -28,18 +28,18 @@ namespace sensor
 
 /** @brief Calculate sensor value*/
 double calculateSensorValue(const pldm_numeric_sensor_value_pdr& pdr,
-                            const double& sensorReading);
+                            const float& sensorReading);
 
 /** @brief Fetch the sensor value as per data size*/
-std::optional<double> fetchSensorValue(const pldm_numeric_sensor_value_pdr& pdr,
-                                       const union_sensor_data_size& data);
+std::optional<float> fetchSensorValue(const pldm_numeric_sensor_value_pdr& pdr,
+                                      const union_sensor_data_size& data);
 
 /** @brief Get sensor unit as per D-Bus representation*/
 std::optional<SensorUnit>
     getSensorUnit(const pldm_numeric_sensor_value_pdr& pdr);
 
 /** @brief Fetch range field value as per range field format*/
-std::optional<double>
+std::optional<float>
     fetchRangeFieldValue(const pldm_numeric_sensor_value_pdr& pdr,
                          const union_range_field_format& data);
 

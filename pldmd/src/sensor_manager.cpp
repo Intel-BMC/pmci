@@ -173,7 +173,7 @@ void SensorManager::getSupportedThresholds(
 
 bool SensorManager::initSensor()
 {
-    std::optional<double> maxVal =
+    std::optional<float> maxVal =
         pdr::sensor::fetchSensorValue(_pdr, _pdr.max_readable);
     if (maxVal == std::nullopt)
     {
@@ -184,7 +184,7 @@ bool SensorManager::initSensor()
         return false;
     }
 
-    std::optional<double> minVal =
+    std::optional<float> minVal =
         pdr::sensor::fetchSensorValue(_pdr, _pdr.min_readable);
     if (minVal == std::nullopt)
     {
@@ -272,7 +272,7 @@ bool SensorManager::handleSensorReading(uint8_t sensorOperationalState,
                 return false;
             }
 
-            std::optional<double> sensorReading =
+            std::optional<float> sensorReading =
                 pdr::sensor::fetchSensorValue(_pdr, presentReading);
             if (sensorReading == std::nullopt)
             {
