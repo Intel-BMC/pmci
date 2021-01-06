@@ -901,7 +901,7 @@ int encode_get_package_data_resp(const uint8_t instance_id,
 				 struct get_fd_data_resp *data,
 				 struct variable_field *portion_of_meta_data);
 
-/** @brief Decode a GetPackageData request message
+/** @brief Decode GetPackageData request message
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
@@ -929,14 +929,14 @@ int decode_get_pacakge_data_req(const struct pldm_msg *msg,
  *  @param[in] portion_of_meta_data - pointer to package data
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_get_meta_data_resp(const uint8_t instance_id,
 			      const size_t payload_length, struct pldm_msg *msg,
 			      struct get_fd_data_resp *data,
 			      struct variable_field *portion_of_meta_data);
 
-/** @brief Decode a GetMetaData request message
+/** @brief Decode GetMetaData request message
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
