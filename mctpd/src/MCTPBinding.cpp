@@ -348,6 +348,12 @@ std::optional<std::vector<uint8_t>>
     return std::vector<uint8_t>();
 }
 
+bool MctpBinding::reserveBandwidth(const mctp_eid_t /*eid*/,
+                                   const uint16_t /*timeout*/)
+{
+    return true;
+}
+
 bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
 {
     return true;
@@ -400,17 +406,49 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             "SendMctpMessagePayload",
             [this](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
                    std::vector<uint8_t> payload) {
+                if (rsvBWActive && dstEid != reservedEID)
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        (("SendMctpMessagePayload is not allowed. "
+                          "ReserveBandwidth is active "
+                          "for EID: ") +
+                         std::to_string(reservedEID))
+                            .c_str());
+                    return static_cast<int>(mctpErrorRsvBWIsNotActive);
+                }
                 std::optional<std::vector<uint8_t>> pvtData =
                     getBindingPrivateData(dstEid);
-                if (pvtData)
+                if (!pvtData)
                 {
-                    return mctp_message_tx(mctp, dstEid, payload.data(),
-                                           payload.size(), tagOwner, msgTag,
-                                           pvtData->data());
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "SendMctpMessagePayload: Invalid destination EID");
+                    return static_cast<int>(mctpInternalError);
                 }
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Invalid destination EID");
-                return -1;
+                if (!mctp_message_tx(mctp, dstEid, payload.data(),
+                                     payload.size(), tagOwner, msgTag,
+                                     pvtData->data()))
+                {
+                    return static_cast<int>(mctpInternalError);
+                }
+                return static_cast<int>(mctpSuccess);
+            });
+
+        mctpInterface->register_method(
+            "ReserveBandwidth",
+            [this](const mctp_eid_t eid, const uint16_t timeout) {
+                if (!reserveBandwidth(eid, timeout))
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        ("Reserve bandwidth failed for EID: " +
+                         std::to_string(eid))
+                            .c_str());
+                    return static_cast<int>(mctpErrorRsvBWFailed);
+                }
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    ("Reserve bandwidth is active for EID: " +
+                     std::to_string(eid))
+                        .c_str());
+                return static_cast<int>(mctpSuccess);
             });
 
         mctpInterface->register_method(
@@ -418,6 +456,17 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             [this](boost::asio::yield_context yield, uint8_t dstEid,
                    std::vector<uint8_t> payload,
                    uint16_t timeout) -> std::vector<uint8_t> {
+                if (rsvBWActive && dstEid != reservedEID)
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        (("SendReceiveMctpMessagePayload is not allowed. "
+                          "ReserveBandwidth is "
+                          "active for EID: ") +
+                         std::to_string(reservedEID))
+                            .c_str());
+                    throw std::system_error(
+                        std::make_error_code(std::errc::invalid_argument));
+                }
                 uint8_t msgType = payload[0]; // Always the first byte
                 if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
                 {
@@ -432,7 +481,8 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                 if (!pvtData)
                 {
                     phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Invalid destination EID");
+                        "SendReceiveMctpMessagePayload: Invalid destination "
+                        "EID");
                     throw std::system_error(
                         std::make_error_code(std::errc::invalid_argument));
                 }

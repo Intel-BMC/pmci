@@ -12,6 +12,14 @@
 class SMBusBinding;
 class PCIeBinding;
 
+enum MctpStatus
+{
+    mctpErrorRsvBWIsNotActive = -3,
+    mctpErrorRsvBWFailed = -2,
+    mctpInternalError = -1,
+    mctpSuccess = 0
+};
+
 struct MsgTypes
 {
     bool mctpControl = true;
@@ -135,6 +143,8 @@ class MctpBinding
     struct mctp* mctp = nullptr;
     uint8_t ownEid;
     uint8_t busOwnerEid;
+    bool rsvBWActive = false;
+    mctp_eid_t reservedEID = 0;
     MctpTransmissionQueue transmissionQueue;
 
     void initializeMctp();
@@ -145,6 +155,7 @@ class MctpBinding
     virtual bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);
+    virtual bool reserveBandwidth(const mctp_eid_t eid, const uint16_t timeout);
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,

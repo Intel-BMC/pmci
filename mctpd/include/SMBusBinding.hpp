@@ -25,6 +25,8 @@ class SMBusBinding : public MctpBinding
     void SMBusInit();
     void readResponse();
     void initEndpointDiscovery();
+    bool reserveBandwidth(const mctp_eid_t eid,
+                          const uint16_t timeout) override;
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;

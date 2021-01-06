@@ -202,6 +202,45 @@ std::optional<std::vector<uint8_t>>
     return std::nullopt;
 }
 
+bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
+                                    const uint16_t /*timeout*/)
+{
+    if (rsvBWActive && eid != reservedEID)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            (("reserveBandwidth is not allowed for EID: " +
+              std::to_string(eid) + ". It is active for EID: ") +
+             std::to_string(reservedEID))
+                .c_str());
+        return false;
+    }
+    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(eid);
+    if (!pvtData)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "reserveBandwidth failed. Invalid destination EID");
+        return false;
+    }
+    const mctp_smbus_extra_params* prvt =
+        reinterpret_cast<const mctp_smbus_extra_params*>(pvtData->data());
+    if (prvt->muxFlags != IS_MUX_PORT)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "reserveBandwidth not required, fd is not a mux port");
+        return false;
+    }
+    if (mctp_smbus_init_pull_model(prvt) < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "reserveBandwidth: init pull model failed");
+        return false;
+    }
+    rsvBWActive = true;
+    reservedEID = eid;
+    // TODO start timer and release bandwidth once timer expires.
+    return true;
+}
+
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                            const std::string& objPath,
                            const SMBusConfiguration& conf,
