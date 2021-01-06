@@ -344,7 +344,9 @@ bool StateEffecter::getStateEffecterStates(boost::asio::yield_context& yield)
     }
 
     uint8_t completionCode;
-    uint8_t compositeEffecterCount;
+    // Pass compositeEffecterCount as 1 to indicate that only one effecter
+    // instance is supported
+    uint8_t compositeEffecterCount = PLDM_COMPOSITE_EFFECTER_COUNT_MIN;
     std::array<get_effecter_state_field, PLDM_COMPOSITE_EFFECTER_COUNT_MAX>
         stateField{};
     auto rspMsg = reinterpret_cast<pldm_msg*>(resp.data());
