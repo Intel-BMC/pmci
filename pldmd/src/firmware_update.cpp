@@ -73,7 +73,15 @@ void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "PLDM Firmware update message received",
-        phosphor::logging::entry("EID=0x%X", tid));
+        phosphor::logging::entry("TID=0x%X", tid));
+    // pldmImg points to null if FW update is not in progress at this point
+    // firmware device should not send any firmware update commands
+    if (!pldmImg)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Firmware update is not in process, command not excepted");
+        return;
+    }
     pldmImg->fwUpdate->validateReqForFWUpdCmd(tid, msgTag, tagOwner, message);
     return;
 }
