@@ -397,9 +397,21 @@ bool PDRManager::constructPDRRepo(boost::asio::yield_context& yield)
     }
 
     std::unordered_map<RecordHandle, std::vector<uint8_t>> devicePDRs{};
-    if (!getDevicePDRRepo(yield, recordCount, devicePDRs))
+    uint8_t noOfCommandTries = 3;
+    while (noOfCommandTries--)
     {
-        return false;
+        if (getDevicePDRRepo(yield, recordCount, devicePDRs))
+        {
+            break;
+        }
+        if (!noOfCommandTries)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get PDR failed. Unable to fetch PDRs even after 3 tries",
+                phosphor::logging::entry("TID=%d", _tid));
+            return false;
+        }
+        devicePDRs.clear();
     }
 
     if (!addDevicePDRToRepo(devicePDRs))
@@ -411,7 +423,10 @@ bool PDRManager::constructPDRRepo(boost::asio::yield_context& yield)
     if (noOfRecordsFetched != recordCount)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Unable to fetch all PDR records",
+            ("Unable to fetch all PDR records. Expected number of records: " +
+             std::to_string(recordCount) +
+             " Records received: " + std::to_string(noOfRecordsFetched))
+                .c_str(),
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
