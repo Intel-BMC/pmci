@@ -459,6 +459,14 @@ void PCIeBinding::initializeBinding()
         throw std::system_error(
             std::make_error_code(static_cast<std::errc>(-status)));
     }
+    if (mctp_astpcie_register_default_handler(pcie) != 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Registration as default control service failed");
+        throw std::system_error(
+            std::make_error_code(std::errc::operation_not_permitted));
+    }
+
     mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
                     static_cast<MctpBinding*>(this));
     mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
