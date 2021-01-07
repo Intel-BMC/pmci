@@ -27,6 +27,8 @@ class SMBusBinding : public MctpBinding
     void initEndpointDiscovery();
     bool reserveBandwidth(const mctp_eid_t eid,
                           const uint16_t timeout) override;
+    void startTimerAndReleaseBW(const uint16_t interval,
+                                const mctp_smbus_extra_params* prvt);
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
@@ -35,6 +37,7 @@ class SMBusBinding : public MctpBinding
     int outFd{-1}; // out_fd for the root bus
     std::vector<std::pair<int, int>> muxFds;
     boost::asio::posix::stream_descriptor smbusReceiverFd;
+    boost::asio::steady_timer reserveBWTimer;
     bool isMuxFd(const int fd);
     std::vector<std::pair<mctp_eid_t, struct mctp_smbus_extra_params>>
         smbusDeviceTable;

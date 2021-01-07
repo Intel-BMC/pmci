@@ -203,7 +203,7 @@ std::optional<std::vector<uint8_t>>
 }
 
 bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
-                                    const uint16_t /*timeout*/)
+                                    const uint16_t timeout)
 {
     if (rsvBWActive && eid != reservedEID)
     {
@@ -237,8 +237,36 @@ bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
     }
     rsvBWActive = true;
     reservedEID = eid;
-    // TODO start timer and release bandwidth once timer expires.
+    startTimerAndReleaseBW(timeout, prvt);
     return true;
+}
+
+void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
+                                          const mctp_smbus_extra_params* prvt)
+{
+    reserveBWTimer.expires_after(std::chrono::milliseconds(interval * 1000));
+    reserveBWTimer.async_wait([this,
+                               prvt](const boost::system::error_code& ec) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            // timer aborted do nothing
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "startTimerAndReleaseBW: timer operation_aborted");
+        }
+        else if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "startTimerAndReleaseBW: reserveBWTimer failed");
+        }
+        if (mctp_smbus_exit_pull_model(prvt) < 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "startTimerAndReleaseBW: mctp_smbus_exit_pull_model failed");
+            return;
+        }
+        rsvBWActive = false;
+        reservedEID = 0;
+    });
 }
 
 SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
@@ -247,7 +275,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                            boost::asio::io_context& ioc) :
     MctpBinding(objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverSmbus),
-    smbusReceiverFd(ioc)
+    smbusReceiverFd(ioc), reserveBWTimer(ioc)
 {
     std::shared_ptr<dbus_interface> smbusInterface =
         objServer->add_interface(objPath, smbus_server::interface);
