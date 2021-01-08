@@ -1139,6 +1139,30 @@
                 0,
                 17
             ]
+        },
+        {
+            "description": "GetCapabilities SPDM",
+            "processing-delay": 20,
+            "request": [
+                16,
+                225,
+                0,
+                0
+            ],
+            "response": [
+                16,
+                97,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                6,
+                0,
+                0,
+                0
+            ]
         }
     ],
     "VDPCI": {
