@@ -1724,8 +1724,8 @@ int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
     std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
     struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
     uint8_t compCode = validateVerifyComplete(verifyResult);
-    retVal = encode_transfer_complete_resp(msgReq->hdr.instance_id, compCode,
-                                           msgResp);
+    retVal =
+        encode_verify_complete_resp(msgReq->hdr.instance_id, compCode, msgResp);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
