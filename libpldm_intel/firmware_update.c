@@ -707,7 +707,7 @@ int encode_activate_firmware_req(const uint8_t instance_id,
 				 const size_t payload_length,
 				 const bool8_t self_contained_activation_req)
 {
-	if (msg == NULL || self_contained_activation_req == NULL) {
+	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
