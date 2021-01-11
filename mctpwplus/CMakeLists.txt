@@ -22,16 +22,22 @@ set(CMAKE_CXX_FLAGS
     -Wpedantic \
     -Wconversion \
     -Wmisleading-indentation \
-    -Wduplicated-cond \
-    -Wduplicated-branches \
-    -Wlogical-op \
     -Wnull-dereference \
-    -Wuseless-cast \
     -Wdouble-promotion \
     -Wno-strict-aliasing \
     -Wno-cast-align \
     -Wformat=2 \
 ")
+
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+  set(CMAKE_CXX_FLAGS
+      "${CMAKE_CXX_FLAGS} \
+        -Wuseless-cast \
+        -Wduplicated-cond \
+        -Wduplicated-branches \
+        -Wlogical-op \
+    ")
+endif()
 
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
