@@ -163,6 +163,12 @@ void PCIeBinding::updateRoutingTable()
         {
             processRoutingTableChanges(routingTableTmp, yield, prvData);
             routingTable = routingTableTmp;
+
+            if (!setDriverEndpointMap())
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to store routing table in KMD");
+            }
         }
     });
 }
@@ -200,6 +206,19 @@ void PCIeBinding::processRoutingTableChanges(
                              getBindingMode(routingEntry));
         }
     }
+}
+
+bool PCIeBinding::setDriverEndpointMap()
+{
+    std::vector<std::tuple<uint8_t, uint16_t>> endpoints;
+
+    for (const auto& [eid, busDevFunc, type] : routingTable)
+    {
+        endpoints.push_back({eid, busDevFunc});
+    }
+
+    return !mctp_astpcie_set_eid_info_ioctl(
+        pcie, endpoints.data(), static_cast<uint16_t>(endpoints.size()));
 }
 
 bool PCIeBinding::isReceivedPrivateDataCorrect(const void* bindingPrivate)
