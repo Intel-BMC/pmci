@@ -550,7 +550,12 @@ static void initializeFWUBase()
                     phosphor::logging::entry("PLDM_IMAGE=%s",
                                              filePath.c_str()));
             }
-            pldmImg->runPkgUpdate(yield);
+            rc = pldmImg->runPkgUpdate(yield);
+            if (rc != PLDM_SUCCESS)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "StartFWUpdate: runPkgUpdate failed.");
+            }
             pldmImg = nullptr;
             return rc;
         });
@@ -890,6 +895,13 @@ bool PLDMImg::processPkgHdrInfo()
 static bool updateMode = false;
 int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
 {
+    if (updateMode)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "runPkgUpdate: Cannot start firmware update. Firmware update is "
+            "already in progress");
+        return PLDM_ERROR;
+    }
     for (const auto& it : matchedTermini)
     {
         pldm_tid_t matchedTid = it.second;
@@ -904,14 +916,16 @@ int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
                     .c_str());
             continue;
         }
-        if (fwUpdate->runUpdate(yield) != PLDM_SUCCESS)
+        int retVal = fwUpdate->runUpdate(yield);
+        if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                ("runUpdate failed for TID: " + std::to_string(matchedTid))
+                ("runUpdate failed for TID: " + std::to_string(matchedTid) +
+                 ". RETVAL:" + std::to_string(retVal))
                     .c_str());
-            updateMode = false;
             // TODO call cancelUpdate command
         }
+        updateMode = false;
     }
     return PLDM_SUCCESS;
 }
