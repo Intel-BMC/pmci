@@ -14,6 +14,7 @@ class PCIeBinding;
 
 enum MctpStatus
 {
+    mctpErrorReleaseBWFailed = -4,
     mctpErrorRsvBWIsNotActive = -3,
     mctpErrorRsvBWFailed = -2,
     mctpInternalError = -1,
@@ -156,6 +157,7 @@ class MctpBinding
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response);
     virtual bool reserveBandwidth(const mctp_eid_t eid, const uint16_t timeout);
+    virtual bool releaseBandwidth(const mctp_eid_t eid);
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,

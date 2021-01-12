@@ -354,6 +354,11 @@ bool MctpBinding::reserveBandwidth(const mctp_eid_t /*eid*/,
     return true;
 }
 
+bool MctpBinding::releaseBandwidth(const mctp_eid_t /*eid*/)
+{
+    return true;
+}
+
 bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
 {
     return true;
@@ -450,7 +455,20 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                         .c_str());
                 return static_cast<int>(mctpSuccess);
             });
-
+        mctpInterface->register_method("ReleaseBandwidth", [this](
+                                                               const mctp_eid_t
+                                                                   eid) {
+            if (!releaseBandwidth(eid))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("Release bandwidth failed for EID: " + std::to_string(eid))
+                        .c_str());
+                return static_cast<int>(mctpErrorReleaseBWFailed);
+            }
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Bandwidth released for EID: " + std::to_string(eid)).c_str());
+            return static_cast<int>(mctpSuccess);
+        });
         mctpInterface->register_method(
             "SendReceiveMctpMessagePayload",
             [this](boost::asio::yield_context yield, uint8_t dstEid,

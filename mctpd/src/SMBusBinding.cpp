@@ -241,6 +241,37 @@ bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
     return true;
 }
 
+bool SMBusBinding::releaseBandwidth(const mctp_eid_t eid)
+{
+    if (!rsvBWActive || eid != reservedEID)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (("reserveBandwidth is not active for EID: ") +
+             std::to_string(reservedEID))
+                .c_str());
+        return false;
+    }
+    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(eid);
+    if (!pvtData)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "releaseBandwidth: Invalid destination EID");
+        return false;
+    }
+    mctp_smbus_extra_params* prvt =
+        reinterpret_cast<mctp_smbus_extra_params*>(pvtData->data());
+    if (mctp_smbus_exit_pull_model(prvt) < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "releaseBandwidth: failed to exit pull model");
+        return false;
+    }
+    rsvBWActive = false;
+    reservedEID = 0;
+    reserveBWTimer.cancel();
+    return true;
+}
+
 void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
                                           const mctp_smbus_extra_params* prvt)
 {

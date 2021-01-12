@@ -112,6 +112,11 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
+    EXPECT_CALL(*objectServerMock->dbusIfMock,
+                register_method(StrEq("ReleaseBandwidth")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(
         *objectServerMock->dbusIfMock,
         register_property(StrEq("ArpMasterSupport"), An<bool>(),

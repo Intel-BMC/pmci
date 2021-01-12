@@ -29,6 +29,7 @@ class SMBusBinding : public MctpBinding
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
                                 const mctp_smbus_extra_params* prvt);
+    bool releaseBandwidth(const mctp_eid_t eid) override;
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
