@@ -28,7 +28,7 @@ namespace platform
 static std::map<pldm_tid_t, PlatformMonitoringControl> platforms{};
 // TODO: Optimize poll interval
 static constexpr const int pollIntervalMillisec = 10;
-std::shared_ptr<boost::asio::steady_timer> sensorTimer;
+std::shared_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
 static bool isSensorPollRunning = false;
 
 bool introduceDelayInPolling(boost::asio::yield_context& yield)
@@ -269,6 +269,26 @@ std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
     return uuid;
 }
 
+void pauseSensorPolling()
+{
+    if (!sensorTimer)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Sensor polling timer not yet active");
+        return;
+    }
+    sensorTimer->cancel();
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Sensor polling paused");
+}
+
+void resumeSensorPolling()
+{
+    initSensorPoll();
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Sensor polling resumed");
+}
+
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const pldm::base::CommandSupportTable& /*commandTable*/)
 {
@@ -287,8 +307,6 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     initSensors(yield, tid);
 
     initEffecters(yield, tid);
-
-    initSensorPoll();
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Platform Monitoring and Control initialisation success",

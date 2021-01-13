@@ -15,6 +15,7 @@
 */
 
 #include "base.hpp"
+#include "platform.hpp"
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -535,6 +536,45 @@ uint8_t createInstanceId(pldm_tid_t tid)
 }
 } // namespace pldm
 
+void initDevice(const mctpw_eid_t eid, boost::asio::yield_context& yield)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Initializing MCTP EID " + std::to_string(eid)).c_str());
+
+    pldm_tid_t assignedTID = 0x00;
+    pldm::base::CommandSupportTable cmdSupportTable;
+    if (!pldm::base::baseInit(yield, eid, assignedTID, cmdSupportTable))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM base init failed", phosphor::logging::entry("EID=%d", eid));
+        return;
+    }
+
+    auto isSupported = [&cmdSupportTable](pldm_type_t type) {
+        return cmdSupportTable.end() != cmdSupportTable.find(type);
+    };
+
+    if (isSupported(PLDM_PLATFORM) &&
+        !pldm::platform::platformInit(yield, assignedTID, {}))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM platform init failed",
+            phosphor::logging::entry("TID=%d", assignedTID));
+    }
+    if (isSupported(PLDM_FRU) && !pldm::fru::fruInit(yield, assignedTID))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM fru init failed",
+            phosphor::logging::entry("TID=%d", assignedTID));
+    }
+    if (isSupported(PLDM_FWU) && !pldm::fwu::fwuInit(yield, assignedTID))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "PLDM firmware update init failed",
+            phosphor::logging::entry("TID=%d", assignedTID));
+    }
+}
+
 // These are expected to be used only here, so declare them here
 extern void setIoContext(const std::shared_ptr<boost::asio::io_context>& newIo);
 extern void
@@ -567,53 +607,16 @@ int main(void)
 
     // Using dummy EID exposed by emulator until the discovery is implemented
     mctpw_eid_t dummyEid = 20;
-    auto tid = pldm::getFreeTid();
-    if (tid)
-    {
-        // TODO: Assign TID and find supported PLDM type and execute
-        // corresponding init methods
 
-        // Create yield context for each new TID and pass to the Init methods
-        boost::asio::spawn(
-            *ioc, [&tid, &dummyEid](boost::asio::yield_context yield) {
-                pldm_tid_t assignedTID = 0x00;
-                pldm::base::CommandSupportTable cmdSupportTable;
-                if (!pldm::base::baseInit(yield, dummyEid, assignedTID,
-                                          cmdSupportTable))
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "PLDM base init failed",
-                        phosphor::logging::entry("EID=%d", dummyEid));
-                    return;
-                }
+    // TODO: Assign TID and find supported PLDM type and execute
+    // corresponding init methods
 
-                auto isSupported = [&cmdSupportTable](pldm_type_t type) {
-                    return cmdSupportTable.end() != cmdSupportTable.find(type);
-                };
-
-                if (isSupported(PLDM_PLATFORM) &&
-                    !pldm::platform::platformInit(yield, assignedTID, {}))
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "PLDM platform init failed",
-                        phosphor::logging::entry("TID=%d", assignedTID));
-                }
-                if (isSupported(PLDM_FRU) &&
-                    !pldm::fru::fruInit(yield, assignedTID))
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "PLDM fru init failed",
-                        phosphor::logging::entry("TID=%d", assignedTID));
-                }
-                if (isSupported(PLDM_FWU) &&
-                    !pldm::fwu::fwuInit(yield, assignedTID))
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "PLDM firmware update init failed",
-                        phosphor::logging::entry("TID=%d", assignedTID));
-                }
-            });
-    }
+    // Create yield context for each new TID and pass to the Init methods
+    boost::asio::spawn(*ioc, [&dummyEid](boost::asio::yield_context yield) {
+        pldm::platform::pauseSensorPolling();
+        initDevice(dummyEid, yield);
+        pldm::platform::resumeSensorPolling();
+    });
     ioc->run();
 
     return 0;

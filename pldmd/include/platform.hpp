@@ -50,5 +50,13 @@ struct PlatformMonitoringControl
         stateEffecters;
 };
 
+/** @brief Pause sensor polling
+ *
+ *  Caller should resume the sensor polling manually using resumeSensorPolling()
+ */
+void pauseSensorPolling();
+
+/** @brief Resume sensor polling if it is paused*/
+void resumeSensorPolling();
 } // namespace platform
 } // namespace pldm
