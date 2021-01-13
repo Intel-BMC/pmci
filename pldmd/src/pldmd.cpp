@@ -30,16 +30,25 @@ using Mapper = std::unordered_map<
     mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
 static Mapper tidMapper;
 
-static bool isReserveBandwidthActive = false;
-static pldm_tid_t reservedTID = 0;
-bool reserveBandwidth(const boost::asio::yield_context& yield,
-                      const pldm_tid_t tid, const uint16_t timeout)
+static bool rsvBWActive = false;
+static pldm_tid_t reservedTID = pldmInvalidTid;
+static uint8_t reservedPLDMType = pldmInvalidType;
+
+static bool validateReserveBW(const pldm_tid_t tid, const uint8_t pldmType)
 {
-    if (isReserveBandwidthActive && tid != reservedTID)
+    return rsvBWActive && !(tid == reservedTID && pldmType == reservedPLDMType);
+}
+
+bool reserveBandwidth(const boost::asio::yield_context& yield,
+                      const pldm_tid_t tid, const uint8_t pldmType,
+                      const uint16_t timeout)
+{
+    if (validateReserveBW(tid, pldmType))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("reserveBandwidth is active for TID: ") +
-             std::to_string(reservedTID))
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Reserve bandwidth is active for TID: " +
+             std::to_string(reservedTID) +
+             ". RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
@@ -66,19 +75,25 @@ bool reserveBandwidth(const boost::asio::yield_context& yield,
                 .c_str());
         return false;
     }
-    isReserveBandwidthActive = true;
+    rsvBWActive = true;
     reservedTID = tid;
+    reservedPLDMType = pldmType;
     return true;
 }
 
 bool releaseBandwidth(const boost::asio::yield_context& yield,
-                      const pldm_tid_t tid)
+                      const pldm_tid_t tid, const uint8_t pldmType)
 {
-    if (tid != reservedTID || !isReserveBandwidthActive)
+    if (!rsvBWActive)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "releaseBandwidth : Invalid TID or reserve bandwidth is not "
-            "active.");
+            "releaseBandwidth: Reserve bandwidth is not active.");
+        return false;
+    }
+    if (tid != reservedTID || pldmType != reservedPLDMType)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "releaseBandwidth: Invalid TID or pldm type");
         return false;
     }
     std::optional<mctpw_eid_t> eid = getEidFromMapper(tid);
@@ -100,8 +115,9 @@ bool releaseBandwidth(const boost::asio::yield_context& yield,
                 .c_str());
         return false;
     }
-    isReserveBandwidthActive = false;
-    reservedTID = 0;
+    rsvBWActive = false;
+    reservedTID = pldmInvalidTid;
+    reservedPLDMType = pldmInvalidType;
     return true;
 }
 
@@ -273,12 +289,14 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
                             std::vector<uint8_t>& pldmResp,
                             std::optional<mctpw_eid_t> eid)
 {
-    if (isReserveBandwidthActive && tid != reservedTID)
+    pldm_msg_hdr* hdr = reinterpret_cast<pldm_msg_hdr*>(pldmReq.data());
+    if (validateReserveBW(tid, hdr->type))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("sendReceivePldmMessage is not allowed. Firmware update in "
-             "progress for TID: " +
-             std::to_string(reservedTID))
+            ("sendReceivePldmMessage is not allowed. Reserve bandwidth is "
+             "active for TID: " +
+             std::to_string(reservedTID) +
+             " RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
@@ -401,15 +419,18 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
 bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
                      const bool tagOwner, std::vector<uint8_t> payload)
 {
-    if (isReserveBandwidthActive && tid != reservedTID)
+    pldm_msg_hdr* hdr = reinterpret_cast<pldm_msg_hdr*>(payload.data());
+    if (validateReserveBW(tid, hdr->type))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("sendPldmMessage is not allowed. Firmware update in progress for "
+            ("sendPldmMessage is not allowed. Reserve bandwidth is active for "
              "TID: " +
-             std::to_string(reservedTID))
+             std::to_string(reservedTID) +
+             " RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
+
     mctpw_eid_t dstEid;
     if (auto eidPtr = getEidFromMapper(tid))
     {

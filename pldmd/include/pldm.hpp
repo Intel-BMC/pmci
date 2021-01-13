@@ -37,6 +37,8 @@ namespace pldm
 using DBusInterfacePtr = std::shared_ptr<sdbusplus::asio::dbus_interface>;
 using DBusObjectPath = std::string;
 
+constexpr pldm_tid_t pldmInvalidTid = 0;
+constexpr uint8_t pldmInvalidType = 0xFF;
 constexpr size_t pldmMsgHdrSize = sizeof(pldm_msg_hdr);
 
 /** @brief Limit the maximum length of PLDM message*/
@@ -72,23 +74,26 @@ the commands to UA(BMC)
  * @param yield - Context object that represents the currently executing
  * coroutine.
  * @param tid - TID of the PLDM device
+ * @param pldmType - pldm type.
  * @param timeout - Maximum time period in seconds to hold the mux
  *
  * @return Status of the operation
  */
 bool reserveBandwidth(const boost::asio::yield_context& yield,
-                      const pldm_tid_t tid, const uint16_t timeout);
+                      const pldm_tid_t tid, const uint8_t pldmType,
+                      const uint16_t timeout);
 
 /** @brief Release Bandwidth for tid
  *
  * @param yield - Context object that represents the currently executing
  * coroutine.
  * @param tid - TID of the PLDM device
+ * @param pldmType - pldm type.
  *
  * @return Status of the operation
  */
 bool releaseBandwidth(const boost::asio::yield_context& yield,
-                      const pldm_tid_t tid);
+                      const pldm_tid_t tid, const uint8_t pldmType);
 // TODO: Add an API to free the Instance ID after usage.
 
 /** @brief Returns PLDM message Instance ID
