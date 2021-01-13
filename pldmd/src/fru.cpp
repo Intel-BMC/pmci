@@ -53,7 +53,7 @@ bool PLDMFRUTable::parseFRUField(uint8_t recordType, uint8_t type,
     }
     catch (const std::out_of_range& e)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
             "fruFieldTypes key not available in map",
             phosphor::logging::entry("TID=%d", tid));
         return false;
@@ -116,7 +116,7 @@ bool PLDMFRUTable::parseTable()
                 if (!parseFRUField(record->record_type, tlv->type, tlv->length,
                                    tlv->value))
                 {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
                         "Failed to parse fru fields",
                         phosphor::logging::entry("TID=%d", tid));
                 }
