@@ -104,6 +104,12 @@ class StateEffecter
     uint8_t pendingStateReading = std::numeric_limits<uint8_t>::max();
     uint8_t currentStateReading = std::numeric_limits<uint8_t>::max();
 
+    /** @brief Flags which indicate interfaces are ready*/
+    bool effecterIntfReady = false;
+    bool availableIntfReady = false;
+    bool operationalIntfReady = false;
+    bool interfaceInitialized = false;
+
     /** @brief Effecter Interfaces*/
     std::unique_ptr<sdbusplus::asio::dbus_interface> effecterInterface =
         nullptr;

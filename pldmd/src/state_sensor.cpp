@@ -28,11 +28,6 @@ namespace platform
 const static constexpr char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
-static bool sensorIntfReady = false;
-static bool availableIntfReady = false;
-static bool operationalIntfReady = false;
-static bool interfaceInitialized = false;
-
 StateSensor::StateSensor(const pldm_tid_t tid, const SensorID sensorID,
                          const std::string& name,
                          const std::shared_ptr<StateSensorPDR>& pdr) :

@@ -27,11 +27,6 @@ namespace platform
 static const char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
-static bool effecterIntfReady = false;
-static bool availableIntfReady = false;
-static bool operationalIntfReady = false;
-static bool interfaceInitialized = false;
-
 StateEffecter::StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
                              const std::string& name,
                              const std::shared_ptr<StateEffecterPDR>& pdr) :

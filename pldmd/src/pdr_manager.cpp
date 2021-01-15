@@ -341,7 +341,7 @@ bool PDRManager::getDevicePDRRepo(
 bool PDRManager::addDevicePDRToRepo(
     std::unordered_map<RecordHandle, std::vector<uint8_t>>& devicePDRs)
 {
-    static bool terminusLPDRFound = false;
+    bool terminusLPDRFound = false;
     for (auto& pdrRecord : devicePDRs)
     {
         // Update the TID in Terminus Locator PDR before adding to repo

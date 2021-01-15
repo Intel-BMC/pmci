@@ -104,6 +104,12 @@ class StateSensor
     uint8_t previousStateReading = PLDM_INVALID_VALUE;
     uint8_t currentStateReading = PLDM_INVALID_VALUE;
 
+    /** @brief Flags which indicate interfaces are ready*/
+    bool sensorIntfReady = false;
+    bool availableIntfReady = false;
+    bool operationalIntfReady = false;
+    bool interfaceInitialized = false;
+
     /** @brief Sensor Interfaces*/
     std::unique_ptr<sdbusplus::asio::dbus_interface> sensorInterface = nullptr;
     std::unique_ptr<sdbusplus::asio::dbus_interface> availableInterface =
