@@ -60,6 +60,15 @@ bool baseDestroy(pldm_tid_t tid);
 bool isSupported(const CommandSupportTable& cmdSupportTable, const uint8_t type,
                  const uint8_t cmd);
 bool isSupported(pldm_tid_t tid, const uint8_t type, const uint8_t cmd);
+/**
+ * @brief Check whether the given PLDM type is supported by tid
+ *
+ * @param tid PLDM TID of device
+ * @param type PLDM Type
+ * @return true If type is supported
+ * @return false If type is not supported
+ */
+bool isSupported(pldm_tid_t tid, const uint8_t type);
 
 } // namespace base
 } // namespace pldm

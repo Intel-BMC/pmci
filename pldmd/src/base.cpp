@@ -564,5 +564,19 @@ bool isSupported(pldm_tid_t tid, const uint8_t type, const uint8_t cmd)
     }
 }
 
+bool isSupported(pldm_tid_t tid, const uint8_t type)
+{
+    try
+    {
+        DiscoveryData& discoveryData = discoveryDataTable.at(tid);
+        return discoveryData.cmdSupportTable.find(type) !=
+               discoveryData.cmdSupportTable.end();
+    }
+    catch (std::out_of_range&)
+    {
+        return false;
+    }
+}
+
 } // namespace base
 } // namespace pldm
