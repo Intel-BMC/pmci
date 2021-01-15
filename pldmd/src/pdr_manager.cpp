@@ -893,7 +893,7 @@ void PDRManager::parseSensorAuxNamesPDR(std::vector<uint8_t>& pdrData)
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("SensorID:" +
              std::to_string(static_cast<int>(namePDR->sensor_id)) +
-             " Sensor Auxiliary Name: " + *name)
+             " Sensor Auxiliary Name: " + _sensorAuxNames[namePDR->sensor_id])
                 .c_str());
     }
 }
@@ -919,12 +919,14 @@ void PDRManager::parseEffecterAuxNamesPDR(std::vector<uint8_t>& pdrData)
                                namePDR->effecter_auxiliary_names))
     {
         // Cache the Effecter Auxiliary Names
-        _effecterAuxNames[namePDR->effecter_id] = *name;
+        _effecterAuxNames[namePDR->effecter_id] =
+            *name + "_" + std::to_string(_tid);
 
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("EffecterID:" +
              std::to_string(static_cast<int>(namePDR->effecter_id)) +
-             " Effecter Auxiliary Name: " + *name)
+             " Effecter Auxiliary Name: " +
+             _effecterAuxNames[namePDR->effecter_id])
                 .c_str());
     }
 }
