@@ -580,6 +580,13 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                 return registerUpperLayerResponder(msgTypeName, inputVersion);
             });
 
+        // register VDPCI responder with MCTP for upper layers
+        mctpInterface->register_method(
+            "RegisterVdpciResponder",
+            [this](uint16_t vendorIdx, uint16_t cmdSetType) -> bool {
+                return manageVdpciVersionInfo(vendorIdx, cmdSetType);
+            });
+
         if (mctpInterface->initialize() == false)
         {
             throw std::system_error(
@@ -642,6 +649,41 @@ bool MctpBinding::manageVersionInfo(uint8_t typeNo,
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Existing Data In Map for the typeNo");
     return false;
+}
+
+bool MctpBinding::manageVdpciVersionInfo(uint16_t vendorIdx,
+                                         uint16_t cmdSetType)
+{
+    struct InternalVdmSetDatabase vdmSupport;
+
+    auto retIter = std::find_if(vdmSetDatabase.begin(), vdmSetDatabase.end(),
+                                [vendorIdx](const InternalVdmSetDatabase& vm) {
+                                    return vm.vendorId == vendorIdx;
+                                });
+
+    if (retIter == vdmSetDatabase.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "No existing Data for vendorId, So pushing into map");
+
+        vdmSupport.vendorId = vendorIdx;
+        vdmSupport.commandSetType = cmdSetType;
+        vdmSupport.vendorIdFormat = 0; // 0x00 for VDPCI.
+        vdmSetDatabase.push_back(vdmSupport);
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "existing Data for vendorId, So updating into map");
+        if (retIter->commandSetType != cmdSetType)
+        { /*may be the details need to be updated*/
+            retIter->vendorId = vendorIdx;
+            retIter->commandSetType = cmdSetType;
+            retIter->vendorIdFormat = 0; // 0x00 for VDPCI
+        }
+    }
+
+    return true;
 }
 
 MctpBinding::~MctpBinding()

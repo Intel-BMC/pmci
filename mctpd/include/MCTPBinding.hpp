@@ -82,6 +82,13 @@ enum class PacketState : uint8_t
     noResponse
 };
 
+struct InternalVdmSetDatabase
+{
+    uint8_t vendorIdFormat;
+    uint16_t vendorId;
+    uint16_t commandSetType;
+};
+
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
 
 class MctpTransmissionQueue
@@ -232,6 +239,8 @@ class MctpBinding
         const std::vector<uint8_t>& bindingPrivate, const mctp_eid_t destEid,
         std::vector<uint16_t>& vendorSetIdList, std::string& venformat);
 
+    bool manageVdpciVersionInfo(uint16_t vendorId, uint16_t cmdSetType);
+
     bool discoveryNotifyCtrlCmd(boost::asio::yield_context& yield,
                                 const std::vector<uint8_t>& bindingPrivate,
                                 const mctp_eid_t destEid);
@@ -268,6 +277,9 @@ class MctpBinding
     }
     bool setMediumId(uint8_t value,
                      mctp_server::MctpPhysicalMediumIdentifiers& mediumId);
+
+    // Register MCTP responder for upper layer
+    std::vector<InternalVdmSetDatabase> vdmSetDatabase;
 
   private:
     bool staticEid;

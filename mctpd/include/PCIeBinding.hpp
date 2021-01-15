@@ -12,13 +12,6 @@
 
 constexpr uint8_t vendorIdNoMoreSets = 0xff;
 
-struct InternalVdmSetDatabase
-{
-    uint8_t idFormat;
-    uint16_t idData;
-    uint16_t commandSetType;
-};
-
 using pcie_binding =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::PCIe;
 
@@ -83,7 +76,6 @@ class PCIeBinding : public MctpBinding,
     std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid) override;
     bool isReceivedPrivateDataCorrect(const void* bindingPrivate) override;
-    std::vector<InternalVdmSetDatabase> vdmSetDatabase;
     mctp_server::BindingModeTypes
         getBindingMode(const routingTableEntry_t& routingEntry);
     void changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag);

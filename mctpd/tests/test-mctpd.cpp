@@ -111,6 +111,11 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .WillRepeatedly(Return(true));
 
     EXPECT_CALL(*mctpInterface,
+                register_method(StrEq("RegisterVdpciResponder")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
+    EXPECT_CALL(*mctpInterface,
                 register_method(StrEq("SendMctpMessagePayload")))
         .Times(1)
         .WillRepeatedly(Return(true));
