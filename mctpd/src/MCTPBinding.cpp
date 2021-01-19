@@ -246,7 +246,7 @@ void MctpBinding::handleCtrlResp(void* msg, const size_t len)
             if (getInstanceId(reqHeader->rq_dgram_inst) ==
                 getInstanceId(respHeader->rq_dgram_inst))
             {
-                phosphor::logging::log<phosphor::logging::level::INFO>(
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
                     "Matching Control command request found");
 
                 uint8_t* tmp = reinterpret_cast<uint8_t*>(msg);
