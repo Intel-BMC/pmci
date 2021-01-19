@@ -49,7 +49,7 @@ NumericEffecter::NumericEffecter(const std::string& effecterName,
             break;
         case PLDM_SENSOR_UNIT_WATTS:
             path = "/xyz/openbmc_project/pldm/" + std::to_string(tid) +
-                   "/effecter/power";
+                   "/effecter/power/";
             break;
         default:
             throw std::runtime_error("State effecter unit not supported");
