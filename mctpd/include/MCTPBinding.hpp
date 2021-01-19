@@ -1,60 +1,16 @@
 #pragma once
 
+#include "utils/Configuration.hpp"
+#include "utils/types.hpp"
+
 #include <libmctp-cmds.h>
 #include <libmctp.h>
 
 #include <boost/asio/steady_timer.hpp>
 #include <iostream>
-#include <sdbusplus/asio/object_server.hpp>
-#include <xyz/openbmc_project/MCTP/Base/server.hpp>
-#include <xyz/openbmc_project/MCTP/Endpoint/server.hpp>
-#include <xyz/openbmc_project/MCTP/SupportedMessageTypes/server.hpp>
-
-#ifdef USE_MOCK
-#include "../tests/mocks/objectServerMock.hpp"
-using object_server = mctpd_mock::object_server_mock;
-using dbus_interface = mctpd_mock::dbus_interface_mock;
-#else
-using object_server = sdbusplus::asio::object_server;
-using dbus_interface = sdbusplus::asio::dbus_interface;
-#endif
-
-using mctp_server = sdbusplus::xyz::openbmc_project::MCTP::server::Base;
-using mctp_endpoint = sdbusplus::xyz::openbmc_project::MCTP::server::Endpoint;
-using mctp_msg_types =
-    sdbusplus::xyz::openbmc_project::MCTP::server::SupportedMessageTypes;
 
 class SMBusBinding;
 class PCIeBinding;
-
-struct Configuration
-{
-    mctp_server::MctpPhysicalMediumIdentifiers mediumId;
-    mctp_server::BindingModeTypes mode;
-    uint8_t defaultEid;
-    unsigned int reqToRespTime;
-    uint8_t reqRetryCount;
-
-    virtual ~Configuration() = default;
-};
-
-struct SMBusConfiguration : Configuration
-{
-    std::set<uint8_t> eidPool;
-    std::string bus;
-    bool arpMasterSupport;
-    uint8_t bmcSlaveAddr;
-
-    ~SMBusConfiguration() override = default;
-};
-
-struct PcieConfiguration : Configuration
-{
-    uint16_t bdf;
-    uint8_t getRoutingInterval;
-
-    ~PcieConfiguration() override = default;
-};
 
 struct MsgTypes
 {

@@ -61,7 +61,8 @@ set(SRC_FILES
     ${PROJECT_SOURCE_DIR}/src/hw/DeviceMonitor.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/PCIeDriver.cpp
     ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeMonitor.cpp
-    ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeDriver.cpp)
+    ${PROJECT_SOURCE_DIR}/src/hw/aspeed/PCIeDriver.cpp
+    ${PROJECT_SOURCE_DIR}/src/utils/Configuration.cpp)
 
 set(HEADER_FILES
     ${PROJECT_SOURCE_DIR}/include/MCTPBinding.hpp
@@ -123,11 +124,12 @@ install(FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
 if(${MCTPD_BUILD_UT})
   include(CTest)
 
-  set(TEST_FILES tests/test-mctpd.cpp src/SMBusBinding.cpp src/MCTPBinding.cpp)
+  set(SRC src/SMBusBinding.cpp src/MCTPBinding.cpp src/utils/Configuration.cpp)
+  set(TEST_FILES tests/test-mctpd.cpp)
 
   enable_testing()
 
-  add_executable(test-mctpd ${TEST_FILES})
+  add_executable(test-mctpd ${SRC} ${TEST_FILES})
   target_compile_definitions(test-mctpd PRIVATE "USE_MOCK")
 
   find_package(GTest REQUIRED CONFIG)
