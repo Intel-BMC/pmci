@@ -190,7 +190,7 @@ namespace platform
  *
  * @param yield - Context object the represents the currently executing
  * coroutine
- * @param tid - TID of the PLDM device
+ * @param tid - TID of the PLDM terminus
  * @param commandTable - PLDM command table which defines supported Platform M&C
  * versions and commands
  *
@@ -199,24 +199,24 @@ namespace platform
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const pldm::base::CommandSupportTable& commandTable);
 
-/** @brief Destroy Platform Monitoring and Control
+/** @brief Delete Platform Monitoring and Control
  *
  * Destroy Platform Monitoring and Control resources allocated for specific TID.
  *
- * @param tid - TID of the PLDM device
+ * @param tid - TID of the PLDM terminus
  *
  * @return Status of the operation
  */
 
-bool platformDestroy(const pldm_tid_t tid);
+bool deleteMnCTerminus(const pldm_tid_t tid);
 
 } // namespace platform
 
-// TODO: add destroy APIs for Base, FRU and FWU
 namespace fru
 {
 
 bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+bool deleteFRUDevice(const pldm_tid_t tid);
 
 } // namespace fru
 
@@ -224,6 +224,7 @@ namespace fwu
 {
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid);
+bool deleteFWDevice(const pldm_tid_t tid);
 void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
                               const bool tagOwner,
                               std::vector<uint8_t>& message);

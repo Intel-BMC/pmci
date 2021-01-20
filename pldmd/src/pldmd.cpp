@@ -575,6 +575,28 @@ void initDevice(const mctpw_eid_t eid, boost::asio::yield_context& yield)
     }
 }
 
+void deleteDevice(const pldm_tid_t tid)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Delete PLDM device with TID " + std::to_string(tid)).c_str());
+
+    // Delete the resources in reverse order of init to avoid errors due to
+    // dependency if any
+    if (pldm::base::isSupported(tid, PLDM_FWU))
+    {
+        pldm::fwu::deleteFWDevice(tid);
+    }
+    if (pldm::base::isSupported(tid, PLDM_FRU))
+    {
+        pldm::fru::deleteFRUDevice(tid);
+    }
+    if (pldm::base::isSupported(tid, PLDM_PLATFORM))
+    {
+        pldm::platform::deleteMnCTerminus(tid);
+    }
+    pldm::base::deleteDeviceBaseInfo(tid);
+}
+
 // These are expected to be used only here, so declare them here
 extern void setIoContext(const std::shared_ptr<boost::asio::io_context>& newIo);
 extern void
@@ -587,8 +609,14 @@ int main(void)
     auto ioc = std::make_shared<boost::asio::io_context>();
     setIoContext(ioc);
     boost::asio::signal_set signals(*ioc, SIGINT, SIGTERM);
-    signals.async_wait(
-        [&ioc](const boost::system::error_code&, const int&) { ioc->stop(); });
+    signals.async_wait([&ioc](const boost::system::error_code&, const int&) {
+        pldm::platform::pauseSensorPolling();
+        for (auto& [tid, eid] : pldm::tidMapper)
+        {
+            deleteDevice(tid);
+        }
+        ioc->stop();
+    });
 
     auto conn = std::make_shared<sdbusplus::asio::connection>(*ioc);
 

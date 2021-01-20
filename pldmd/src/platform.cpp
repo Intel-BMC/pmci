@@ -296,8 +296,8 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
         "Running Platform Monitoring and Control initialisation",
         phosphor::logging::entry("TID=%d", tid));
 
-    // Destroy previous resources if any
-    platformDestroy(tid);
+    // Delete previous resources if any
+    deleteMnCTerminus(tid);
 
     if (!initPDRs(yield, tid))
     {
@@ -315,7 +315,7 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     return true;
 }
 
-bool platformDestroy(const pldm_tid_t tid)
+bool deleteMnCTerminus(const pldm_tid_t tid)
 {
     auto entry = platforms.find(tid);
     if (entry == platforms.end())
@@ -328,7 +328,7 @@ bool platformDestroy(const pldm_tid_t tid)
     }
     platforms.erase(entry);
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("Platform Monitoring and Control resources destroyed for TID " +
+        ("Platform Monitoring and Control resources deleted for TID " +
          std::to_string(tid))
             .c_str());
 

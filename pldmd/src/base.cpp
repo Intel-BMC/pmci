@@ -546,7 +546,7 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     return true;
 }
 
-bool baseDestroy(pldm_tid_t tid)
+bool deleteDeviceBaseInfo(pldm_tid_t tid)
 {
     return discoveryDataTable.erase(tid) == 1;
 }
