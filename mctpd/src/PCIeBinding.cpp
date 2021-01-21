@@ -210,7 +210,13 @@ void PCIeBinding::processRoutingTableChanges(
 
 bool PCIeBinding::setDriverEndpointMap()
 {
-    std::vector<std::tuple<uint8_t, uint16_t>> endpoints;
+    struct EidInfo
+    {
+        uint8_t eid;
+        uint16_t bdf;
+    };
+
+    std::vector<EidInfo> endpoints;
 
     for (const auto& [eid, busDevFunc, type] : routingTable)
     {
