@@ -19,8 +19,6 @@
 #include "libmctp-vdpci.h"
 #include "libmctp.h"
 
-#define MCTP_MESSAGE_TYPE_SECURE_SPDM 0x06
-
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> endpointInterface;
 
 using json = nlohmann::json;
@@ -104,7 +102,7 @@ static std::string getMessageType(uint8_t msgType)
         case MCTP_MESSAGE_TYPE_SPDM: // 0x05
             msgTypeValue = "SPDM";
             break;
-        case MCTP_MESSAGE_TYPE_SECURE_SPDM: // 0x06
+        case MCTP_MESSAGE_TYPE_SPDM_SECURE_MESSAGES: // 0x06
             msgTypeValue = "SECURESPDM";
             break;
         case MCTP_MESSAGE_TYPE_VDPCI: // 0x7E
