@@ -2739,8 +2739,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             phosphor::logging::entry("RETVAL=%d", retVal));
         return retVal;
     }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "fwu completed successfully");
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Firmware update completed successfully for TID:" +
+         std::to_string(currentTid))
+            .c_str());
 
     return PLDM_SUCCESS;
 }
@@ -2766,6 +2768,9 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     }
 
     inventoryInfo.addInventoryInfoToDBus();
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("fwuInit success for TID:" + std::to_string(tid)).c_str());
+
     return true;
 }
 } // namespace fwu
