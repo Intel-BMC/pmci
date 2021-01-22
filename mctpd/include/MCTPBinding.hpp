@@ -45,7 +45,7 @@ struct SMBusConfiguration : Configuration
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
 
-    virtual ~SMBusConfiguration() = default;
+    ~SMBusConfiguration() override = default;
 };
 
 struct PcieConfiguration : Configuration
@@ -53,7 +53,7 @@ struct PcieConfiguration : Configuration
     uint16_t bdf;
     uint8_t getRoutingInterval;
 
-    virtual ~PcieConfiguration() = default;
+    ~PcieConfiguration() override = default;
 };
 
 struct MsgTypes

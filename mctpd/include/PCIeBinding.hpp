@@ -33,37 +33,33 @@ class PCIeBinding : public MctpBinding,
                 boost::asio::io_context& ioc,
                 std::shared_ptr<hw::PCIeDriver>&& hw,
                 std::shared_ptr<hw::DeviceMonitor>&& hwMonitor);
-    virtual ~PCIeBinding() = default;
-    virtual void initializeBinding() override;
+    ~PCIeBinding() override = default;
+    void initializeBinding() override;
 
   protected:
-    virtual bool handlePrepareForEndpointDiscovery(
+    bool handlePrepareForEndpointDiscovery(
         mctp_eid_t destEid, void* bindingPrivate, std::vector<uint8_t>& request,
         std::vector<uint8_t>& response) override;
-    virtual bool
-        handleEndpointDiscovery(mctp_eid_t destEid, void* bindingPrivate,
-                                std::vector<uint8_t>& request,
-                                std::vector<uint8_t>& response) override;
-    virtual bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                                     std::vector<uint8_t>& request,
-                                     std::vector<uint8_t>& response) override;
-    virtual bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                                     std::vector<uint8_t>& request,
-                                     std::vector<uint8_t>& response) override;
-    virtual bool
-        handleGetVersionSupport(mctp_eid_t destEid, void* bindingPrivate,
-                                std::vector<uint8_t>& request,
-                                std::vector<uint8_t>& response) override;
-    virtual bool
-        handleGetMsgTypeSupport(mctp_eid_t destEid, void* bindingPrivate,
-                                std::vector<uint8_t>& request,
-                                std::vector<uint8_t>& response) override;
-    virtual bool handleGetVdmSupport(mctp_eid_t endpointEid,
-                                     void* bindingPrivate,
-                                     std::vector<uint8_t>& request,
-                                     std::vector<uint8_t>& response) override;
+    bool handleEndpointDiscovery(mctp_eid_t destEid, void* bindingPrivate,
+                                 std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
+    bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                             std::vector<uint8_t>& request,
+                             std::vector<uint8_t>& response) override;
+    bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                             std::vector<uint8_t>& request,
+                             std::vector<uint8_t>& response) override;
+    bool handleGetVersionSupport(mctp_eid_t destEid, void* bindingPrivate,
+                                 std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
+    bool handleGetMsgTypeSupport(mctp_eid_t destEid, void* bindingPrivate,
+                                 std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
+    bool handleGetVdmSupport(mctp_eid_t endpointEid, void* bindingPrivate,
+                             std::vector<uint8_t>& request,
+                             std::vector<uint8_t>& response) override;
 
-    virtual void deviceReadyNotify(bool ready) override;
+    void deviceReadyNotify(bool ready) override;
 
     std::shared_ptr<hw::PCIeDriver> hw;
     std::shared_ptr<hw::DeviceMonitor> hwMonitor;

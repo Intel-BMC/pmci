@@ -13,13 +13,13 @@ class SMBusBinding : public MctpBinding
     SMBusBinding(std::shared_ptr<object_server>& objServer,
                  const std::string& objPath, const SMBusConfiguration& conf,
                  boost::asio::io_context& ioc);
-    virtual ~SMBusBinding();
-    virtual void initializeBinding() override;
-    virtual std::optional<std::vector<uint8_t>>
+    ~SMBusBinding() override;
+    void initializeBinding() override;
+    std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid) override;
-    virtual bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
-                                     std::vector<uint8_t>& request,
-                                     std::vector<uint8_t>& response) override;
+    bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                             std::vector<uint8_t>& request,
+                             std::vector<uint8_t>& response) override;
 
   private:
     void SMBusInit();
