@@ -1391,7 +1391,7 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context& yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
-        if (!releaseBandwidth(yield, currentTid))
+        if (!releaseBandwidth(yield, currentTid, PLDM_FWU))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "terminateFwUpdate: releaseBandwidth failed");
@@ -2564,7 +2564,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "UpdateComponent command is success");
 
-        if (!reserveBandwidth(yield, currentTid, reserveEidTimeOut))
+        if (!reserveBandwidth(yield, currentTid, PLDM_FWU, reserveEidTimeOut))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "reserveBandwidth failed",
@@ -2709,7 +2709,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
-        if (!releaseBandwidth(yield, currentTid))
+        if (!releaseBandwidth(yield, currentTid, PLDM_FWU))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "releaseBandwidth failed");
