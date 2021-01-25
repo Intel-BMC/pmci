@@ -17,6 +17,7 @@
 #include "state_sensor_handler.hpp"
 
 #include "platform.hpp"
+#include "state_set.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -158,6 +159,51 @@ void StateSensorHandler::incrementError()
     }
 }
 
+void StateSensorHandler::logStateChangeEvent(const uint8_t currentState,
+                                             const uint8_t previousState)
+{
+    auto stateSetItr = stateSetMap.find(_pdr->possibleStates[0].stateSetID);
+    if (stateSetItr == stateSetMap.end())
+    {
+        return;
+    }
+    const char* stateSetName = stateSetItr->second.first;
+
+    auto currentStateSetValueItr =
+        stateSetItr->second.second.find(currentState);
+    if (currentStateSetValueItr == stateSetItr->second.second.end())
+    {
+        return;
+    }
+    StateSetValueInfo const& currentStateSetValueInfo =
+        currentStateSetValueItr->second;
+
+    auto previousStateSetValueItr =
+        stateSetItr->second.second.find(previousState);
+    if (previousStateSetValueItr == stateSetItr->second.second.end())
+    {
+        return;
+    }
+    StateSetValueInfo const& previousStateSetValueInfo =
+        previousStateSetValueItr->second;
+
+    std::string messageID =
+        "OpenBMC.0.1." + std::string(currentStateSetValueInfo.redfishMessageID);
+    std::string message =
+        std::string(stateSetName) + " of " + _name +
+        " state sensor changed from " +
+        std::string(previousStateSetValueInfo.stateSetValueName) + " to " +
+        std::string(currentStateSetValueInfo.stateSetValueName);
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        message.c_str(),
+        phosphor::logging::entry("REDFISH_MESSAGE_ID=%s", messageID.c_str()),
+        phosphor::logging::entry("REDFISH_MESSAGE_ARGS=%s,%s,%s,%s",
+                                 stateSetName, _name.c_str(),
+                                 previousStateSetValueInfo.stateSetValueName,
+                                 currentStateSetValueInfo.stateSetValueName));
+}
+
 void StateSensorHandler::updateState(const uint8_t currentState,
                                      const uint8_t previousState)
 {
@@ -177,8 +223,17 @@ void StateSensorHandler::updateState(const uint8_t currentState,
     }
     else
     {
+        if ((currentStateReading != currentState &&
+             currentState != PLDM_INVALID_VALUE) ||
+            (previousStateReading != previousState &&
+             previousState != PLDM_INVALID_VALUE))
+        {
+            logStateChangeEvent(currentState, previousState);
+        }
         sensorInterface->set_property("CurrentState", currentState);
         sensorInterface->set_property("PreviousState", previousState);
+        currentStateReading = currentState;
+        previousStateReading = previousState;
     }
 
     if (currentState != PLDM_INVALID_VALUE &&

@@ -80,6 +80,10 @@ class StateSensorHandler
     /** @brief Handle sensor reading*/
     bool handleSensorReading(get_sensor_state_field& stateReading);
 
+    /** @brief Log redfish event for sensor state change*/
+    void logStateChangeEvent(const uint8_t currentState,
+                             const uint8_t previousState);
+
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
 
