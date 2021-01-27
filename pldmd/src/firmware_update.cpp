@@ -103,7 +103,7 @@ void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
  * Firmware device can request for same data again, so three times the
  * component size is used for calculating the maximum number of request.
  */
-static uint32_t findMaxNUmReq(const uint32_t size)
+static uint32_t findMaxNumReq(const uint32_t size)
 {
     return (size / PLDM_FWU_BASELINE_TRANSFER_SIZE) * 3;
 }
@@ -2549,7 +2549,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
 
         uint32_t compSize;
         pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
-        uint32_t maxNumReq = findMaxNUmReq(compSize);
+        uint32_t maxNumReq = findMaxNumReq(compSize);
         retVal =
             doUpdateComponent(yield, component, compImgSetVerStr,
                               compCompatabilityResp, compCompatabilityRespCode,
@@ -2716,9 +2716,16 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         }
     }
 
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "firmware update failed",
+            phosphor::logging::entry("RETVAL=%d", retVal));
+        return retVal;
+    }
+
     bool8_t selfContainedActivationReq = true;
     uint16_t estimatedTimeForSelfContainedActivation = 0;
-
     retVal = doActivateFirmware(yield, selfContainedActivationReq,
                                 estimatedTimeForSelfContainedActivation);
     if (retVal != PLDM_SUCCESS)
