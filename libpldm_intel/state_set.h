@@ -141,7 +141,7 @@ enum pldm_state_set_boot_restart_cause_values {
 
 /* @brief List of states for the Operational Fault Status state set (ID
  * 10). */
-enum pldm_state_set_operational_running_status_values {
+enum pldm_state_set_operational_fault_status_values {
 	PLDM_STATE_SET_OPERATIONAL_FAULT_STATUS_NORMAL = 1,
 	PLDM_STATE_SET_OPERATIONAL_FAULT_STATUS_ERROR = 2,
 	PLDM_STATE_SET_OPERATIONAL_FAULT_STATUS_NON_RECOVERABLE_ERROR = 3,
