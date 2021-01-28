@@ -43,7 +43,7 @@ StateEffecter::StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
 
 void StateEffecter::setInitialProperties()
 {
-    static const std::string path =
+    const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
 
     auto objectServer = getObjServer();
@@ -446,7 +446,7 @@ bool StateEffecter::setEffecter(boost::asio::yield_context& yield,
 
 void StateEffecter::registerSetEffecter()
 {
-    static const std::string path =
+    const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
     auto objServer = getObjServer();
     setEffecterInterface = objServer->add_unique_interface(
