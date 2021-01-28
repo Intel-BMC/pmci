@@ -184,42 +184,52 @@ boost::system::error_code
 
 int MCTPWrapper::getBusId(const std::string& serviceName)
 {
-    int bus = -1;
-    if (config.bindingType == BindingType::mctpOverSmBus)
+    try
     {
-        std::string pv = readPropertyValue<std::string>(
-            static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
-            "/xyz/openbmc_project/mctp",
-            bindingToInterface.at(config.bindingType), "BusPath");
-        // sample buspath like /dev/i2c-2
-        /* format of BusPath:path-bus */
-        std::vector<std::string> splitted;
-        boost::split(splitted, pv, boost::is_any_of("-"));
-        if (splitted.size() == 2)
+        int bus = -1;
+        if (config.bindingType == BindingType::mctpOverSmBus)
         {
-            try
+            std::string pv = readPropertyValue<std::string>(
+                static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
+                "/xyz/openbmc_project/mctp",
+                bindingToInterface.at(config.bindingType), "BusPath");
+            // sample buspath like /dev/i2c-2
+            /* format of BusPath:path-bus */
+            std::vector<std::string> splitted;
+            boost::split(splitted, pv, boost::is_any_of("-"));
+            if (splitted.size() == 2)
             {
-                bus = std::stoi(splitted[1]);
-            }
-            catch (std::exception& e)
-            {
-                throw std::runtime_error(std::string("Invalid buspath on ") +
-                                         pv);
+                try
+                {
+                    bus = std::stoi(splitted[1]);
+                }
+                catch (std::exception& e)
+                {
+                    throw std::runtime_error(
+                        std::string("Invalid buspath on ") + pv);
+                }
             }
         }
+        else if (config.bindingType == BindingType::mctpOverPcieVdm)
+        {
+            bus = readPropertyValue<uint16_t>(
+                static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
+                "/xyz/openbmc_project/mctp",
+                bindingToInterface.at(config.bindingType), "BDF");
+        }
+        else
+        {
+            throw std::invalid_argument("Unsupported binding type");
+        }
+        return bus;
     }
-    else if (config.bindingType == BindingType::mctpOverPcieVdm)
+    catch (const std::exception& e)
     {
-        bus = readPropertyValue<uint16_t>(
-            static_cast<sdbusplus::bus::bus&>(*connection), serviceName,
-            "/xyz/openbmc_project/mctp",
-            bindingToInterface.at(config.bindingType), "BDF");
+        throw boost::system::system_error(
+            boost::system::errc::make_error_code(boost::system::errc::io_error),
+            (std::string("Error in getting Bus property from ") + serviceName +
+             ". " + e.what()));
     }
-    else
-    {
-        throw std::invalid_argument("Unsupported binding type");
-    }
-    return bus;
 }
 
 std::optional<std::vector<std::pair<unsigned, std::string>>>
