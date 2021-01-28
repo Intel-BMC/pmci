@@ -107,16 +107,16 @@ int onInterfacesAdded(sd_bus_message* rawMsg, void* userData,
     DictType<std::string, DictType<std::string, MctpPropertiesVariantType>>
         values;
     sdbusplus::message::object_path object_path;
-    message.read(object_path, values);
-    auto serviceName = message.get_sender();
     mctpw::Event event;
     try
     {
-        event.eid = getEIdFromPath(object_path);
+        message.read(object_path, values);
+        auto serviceName = message.get_sender();
         auto itSupportedMsgTypes =
             values.find("xyz.openbmc_project.MCTP.SupportedMessageTypes");
         if (values.end() != itSupportedMsgTypes)
         {
+            event.eid = getEIdFromPath(object_path);
             const auto& properties = itSupportedMsgTypes->second;
             const auto& pldmSupport =
                 properties.at(mctpw::MCTPWrapper::msgTypeToPropertyName.at(
@@ -135,7 +135,8 @@ int onInterfacesAdded(sd_bus_message* rawMsg, void* userData,
     }
     catch (const std::exception& e)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (std::string("onInterfaceAdded: ") + e.what()).c_str());
     }
     return -1;
 }
@@ -185,7 +186,8 @@ int onInterfacesRemoved(sd_bus_message* rawMsg, void* userData,
     }
     catch (const std::exception& e)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            (std::string("onInterfacesRemoved: ") + e.what()).c_str());
     }
     return -1;
 }
@@ -246,8 +248,7 @@ int onMessageReceivedSignal(sd_bus_message* rawMsg, void* userData,
     catch (std::exception& e)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            (std::string("onMessageReceivedSignal failed. ") + e.what())
-                .c_str());
+            (std::string("onMessageReceivedSignal: ") + e.what()).c_str());
     }
 
     return -1;
