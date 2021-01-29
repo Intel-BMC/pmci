@@ -26,22 +26,22 @@ namespace pldm
 namespace platform
 {
 
-class StateEffecter
+class StateEffecterHandler
 {
   public:
-    StateEffecter() = delete;
-    StateEffecter(const StateEffecter&) = delete;
-    StateEffecter(StateEffecter&&) = delete;
-    StateEffecter& operator=(const StateEffecter&) = delete;
-    StateEffecter& operator=(StateEffecter&&) = delete;
-    ~StateEffecter() = default;
+    StateEffecterHandler() = delete;
+    StateEffecterHandler(const StateEffecterHandler&) = delete;
+    StateEffecterHandler(StateEffecterHandler&&) = delete;
+    StateEffecterHandler& operator=(const StateEffecterHandler&) = delete;
+    StateEffecterHandler& operator=(StateEffecterHandler&&) = delete;
+    ~StateEffecterHandler() = default;
 
-    StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
-                  const std::string& name,
-                  const std::shared_ptr<StateEffecterPDR>& pdr);
+    StateEffecterHandler(const pldm_tid_t tid, const EffecterID effecterID,
+                         const std::string& name,
+                         const std::shared_ptr<StateEffecterPDR>& pdr);
 
-    /** @brief Init StateEffecter*/
-    bool stateEffecterInit(boost::asio::yield_context& yield);
+    /** @brief Init StateEffecterHandler*/
+    bool effecterHandlerInit(boost::asio::yield_context& yield);
 
   private:
     /** @brief Initialize initial D-Bus interfaces and properties*/

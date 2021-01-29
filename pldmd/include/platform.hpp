@@ -37,16 +37,16 @@ using UUID = std::array<uint8_t, 16>;
 std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
                                    const mctpw_eid_t eid);
 
-struct PlatformMonitoringControl
+struct PlatformTerminus
 {
     std::unique_ptr<PDRManager> pdrManager;
-    std::unordered_map<SensorID, std::unique_ptr<SensorManager>>
-        sensorManagerMap;
-    std::unordered_map<SensorID, std::unique_ptr<StateSensor>> stateSensorMap;
-    // TODO: Rename above maps as NumericSensors and StateSensors
-    std::unordered_map<EffecterID, std::unique_ptr<NumericEffecterManager>>
+    std::unordered_map<SensorID, std::unique_ptr<NumericSensorHandler>>
+        numericSensors;
+    std::unordered_map<SensorID, std::unique_ptr<StateSensorHandler>>
+        stateSensors;
+    std::unordered_map<EffecterID, std::unique_ptr<NumericEffecterHandler>>
         numericEffecters;
-    std::unordered_map<EffecterID, std::unique_ptr<StateEffecter>>
+    std::unordered_map<EffecterID, std::unique_ptr<StateEffecterHandler>>
         stateEffecters;
 };
 

@@ -19,7 +19,7 @@
 #include <cstdint>
 #include <vector>
 
-struct Sensor;
+struct NumericSensor;
 namespace thresholds
 {
 enum Level : uint8_t
@@ -44,7 +44,7 @@ struct Threshold
 };
 
 /** @brief Assert the threshold interface of Sensor*/
-void assertThresholds(Sensor& sensor, double assertValue, Level level,
+void assertThresholds(NumericSensor& sensor, double assertValue, Level level,
                       Direction direction, bool assert);
 
 /** @brief Verify Critical interface is present*/
@@ -54,9 +54,9 @@ bool hasCriticalInterface(const std::vector<Threshold>& thresholdVector);
 bool hasWarningInterface(const std::vector<Threshold>& thresholdVector);
 
 /** @brief Update threshold values. Will be useful in case of a PDR update*/
-void updateThresholds(Sensor& sensor);
+void updateThresholds(NumericSensor& sensor);
 
 /** @brief Update Thresholds. Returns false if a critical threshold has been
  * crossed, true otherwise*/
-bool checkThresholds(Sensor& sensor);
+bool checkThresholds(NumericSensor& sensor);
 } // namespace thresholds

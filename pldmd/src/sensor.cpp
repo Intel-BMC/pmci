@@ -26,10 +26,11 @@ constexpr const char* operationalInterfaceName =
     "xyz.openbmc_project.State.Decorator.OperationalStatus";
 constexpr const size_t errorThreshold = 5;
 
-Sensor::Sensor(const std::string& sensorName,
-               std::vector<thresholds::Threshold>& thresholdData,
-               const double max, const double min, const SensorUnit sensorUnit,
-               const bool sensorDisabled) :
+NumericSensor::NumericSensor(const std::string& sensorName,
+                             std::vector<thresholds::Threshold>& thresholdData,
+                             const double max, const double min,
+                             const SensorUnit sensorUnit,
+                             const bool sensorDisabled) :
     name(std::regex_replace(sensorName, std::regex("[^a-zA-Z0-9_/]+"), "_")),
     maxValue(max), minValue(min), thresholds(thresholdData), unit(sensorUnit),
     hysteresisTrigger((max - min) * 0.01),
@@ -79,7 +80,7 @@ Sensor::Sensor(const std::string& sensorName,
     setInitialProperties(sensorDisabled);
 }
 
-Sensor::~Sensor()
+NumericSensor::~NumericSensor()
 {
     auto objectServer = getObjServer();
     if (thresholdInterfaceWarning)
@@ -96,8 +97,8 @@ Sensor::~Sensor()
     }
 }
 
-std::optional<ThresholdInterface>
-    Sensor::selectThresholdInterface(const thresholds::Threshold& threshold)
+std::optional<ThresholdInterface> NumericSensor::selectThresholdInterface(
+    const thresholds::Threshold& threshold)
 {
     ThresholdInterface thresholdIntf;
     if (threshold.level == thresholds::Level::critical)
@@ -145,7 +146,7 @@ std::optional<ThresholdInterface>
     return thresholdIntf;
 }
 
-void Sensor::setInitialProperties(bool sensorDisabled)
+void NumericSensor::setInitialProperties(bool sensorDisabled)
 {
     sensorInterface->register_property("MaxValue", maxValue);
     sensorInterface->register_property("MinValue", minValue);
@@ -209,7 +210,7 @@ void Sensor::setInitialProperties(bool sensorDisabled)
     operationalInterface->initialize();
 }
 
-void Sensor::markFunctional(bool isFunctional)
+void NumericSensor::markFunctional(bool isFunctional)
 {
     if (operationalInterface)
     {
@@ -225,7 +226,7 @@ void Sensor::markFunctional(bool isFunctional)
     }
 }
 
-void Sensor::markAvailable(bool isAvailable)
+void NumericSensor::markAvailable(bool isAvailable)
 {
     if (availableInterface)
     {
@@ -234,7 +235,7 @@ void Sensor::markAvailable(bool isAvailable)
     }
 }
 
-void Sensor::incrementError()
+void NumericSensor::incrementError()
 {
     if (errCount >= errorThreshold)
     {
@@ -250,7 +251,7 @@ void Sensor::incrementError()
     }
 }
 
-void Sensor::updateValue(const double& newValue)
+void NumericSensor::updateValue(const double& newValue)
 {
     updateProperty(sensorInterface, value, newValue, "Value");
 
@@ -267,7 +268,7 @@ void Sensor::updateValue(const double& newValue)
     }
 }
 
-void Sensor::updateProperty(
+void NumericSensor::updateProperty(
     std::shared_ptr<sdbusplus::asio::dbus_interface>& interface,
     double& oldValue, const double& newValue, const char* dbusPropertyName)
 {
@@ -284,7 +285,7 @@ void Sensor::updateProperty(
     }
 }
 
-bool Sensor::requiresUpdate(const double& lVal, const double& rVal)
+bool NumericSensor::requiresUpdate(const double& lVal, const double& rVal)
 {
     if (std::isnan(lVal) || std::isnan(rVal))
     {
@@ -294,7 +295,7 @@ bool Sensor::requiresUpdate(const double& lVal, const double& rVal)
     return diff > hysteresisPublish;
 }
 
-void Sensor::checkThresholds(void)
+void NumericSensor::checkThresholds(void)
 {
     thresholds::checkThresholds(*(this));
 }

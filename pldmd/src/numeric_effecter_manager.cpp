@@ -26,7 +26,7 @@ namespace pldm
 namespace platform
 {
 
-NumericEffecterManager::NumericEffecterManager(
+NumericEffecterHandler::NumericEffecterHandler(
     const pldm_tid_t tid, const EffecterID effecterID, const std::string& name,
     const pldm_numeric_effecter_value_pdr& pdr) :
     _tid(tid),
@@ -34,7 +34,7 @@ NumericEffecterManager::NumericEffecterManager(
 {
 }
 
-NumericEffecterManager::~NumericEffecterManager()
+NumericEffecterHandler::~NumericEffecterHandler()
 {
     auto objectServer = getObjServer();
     if (setEffecterInterface)
@@ -44,7 +44,7 @@ NumericEffecterManager::~NumericEffecterManager()
     }
 }
 
-bool NumericEffecterManager::enableNumericEffecter(
+bool NumericEffecterHandler::enableNumericEffecter(
     boost::asio::yield_context& yield)
 {
     uint8_t effecterOpState;
@@ -114,7 +114,7 @@ bool NumericEffecterManager::enableNumericEffecter(
     return true;
 }
 
-bool NumericEffecterManager::initEffecter()
+bool NumericEffecterHandler::initEffecter()
 {
     std::optional<float> maxVal =
         pdr::effecter::fetchEffecterValue(_pdr, _pdr.max_set_table);
@@ -161,7 +161,7 @@ bool NumericEffecterManager::initEffecter()
     return true;
 }
 
-bool NumericEffecterManager::handleEffecterReading(
+bool NumericEffecterHandler::handleEffecterReading(
     uint8_t effecterOperationalState, uint8_t effecterDataSize,
     union_effecter_data_size& presentReading)
 {
@@ -235,7 +235,7 @@ bool NumericEffecterManager::handleEffecterReading(
     return true;
 }
 
-bool NumericEffecterManager::getEffecterReading(
+bool NumericEffecterHandler::getEffecterReading(
     boost::asio::yield_context& yield)
 {
     int rc;
@@ -283,7 +283,7 @@ bool NumericEffecterManager::getEffecterReading(
                                  presentValue);
 }
 
-bool NumericEffecterManager::populateEffecterValue(
+bool NumericEffecterHandler::populateEffecterValue(
     boost::asio::yield_context& yield)
 {
     if (!getEffecterReading(yield))
@@ -314,7 +314,7 @@ static std::optional<size_t> getEffecterValueSize(const uint8_t dataSize)
     }
 }
 
-bool NumericEffecterManager::setEffecter(boost::asio::yield_context& yield,
+bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
                                          double& value)
 {
     int rc;
@@ -390,7 +390,7 @@ bool NumericEffecterManager::setEffecter(boost::asio::yield_context& yield,
     return true;
 }
 
-void NumericEffecterManager::registerSetEffecter()
+void NumericEffecterHandler::registerSetEffecter()
 {
     auto objServer = getObjServer();
     setEffecterInterface = std::make_shared<sdbusplus::asio::dbus_interface>(
@@ -457,7 +457,7 @@ void NumericEffecterManager::registerSetEffecter()
     setEffecterInterface->initialize();
 }
 
-bool NumericEffecterManager::effecterManagerInit(
+bool NumericEffecterHandler::effecterHandlerInit(
     boost::asio::yield_context& yield)
 {
     if (!enableNumericEffecter(yield))
@@ -479,7 +479,7 @@ bool NumericEffecterManager::effecterManagerInit(
     registerSetEffecter();
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "Effecter Manager Init Success",
+        "Effecter Handler Init Success",
         phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
         phosphor::logging::entry("TID=%d", _tid));
     return true;

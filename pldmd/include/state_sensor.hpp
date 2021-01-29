@@ -26,22 +26,22 @@ namespace pldm
 namespace platform
 {
 
-class StateSensor
+class StateSensorHandler
 {
   public:
-    StateSensor() = delete;
-    StateSensor(const StateSensor&) = delete;
-    StateSensor(StateSensor&&) = delete;
-    StateSensor& operator=(const StateSensor&) = delete;
-    StateSensor& operator=(StateSensor&&) = delete;
-    ~StateSensor() = default;
+    StateSensorHandler() = delete;
+    StateSensorHandler(const StateSensorHandler&) = delete;
+    StateSensorHandler(StateSensorHandler&&) = delete;
+    StateSensorHandler& operator=(const StateSensorHandler&) = delete;
+    StateSensorHandler& operator=(StateSensorHandler&&) = delete;
+    ~StateSensorHandler() = default;
 
-    StateSensor(const pldm_tid_t tid, const SensorID sensorID,
-                const std::string& name,
-                const std::shared_ptr<StateSensorPDR>& pdr);
+    StateSensorHandler(const pldm_tid_t tid, const SensorID sensorID,
+                       const std::string& name,
+                       const std::shared_ptr<StateSensorPDR>& pdr);
 
-    /** @brief Init StateSensor*/
-    bool stateSensorInit(boost::asio::yield_context& yield);
+    /** @brief Init StateSensorHandler*/
+    bool sensorHandlerInit(boost::asio::yield_context& yield);
 
     /** @brief Read sensor value and update interfaces*/
     bool populateSensorValue(boost::asio::yield_context& yield);

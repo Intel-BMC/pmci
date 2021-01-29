@@ -40,22 +40,22 @@ enum pldm_sensor_init
     PLDM_DISABLE_SENSOR
 };
 
-class SensorManager
+class NumericSensorHandler
 {
   public:
-    SensorManager() = delete;
-    SensorManager(const SensorManager&) = delete;
-    SensorManager(SensorManager&&) = delete;
-    SensorManager& operator=(const SensorManager&) = delete;
-    SensorManager& operator=(SensorManager&&) = delete;
-    ~SensorManager() = default;
+    NumericSensorHandler() = delete;
+    NumericSensorHandler(const NumericSensorHandler&) = delete;
+    NumericSensorHandler(NumericSensorHandler&&) = delete;
+    NumericSensorHandler& operator=(const NumericSensorHandler&) = delete;
+    NumericSensorHandler& operator=(NumericSensorHandler&&) = delete;
+    ~NumericSensorHandler() = default;
 
-    SensorManager(const pldm_tid_t tid, const SensorID sensorID,
-                  const std::string& name,
-                  const pldm_numeric_sensor_value_pdr& pdr);
+    NumericSensorHandler(const pldm_tid_t tid, const SensorID sensorID,
+                         const std::string& name,
+                         const pldm_numeric_sensor_value_pdr& pdr);
 
-    /** @brief Init Sensor Manager*/
-    bool sensorManagerInit(boost::asio::yield_context& yield);
+    /** @brief Init NumericSensorHandler*/
+    bool sensorHandlerInit(boost::asio::yield_context& yield);
 
     /** @brief Read sensor value and update interfaces*/
     bool populateSensorValue(boost::asio::yield_context& yield);
@@ -98,7 +98,7 @@ class SensorManager
     pldm_numeric_sensor_value_pdr _pdr;
 
     /** @brief Sensor*/
-    std::shared_ptr<Sensor> _sensor;
+    std::shared_ptr<NumericSensor> _sensor;
 
     /** @brief Sensor disabled flag*/
     bool sensorDisabled = false;

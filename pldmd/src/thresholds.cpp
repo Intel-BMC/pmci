@@ -25,7 +25,7 @@ static constexpr bool debug = false;
 namespace thresholds
 {
 
-void updateThresholds(Sensor& sensor)
+void updateThresholds(NumericSensor& sensor)
 {
     if (sensor.thresholds.empty())
     {
@@ -67,7 +67,8 @@ struct ChangeParam
     double assertValue;
 };
 
-static std::vector<ChangeParam> checkThresholds(Sensor& sensor, double value)
+static std::vector<ChangeParam> checkThresholds(NumericSensor& sensor,
+                                                double value)
 {
     std::vector<ChangeParam> thresholdChanges;
     if (sensor.thresholds.empty())
@@ -160,7 +161,7 @@ static std::vector<ChangeParam> checkThresholds(Sensor& sensor, double value)
     return thresholdChanges;
 }
 
-bool checkThresholds(Sensor& sensor)
+bool checkThresholds(NumericSensor& sensor)
 {
     bool status = true;
     std::vector<ChangeParam> changes = checkThresholds(sensor, sensor.value);
@@ -177,7 +178,7 @@ bool checkThresholds(Sensor& sensor)
     return status;
 }
 
-void assertThresholds(Sensor& sensor, double assertValue, Level level,
+void assertThresholds(NumericSensor& sensor, double assertValue, Level level,
                       Direction direction, bool assert)
 {
     Threshold threshold = {level, direction, assertValue};

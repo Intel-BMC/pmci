@@ -25,7 +25,7 @@ namespace pldm
 namespace platform
 {
 // Holds platform monitoring and control resources for each termini
-static std::map<pldm_tid_t, PlatformMonitoringControl> platforms{};
+static std::map<pldm_tid_t, PlatformTerminus> platforms{};
 // TODO: Optimize poll interval
 static constexpr const int pollIntervalMillisec = 10;
 std::shared_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
@@ -60,16 +60,16 @@ bool introduceDelayInPolling(boost::asio::yield_context& yield)
 // Thus poll sensors sequentially.
 void pollAllSensors(boost::asio::yield_context& yield)
 {
-    for (auto const& [tid, platformMC] : platforms)
+    for (auto const& [tid, platformTerminus] : platforms)
     {
-        for (auto const& [sensorID, sensorManager] :
-             platformMC.sensorManagerMap)
+        for (auto const& [sensorID, numericSensorHandler] :
+             platformTerminus.numericSensors)
         {
-            if (sensorManager->isSensorDisabled())
+            if (numericSensorHandler->isSensorDisabled())
             {
                 continue;
             }
-            sensorManager->populateSensorValue(yield);
+            numericSensorHandler->populateSensorValue(yield);
             if (!introduceDelayInPolling(yield))
             {
                 isSensorPollRunning = false;
@@ -77,13 +77,14 @@ void pollAllSensors(boost::asio::yield_context& yield)
             }
             isSensorPollRunning = true;
         }
-        for (auto const& [sensorID, stateSensor] : platformMC.stateSensorMap)
+        for (auto const& [sensorID, stateSensorHandler] :
+             platformTerminus.stateSensors)
         {
-            if (stateSensor->isSensorDisabled())
+            if (stateSensorHandler->isSensorDisabled())
             {
                 continue;
             }
-            stateSensor->populateSensorValue(yield);
+            stateSensorHandler->populateSensorValue(yield);
             if (!introduceDelayInPolling(yield))
             {
                 isSensorPollRunning = false;
@@ -114,36 +115,38 @@ void initSensorPoll()
 
 void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
 {
-    PlatformMonitoringControl& platformMC = platforms[tid];
+    PlatformTerminus& platformTerminus = platforms[tid];
     std::unordered_map<SensorID, std::string> sensorList =
-        platformMC.pdrManager->getSensors();
+        platformTerminus.pdrManager->getSensors();
 
     for (auto const& [sensorID, sensorName] : sensorList)
     {
-        if (auto pdr = platformMC.pdrManager->getNumericSensorPDR(sensorID))
+        if (auto pdr =
+                platformTerminus.pdrManager->getNumericSensorPDR(sensorID))
         {
-            std::unique_ptr<SensorManager> sensorManager =
-                std::make_unique<SensorManager>(tid, sensorID, sensorName,
-                                                *pdr);
-            if (!sensorManager->sensorManagerInit(yield))
+            std::unique_ptr<NumericSensorHandler> numericSensorHandler =
+                std::make_unique<NumericSensorHandler>(tid, sensorID,
+                                                       sensorName, *pdr);
+            if (!numericSensorHandler->sensorHandlerInit(yield))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Sensor Manager Init failed",
+                    "Sensor Handler Init failed",
                     phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
                     phosphor::logging::entry("TID=%d", tid));
                 continue;
             }
 
-            platformMC.sensorManagerMap[sensorID] = std::move(sensorManager);
+            platformTerminus.numericSensors[sensorID] =
+                std::move(numericSensorHandler);
         }
 
-        if (auto pdr = platformMC.pdrManager->getStateSensorPDR(sensorID))
+        if (auto pdr = platformTerminus.pdrManager->getStateSensorPDR(sensorID))
         {
-            std::unique_ptr<StateSensor> stateSensor;
+            std::unique_ptr<StateSensorHandler> stateSensorHandler;
             try
             {
-                stateSensor = std::make_unique<StateSensor>(tid, sensorID,
-                                                            sensorName, *pdr);
+                stateSensorHandler = std::make_unique<StateSensorHandler>(
+                    tid, sensorID, sensorName, *pdr);
             }
             catch (const std::exception& e)
             {
@@ -154,7 +157,7 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
                 continue;
             }
 
-            if (!stateSensor->stateSensorInit(yield))
+            if (!stateSensorHandler->sensorHandlerInit(yield))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "State Sensor Init failed",
@@ -163,43 +166,46 @@ void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
                 continue;
             }
 
-            platformMC.stateSensorMap[sensorID] = std::move(stateSensor);
+            platformTerminus.stateSensors[sensorID] =
+                std::move(stateSensorHandler);
         }
     }
 }
 
 void initEffecters(boost::asio::yield_context& yield, const pldm_tid_t tid)
 {
-    PlatformMonitoringControl& platformMC = platforms[tid];
+    PlatformTerminus& platformTerminus = platforms[tid];
     std::unordered_map<EffecterID, std::string> effecterList =
-        platformMC.pdrManager->getEffecters();
+        platformTerminus.pdrManager->getEffecters();
 
     for (auto const& [effecterID, effecterName] : effecterList)
     {
-        if (auto pdr = platformMC.pdrManager->getNumericEffecterPDR(effecterID))
+        if (auto pdr =
+                platformTerminus.pdrManager->getNumericEffecterPDR(effecterID))
         {
-            std::unique_ptr<NumericEffecterManager> numericEffecterManager =
-                std::make_unique<NumericEffecterManager>(tid, effecterID,
+            std::unique_ptr<NumericEffecterHandler> numericEffecterHandler =
+                std::make_unique<NumericEffecterHandler>(tid, effecterID,
                                                          effecterName, *pdr);
-            if (!numericEffecterManager->effecterManagerInit(yield))
+            if (!numericEffecterHandler->effecterHandlerInit(yield))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Numeric Effecter Manager Init failed",
+                    "Numeric Effecter Handler Init failed",
                     phosphor::logging::entry("EFFECTER_ID=0x%0X", effecterID),
                     phosphor::logging::entry("TID=%d", tid));
                 continue;
             }
 
-            platformMC.numericEffecters[effecterID] =
-                std::move(numericEffecterManager);
+            platformTerminus.numericEffecters[effecterID] =
+                std::move(numericEffecterHandler);
         }
 
-        if (auto pdr = platformMC.pdrManager->getStateEffecterPDR(effecterID))
+        if (auto pdr =
+                platformTerminus.pdrManager->getStateEffecterPDR(effecterID))
         {
-            std::unique_ptr<StateEffecter> stateEffecter =
-                std::make_unique<StateEffecter>(tid, effecterID, effecterName,
-                                                pdr);
-            if (!stateEffecter->stateEffecterInit(yield))
+            std::unique_ptr<StateEffecterHandler> stateEffecterHandler =
+                std::make_unique<StateEffecterHandler>(tid, effecterID,
+                                                       effecterName, pdr);
+            if (!stateEffecterHandler->effecterHandlerInit(yield))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "State Effecter Init failed",
@@ -208,7 +214,8 @@ void initEffecters(boost::asio::yield_context& yield, const pldm_tid_t tid)
                 continue;
             }
 
-            platformMC.stateEffecters[effecterID] = std::move(stateEffecter);
+            platformTerminus.stateEffecters[effecterID] =
+                std::move(stateEffecterHandler);
         }
     }
 }
@@ -225,8 +232,8 @@ bool initPDRs(boost::asio::yield_context& yield, const pldm_tid_t tid)
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "PDR Manager Init Success", phosphor::logging::entry("TID=%d", tid));
 
-    PlatformMonitoringControl& platformMC = platforms[tid];
-    platformMC.pdrManager = std::move(pdrManager);
+    PlatformTerminus& platformTerminus = platforms[tid];
+    platformTerminus.pdrManager = std::move(pdrManager);
 
     return true;
 }

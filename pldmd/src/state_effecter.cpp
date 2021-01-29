@@ -27,9 +27,9 @@ namespace platform
 static const char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
-StateEffecter::StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
-                             const std::string& name,
-                             const std::shared_ptr<StateEffecterPDR>& pdr) :
+StateEffecterHandler::StateEffecterHandler(
+    const pldm_tid_t tid, const EffecterID effecterID, const std::string& name,
+    const std::shared_ptr<StateEffecterPDR>& pdr) :
     _tid(tid),
     _effecterID(effecterID), _name(name), _pdr(pdr)
 {
@@ -41,7 +41,7 @@ StateEffecter::StateEffecter(const pldm_tid_t tid, const EffecterID effecterID,
     setInitialProperties();
 }
 
-void StateEffecter::setInitialProperties()
+void StateEffecterHandler::setInitialProperties()
 {
     const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
@@ -65,7 +65,7 @@ void StateEffecter::setInitialProperties()
         path, "xyz.openbmc_project.State.Decorator.OperationalStatus");
 }
 
-void StateEffecter::initializeInterface()
+void StateEffecterHandler::initializeInterface()
 {
     if (!interfaceInitialized && effecterIntfReady && availableIntfReady &&
         operationalIntfReady)
@@ -86,7 +86,7 @@ void StateEffecter::initializeInterface()
     }
 }
 
-void StateEffecter::markFunctional(bool isFunctional)
+void StateEffecterHandler::markFunctional(bool isFunctional)
 {
     if (!operationalInterface)
     {
@@ -118,7 +118,7 @@ void StateEffecter::markFunctional(bool isFunctional)
     }
 }
 
-void StateEffecter::markAvailable(bool isAvailable)
+void StateEffecterHandler::markAvailable(bool isAvailable)
 {
     if (!availableInterface)
     {
@@ -141,7 +141,7 @@ void StateEffecter::markAvailable(bool isAvailable)
     }
 }
 
-void StateEffecter::incrementError()
+void StateEffecterHandler::incrementError()
 {
     if (errCount >= errorThreshold)
     {
@@ -159,8 +159,8 @@ void StateEffecter::incrementError()
     }
 }
 
-void StateEffecter::updateState(const uint8_t currentState,
-                                const uint8_t pendingState)
+void StateEffecterHandler::updateState(const uint8_t currentState,
+                                       const uint8_t pendingState)
 {
     if (!effecterInterface)
     {
@@ -191,7 +191,8 @@ void StateEffecter::updateState(const uint8_t currentState,
     }
 }
 
-bool StateEffecter::enableStateEffecter(boost::asio::yield_context& yield)
+bool StateEffecterHandler::enableStateEffecter(
+    boost::asio::yield_context& yield)
 {
     uint8_t effecterOpState;
     switch (_pdr->stateEffecterData.effecter_init)
@@ -265,7 +266,7 @@ bool StateEffecter::enableStateEffecter(boost::asio::yield_context& yield)
     return true;
 }
 
-bool StateEffecter::handleStateEffecterState(
+bool StateEffecterHandler::handleStateEffecterState(
     get_effecter_state_field& stateReading)
 {
     switch (stateReading.effecter_op_state)
@@ -313,7 +314,8 @@ bool StateEffecter::handleStateEffecterState(
     return true;
 }
 
-bool StateEffecter::getStateEffecterStates(boost::asio::yield_context& yield)
+bool StateEffecterHandler::getStateEffecterStates(
+    boost::asio::yield_context& yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -368,7 +370,8 @@ bool StateEffecter::getStateEffecterStates(boost::asio::yield_context& yield)
     return handleStateEffecterState(stateField[0]);
 }
 
-bool StateEffecter::populateEffecterValue(boost::asio::yield_context& yield)
+bool StateEffecterHandler::populateEffecterValue(
+    boost::asio::yield_context& yield)
 {
     if (!getStateEffecterStates(yield))
     {
@@ -378,7 +381,7 @@ bool StateEffecter::populateEffecterValue(boost::asio::yield_context& yield)
     return true;
 }
 
-bool StateEffecter::isEffecterStateSettable(const uint8_t state)
+bool StateEffecterHandler::isEffecterStateSettable(const uint8_t state)
 {
     // Note:- possibleStates will never be empty
     auto itr =
@@ -395,8 +398,8 @@ bool StateEffecter::isEffecterStateSettable(const uint8_t state)
     return false;
 }
 
-bool StateEffecter::setEffecter(boost::asio::yield_context& yield,
-                                const uint8_t state)
+bool StateEffecterHandler::setEffecter(boost::asio::yield_context& yield,
+                                       const uint8_t state)
 {
     int rc;
 
@@ -444,7 +447,7 @@ bool StateEffecter::setEffecter(boost::asio::yield_context& yield,
     return true;
 }
 
-void StateEffecter::registerSetEffecter()
+void StateEffecterHandler::registerSetEffecter()
 {
     const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
@@ -515,7 +518,8 @@ void StateEffecter::registerSetEffecter()
     setEffecterInterface->initialize();
 }
 
-bool StateEffecter::stateEffecterInit(boost::asio::yield_context& yield)
+bool StateEffecterHandler::effecterHandlerInit(
+    boost::asio::yield_context& yield)
 {
     if (!enableStateEffecter(yield))
     {

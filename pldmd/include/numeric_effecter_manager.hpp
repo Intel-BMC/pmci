@@ -28,22 +28,22 @@ namespace pldm
 namespace platform
 {
 
-class NumericEffecterManager
+class NumericEffecterHandler
 {
   public:
-    NumericEffecterManager() = delete;
-    NumericEffecterManager(const NumericEffecterManager&) = delete;
-    NumericEffecterManager(NumericEffecterManager&&) = delete;
-    NumericEffecterManager& operator=(const NumericEffecterManager&) = delete;
-    NumericEffecterManager& operator=(NumericEffecterManager&&) = delete;
-    ~NumericEffecterManager();
+    NumericEffecterHandler() = delete;
+    NumericEffecterHandler(const NumericEffecterHandler&) = delete;
+    NumericEffecterHandler(NumericEffecterHandler&&) = delete;
+    NumericEffecterHandler& operator=(const NumericEffecterHandler&) = delete;
+    NumericEffecterHandler& operator=(NumericEffecterHandler&&) = delete;
+    ~NumericEffecterHandler();
 
-    NumericEffecterManager(const pldm_tid_t tid, const EffecterID effecterID,
+    NumericEffecterHandler(const pldm_tid_t tid, const EffecterID effecterID,
                            const std::string& name,
                            const pldm_numeric_effecter_value_pdr& pdr);
 
-    /** @brief Init Effecter Manager*/
-    bool effecterManagerInit(boost::asio::yield_context& yield);
+    /** @brief Init NumericEffecterHandler*/
+    bool effecterHandlerInit(boost::asio::yield_context& yield);
 
   private:
     /** @brief  Enable effecter*/

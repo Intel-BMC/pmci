@@ -28,9 +28,9 @@ namespace platform
 const static constexpr char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
 
-StateSensor::StateSensor(const pldm_tid_t tid, const SensorID sensorID,
-                         const std::string& name,
-                         const std::shared_ptr<StateSensorPDR>& pdr) :
+StateSensorHandler::StateSensorHandler(
+    const pldm_tid_t tid, const SensorID sensorID, const std::string& name,
+    const std::shared_ptr<StateSensorPDR>& pdr) :
     _tid(tid),
     _sensorID(sensorID), _name(name), _pdr(pdr)
 {
@@ -42,7 +42,7 @@ StateSensor::StateSensor(const pldm_tid_t tid, const SensorID sensorID,
     setInitialProperties();
 }
 
-void StateSensor::setInitialProperties()
+void StateSensorHandler::setInitialProperties()
 {
     std::string path =
         pldmPath + std::to_string(_tid) + "/state_sensor/" + _name;
@@ -66,7 +66,7 @@ void StateSensor::setInitialProperties()
         path, "xyz.openbmc_project.State.Decorator.OperationalStatus");
 }
 
-void StateSensor::initializeInterface()
+void StateSensorHandler::initializeInterface()
 {
     if (!interfaceInitialized && sensorIntfReady && availableIntfReady &&
         operationalIntfReady)
@@ -86,7 +86,7 @@ void StateSensor::initializeInterface()
     }
 }
 
-void StateSensor::markFunctional(bool isFunctional)
+void StateSensorHandler::markFunctional(bool isFunctional)
 {
     if (!operationalInterface)
     {
@@ -118,7 +118,7 @@ void StateSensor::markFunctional(bool isFunctional)
     }
 }
 
-void StateSensor::markAvailable(bool isAvailable)
+void StateSensorHandler::markAvailable(bool isAvailable)
 {
     if (!availableInterface)
     {
@@ -141,7 +141,7 @@ void StateSensor::markAvailable(bool isAvailable)
     }
 }
 
-void StateSensor::incrementError()
+void StateSensorHandler::incrementError()
 {
     if (errCount >= errorThreshold)
     {
@@ -159,8 +159,8 @@ void StateSensor::incrementError()
     }
 }
 
-void StateSensor::updateState(const uint8_t currentState,
-                              const uint8_t previousState)
+void StateSensorHandler::updateState(const uint8_t currentState,
+                                     const uint8_t previousState)
 {
     if (!sensorInterface)
     {
@@ -190,7 +190,8 @@ void StateSensor::updateState(const uint8_t currentState,
     }
 }
 
-bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
+bool StateSensorHandler::handleSensorReading(
+    get_sensor_state_field& stateReading)
 {
     switch (stateReading.sensor_op_state)
     {
@@ -237,7 +238,8 @@ bool StateSensor::handleSensorReading(get_sensor_state_field& stateReading)
     return true;
 }
 
-bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
+bool StateSensorHandler::setStateSensorEnables(
+    boost::asio::yield_context& yield)
 {
     uint8_t sensorOpState;
     switch (_pdr->stateSensorData.sensor_init)
@@ -317,7 +319,8 @@ bool StateSensor::setStateSensorEnables(boost::asio::yield_context& yield)
     return true;
 }
 
-bool StateSensor::getStateSensorReadings(boost::asio::yield_context& yield)
+bool StateSensorHandler::getStateSensorReadings(
+    boost::asio::yield_context& yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -366,7 +369,7 @@ bool StateSensor::getStateSensorReadings(boost::asio::yield_context& yield)
     return handleSensorReading(stateField[0]);
 }
 
-bool StateSensor::populateSensorValue(boost::asio::yield_context& yield)
+bool StateSensorHandler::populateSensorValue(boost::asio::yield_context& yield)
 {
     // No need to read the sensor if it is disabled
     if (_pdr->stateSensorData.sensor_init == PLDM_DISABLE_SENSOR)
@@ -381,7 +384,7 @@ bool StateSensor::populateSensorValue(boost::asio::yield_context& yield)
     return true;
 }
 
-bool StateSensor::stateSensorInit(boost::asio::yield_context& yield)
+bool StateSensorHandler::sensorHandlerInit(boost::asio::yield_context& yield)
 {
     if (!setStateSensorEnables(yield))
     {

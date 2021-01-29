@@ -26,15 +26,16 @@ namespace pldm
 namespace platform
 {
 
-SensorManager::SensorManager(const pldm_tid_t tid, const SensorID sensorID,
-                             const std::string& name,
-                             const pldm_numeric_sensor_value_pdr& pdr) :
+NumericSensorHandler::NumericSensorHandler(
+    const pldm_tid_t tid, const SensorID sensorID, const std::string& name,
+    const pldm_numeric_sensor_value_pdr& pdr) :
     _tid(tid),
     _sensorID(sensorID), _name(name), _pdr(pdr)
 {
 }
 
-bool SensorManager::setNumericSensorEnable(boost::asio::yield_context& yield)
+bool NumericSensorHandler::setNumericSensorEnable(
+    boost::asio::yield_context& yield)
 {
     uint8_t sensorOpState;
     switch (_pdr.sensor_init)
@@ -107,7 +108,7 @@ bool SensorManager::setNumericSensorEnable(boost::asio::yield_context& yield)
     return true;
 }
 
-void SensorManager::getSupportedThresholds(
+void NumericSensorHandler::getSupportedThresholds(
     std::vector<thresholds::Threshold>& thresholdData)
 {
     if (_pdr.supported_thresholds.bits.bit0)
@@ -171,7 +172,7 @@ void SensorManager::getSupportedThresholds(
     // Note:- Fatal values are not supported
 }
 
-bool SensorManager::initSensor()
+bool NumericSensorHandler::initSensor()
 {
     std::optional<float> maxVal =
         pdr::sensor::fetchSensorValue(_pdr, _pdr.max_readable);
@@ -214,7 +215,7 @@ bool SensorManager::initSensor()
     }
     try
     {
-        _sensor = std::make_shared<Sensor>(
+        _sensor = std::make_shared<NumericSensor>(
             _name, thresholdData,
             pdr::sensor::calculateSensorValue(_pdr, *maxVal),
             pdr::sensor::calculateSensorValue(_pdr, *minVal), *baseUnit,
@@ -235,9 +236,9 @@ bool SensorManager::initSensor()
     return true;
 }
 
-bool SensorManager::handleSensorReading(uint8_t sensorOperationalState,
-                                        uint8_t sensorDataSize,
-                                        union_sensor_data_size& presentReading)
+bool NumericSensorHandler::handleSensorReading(
+    uint8_t sensorOperationalState, uint8_t sensorDataSize,
+    union_sensor_data_size& presentReading)
 {
     switch (sensorOperationalState)
     {
@@ -307,7 +308,7 @@ bool SensorManager::handleSensorReading(uint8_t sensorOperationalState,
     return true;
 }
 
-bool SensorManager::getSensorReading(boost::asio::yield_context& yield)
+bool NumericSensorHandler::getSensorReading(boost::asio::yield_context& yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -358,7 +359,8 @@ bool SensorManager::getSensorReading(boost::asio::yield_context& yield)
                                presentReading);
 }
 
-bool SensorManager::populateSensorValue(boost::asio::yield_context& yield)
+bool NumericSensorHandler::populateSensorValue(
+    boost::asio::yield_context& yield)
 {
     // No need to read the sensor if it is disabled
     if (_pdr.sensor_init == PLDM_DISABLE_SENSOR)
@@ -373,7 +375,7 @@ bool SensorManager::populateSensorValue(boost::asio::yield_context& yield)
     return true;
 }
 
-bool SensorManager::sensorManagerInit(boost::asio::yield_context& yield)
+bool NumericSensorHandler::sensorHandlerInit(boost::asio::yield_context& yield)
 {
     if (!setNumericSensorEnable(yield))
     {
@@ -386,7 +388,7 @@ bool SensorManager::sensorManagerInit(boost::asio::yield_context& yield)
     }
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "Sensor Manager Init Success", phosphor::logging::entry("TID=%d", _tid),
+        "Sensor Handler Init Success", phosphor::logging::entry("TID=%d", _tid),
         phosphor::logging::entry("SENSOR_ID=%d", _sensorID));
     return true;
 }

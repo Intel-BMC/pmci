@@ -32,14 +32,14 @@ struct ThresholdInterface
     std::string alarm;
 };
 
-struct Sensor
+struct NumericSensor
 {
-    Sensor(const std::string& sensorName,
-           std::vector<thresholds::Threshold>& thresholdData, const double max,
-           const double min, const SensorUnit sensorUnit,
-           const bool sensorDisabled);
+    NumericSensor(const std::string& sensorName,
+                  std::vector<thresholds::Threshold>& thresholdData,
+                  const double max, const double min,
+                  const SensorUnit sensorUnit, const bool sensorDisabled);
 
-    ~Sensor();
+    ~NumericSensor();
 
     std::string name;
     double maxValue;
