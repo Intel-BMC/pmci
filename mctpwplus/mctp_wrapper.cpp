@@ -254,8 +254,16 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
 
         for (const auto& [service, intfs] : services)
         {
-            int bus = this->getBusId(service);
-            buses.emplace_back(bus, service);
+            try
+            {
+                int bus = this->getBusId(service);
+                buses.emplace_back(bus, service);
+            }
+            catch (const std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    e.what());
+            }
         }
         // buses will contain list of {busid servicename}. Sample busid may
         // be from i2cdev-2
@@ -264,7 +272,7 @@ std::optional<std::vector<std::pair<unsigned, std::string>>>
     catch (const std::exception& e)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            (std::string("findBusByBindingType: ") + ec.message()).c_str());
+            (std::string("findBusByBindingType: ") + e.what()).c_str());
         return std::nullopt;
     }
 }
