@@ -16,7 +16,7 @@
 
 #include "thresholds.hpp"
 
-#include "sensor.hpp"
+#include "numeric_sensor.hpp"
 
 #include <phosphor-logging/log.hpp>
 

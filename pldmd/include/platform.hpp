@@ -15,12 +15,12 @@
  */
 #pragma once
 
-#include "numeric_effecter_manager.hpp"
+#include "numeric_effecter_handler.hpp"
+#include "numeric_sensor_handler.hpp"
 #include "pdr_manager.hpp"
 #include "pldm.hpp"
-#include "sensor_manager.hpp"
-#include "state_effecter.hpp"
-#include "state_sensor.hpp"
+#include "state_effecter_handler.hpp"
+#include "state_sensor_handler.hpp"
 
 #include "platform.h"
 

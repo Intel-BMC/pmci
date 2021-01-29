@@ -16,8 +16,6 @@
 
 #include "pdr_utils.hpp"
 
-#include "sensor.hpp"
-
 #include <cmath>
 #include <phosphor-logging/log.hpp>
 

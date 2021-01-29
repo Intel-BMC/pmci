@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "sensor_manager.hpp"
+#include "numeric_sensor_handler.hpp"
 
 #include "pdr_utils.hpp"
 #include "platform.hpp"

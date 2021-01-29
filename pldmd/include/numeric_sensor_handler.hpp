@@ -16,8 +16,8 @@
 
 #pragma once
 
+#include "numeric_sensor.hpp"
 #include "pdr_manager.hpp"
-#include "sensor.hpp"
 
 #include <boost/asio.hpp>
 

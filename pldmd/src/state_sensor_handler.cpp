@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-#include "state_sensor.hpp"
+#include "state_sensor_handler.hpp"
 
 #include "platform.hpp"
-#include "sensor_manager.hpp"
 
 #include <phosphor-logging/log.hpp>
 

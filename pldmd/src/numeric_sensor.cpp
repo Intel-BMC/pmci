@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "sensor.hpp"
+#include "numeric_sensor.hpp"
 
 #include <limits>
 #include <phosphor-logging/log.hpp>

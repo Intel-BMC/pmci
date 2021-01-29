@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "sensor.hpp"
+#include "numeric_sensor.hpp"
 
 #include "platform.h"
 
