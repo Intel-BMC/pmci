@@ -41,6 +41,10 @@ static auto
                       const std::string& path, const std::string& interface,
                       const std::string& property)
 {
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        (std::string("Reading ") + service + " " + path + " " + interface +
+         " " + property)
+            .c_str());
     auto msg = bus.new_method_call(service.c_str(), path.c_str(),
                                    "org.freedesktop.DBus.Properties", "Get");
 

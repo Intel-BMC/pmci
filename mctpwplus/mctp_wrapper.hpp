@@ -64,6 +64,8 @@ enum class MessageType : uint8_t
     nvmeMgmtMsg = 0x04,
     /** @brief Security Protocol and Data Model over MCTP */
     spdm = 0x05,
+    /** @brief Secure Messaging Protocol and Data Model over MCTP */
+    securedMsg = 0x06,
     /** @brief Vendor Defined PCI */
     vdpci = 0x7E,
     /** @brief Vendor Defined IANA */
@@ -319,6 +321,7 @@ class MCTPWrapper
                                  {MessageType::ethernet, "Ethernet"},
                                  {MessageType::nvmeMgmtMsg, "NVMeMgmtMsg"},
                                  {MessageType::spdm, "SPDM "},
+                                 {MessageType::securedMsg, "SECUREDMSG"},
                                  {MessageType::vdpci, "VDPCI"},
                                  {MessageType::vdiana, "VDIANA"}};
 
