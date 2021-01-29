@@ -57,6 +57,7 @@ void initEndPointDevices(
     bool ethernet;
     bool nvmeMgmtMsg;
     bool spdm;
+    bool securedMsg;
     bool vdpci;
     bool vdiana;
     std::string vendorID = "0x8086";
@@ -88,6 +89,7 @@ void initEndPointDevices(
             ethernet = msgType["Ethernet"];
             nvmeMgmtMsg = msgType["NVMeMgmtMsg"];
             spdm = msgType["SPDM"];
+            securedMsg = msgType["SECUREDMSG"];
             vdpci = msgType["VDPCI"];
             vdiana = msgType["VDIANA"];
             if (vdpci == true)
@@ -135,6 +137,7 @@ void initEndPointDevices(
         msgTypeIntf->register_property("Ethernet", ethernet);
         msgTypeIntf->register_property("NVMeMgmtMsg", nvmeMgmtMsg);
         msgTypeIntf->register_property("SPDM", spdm);
+        msgTypeIntf->register_property("SECUREDMSG", securedMsg);
         msgTypeIntf->register_property("VDPCI", vdpci);
         msgTypeIntf->register_property("VDIANA", vdiana);
         msgTypeIntf->initialize();

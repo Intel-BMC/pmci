@@ -11,10 +11,11 @@
                 "NVMeMgmtMsg": false,
                 "PLDM": true,
                 "SPDM": true,
+                "SECUREDMSG": true,
                 "VDIANA": false,
                 "VDPCI": true
             },
-	    "VDPCIMT":{
+            "VDPCIMT":{
                 "CapabilitySets": [8,9]
             },
             "Uuid": "cba227b7-3144-4573-a824-5cd4557e54e1"
@@ -33,7 +34,7 @@
                 "VDIANA": false,
                 "VDPCI": true
             },
-	    "VDPCIMT":{
+            "VDPCIMT":{
                 "CapabilitySets": [3,4]
             },
             "Uuid": "196f652f-34d6-4b74-8814-bee70778f367"
@@ -48,11 +49,10 @@
                 "NCSI": false,
                 "NVMeMgmtMsg": false,
                 "PLDM": true,
-                "SPDM": true,
                 "VDIANA": false,
                 "VDPCI": true
             },
-	    "VDPCIMT":{
+            "VDPCIMT":{
                 "CapabilitySets": [2,9]
             },
             "Uuid": "34445ed8-de96-47e9-8e62-dad27c317f07"
