@@ -101,7 +101,7 @@ void PCIeBinding::updateRoutingTable()
 
     if (discoveredFlag != pcie_binding::DiscoveryFlags::Discovered)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Routing Table failed, undiscovered");
         return;
     }
