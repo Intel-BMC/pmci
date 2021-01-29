@@ -153,6 +153,11 @@ using ReconfigurationCallback =
 using ReceiveMessageCallback =
     std::function<void(void*, eid_t, bool, uint8_t, const ByteArray&, int)>;
 
+namespace internal
+{
+struct NewServiceCallback;
+} // namespace internal
+
 /**
  * @brief Wrapper class to access MCTP functionalities
  *
@@ -317,6 +322,16 @@ class MCTPWrapper
                                  {MessageType::vdpci, "VDPCI"},
                                  {MessageType::vdiana, "VDIANA"}};
 
+    static const inline std::unordered_map<BindingType, const std::string>
+        bindingToInterface = {{BindingType::mctpOverSmBus,
+                               "xyz.openbmc_project.MCTP.Binding.SMBus"},
+                              {BindingType::mctpOverPcieVdm,
+                               "xyz.openbmc_project.MCTP.Binding.PCIe"},
+                              {BindingType::mctpOverUsb, ""},
+                              {BindingType::mctpOverKcs, ""},
+                              {BindingType::mctpOverSerial, ""},
+                              {BindingType::vendorDefined, ""}};
+
   private:
     std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matchers;
     EndpointMap endpointMap;
@@ -332,6 +347,9 @@ class MCTPWrapper
     // Get bus id from servicename. Example: Returns 2 if device path is
     // /dev/i2c-2
     int getBusId(const std::string& serviceName);
+    void registerListeners(const std::string& serviceName);
+    void listenForNewMctpServices();
+    friend struct internal::NewServiceCallback;
 };
 
 } // namespace mctpw

@@ -17,6 +17,7 @@
 #include "mctp_wrapper.hpp"
 
 #include "dbus_cb.hpp"
+#include "service_monitor.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/container/flat_map.hpp>
@@ -26,15 +27,6 @@
 #include <unordered_set>
 
 using namespace mctpw;
-
-static const std::unordered_map<BindingType, const std::string>
-    bindingToInterface = {
-        {BindingType::mctpOverSmBus, "xyz.openbmc_project.MCTP.Binding.SMBus"},
-        {BindingType::mctpOverPcieVdm, "xyz.openbmc_project.MCTP.Binding.PCIe"},
-        {BindingType::mctpOverUsb, ""},
-        {BindingType::mctpOverKcs, ""},
-        {BindingType::mctpOverSerial, ""},
-        {BindingType::vendorDefined, ""}};
 
 template <typename T1, typename T2>
 using DictType = boost::container::flat_map<T1, T2>;
@@ -109,6 +101,7 @@ MCTPWrapper::MCTPWrapper(boost::asio::io_context& ioContext,
     receiveCallback(rxCb), config(configIn),
     connection(std::make_shared<sdbusplus::asio::connection>(ioContext))
 {
+    listenForNewMctpServices();
 }
 
 MCTPWrapper::MCTPWrapper(std::shared_ptr<sdbusplus::asio::connection> conn,
@@ -118,6 +111,7 @@ MCTPWrapper::MCTPWrapper(std::shared_ptr<sdbusplus::asio::connection> conn,
     networkChangeCallback(networkChangeCb),
     receiveCallback(rxCb), config(configIn), connection(conn)
 {
+    listenForNewMctpServices();
 }
 
 MCTPWrapper::~MCTPWrapper() noexcept
@@ -131,6 +125,33 @@ void MCTPWrapper::detectMctpEndpointsAsync(StatusCallback&& registerCB)
                            auto ec = detectMctpEndpoints(yield);
                            registerCB(ec, this);
                        });
+}
+
+void MCTPWrapper::registerListeners(const std::string& serviceName)
+{
+    if (networkChangeCallback)
+    {
+        matchers.push_back(registerSignalHandler(
+            static_cast<sdbusplus::bus::bus&>(*connection), onPropertiesChanged,
+            static_cast<void*>(this), "org.freedesktop.DBus.Properties",
+            "PropertiesChanged", serviceName, ""));
+        matchers.push_back(registerSignalHandler(
+            static_cast<sdbusplus::bus::bus&>(*connection), onInterfacesAdded,
+            static_cast<void*>(this), "org.freedesktop.DBus.ObjectManager",
+            "InterfacesAdded", serviceName, ""));
+        matchers.push_back(registerSignalHandler(
+            static_cast<sdbusplus::bus::bus&>(*connection), onInterfacesRemoved,
+            static_cast<void*>(this), "org.freedesktop.DBus.ObjectManager",
+            "InterfacesRemoved", serviceName, ""));
+    }
+    if (receiveCallback)
+    {
+        matchers.push_back(registerSignalHandler(
+            static_cast<sdbusplus::bus::bus&>(*connection),
+            mctpw::onMessageReceivedSignal, static_cast<void*>(this),
+            "xyz.openbmc_project.MCTP.Base", "MessageReceivedSignal",
+            serviceName, ""));
+    }
 }
 
 boost::system::error_code
@@ -156,32 +177,7 @@ boost::system::error_code
     }
     for (auto& [busId, serviceName] : bus_vector.value())
     {
-        if (networkChangeCallback)
-        {
-            matchers.push_back(registerSignalHandler(
-                static_cast<sdbusplus::bus::bus&>(*connection),
-                onPropertiesChanged, static_cast<void*>(this),
-                "org.freedesktop.DBus.Properties", "PropertiesChanged",
-                serviceName, ""));
-            matchers.push_back(registerSignalHandler(
-                static_cast<sdbusplus::bus::bus&>(*connection),
-                onInterfacesAdded, static_cast<void*>(this),
-                "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
-                serviceName, ""));
-            matchers.push_back(registerSignalHandler(
-                static_cast<sdbusplus::bus::bus&>(*connection),
-                onInterfacesRemoved, static_cast<void*>(this),
-                "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
-                serviceName, ""));
-        }
-        if (receiveCallback)
-        {
-            matchers.push_back(registerSignalHandler(
-                static_cast<sdbusplus::bus::bus&>(*connection),
-                mctpw::onMessageReceivedSignal, static_cast<void*>(this),
-                "xyz.openbmc_project.MCTP.Base", "MessageReceivedSignal",
-                serviceName, ""));
-        }
+        registerListeners(serviceName);
     }
     return ec;
 }
@@ -413,7 +409,6 @@ void MCTPWrapper::sendAsync(const SendCallback& callback, const eid_t dstEId,
                             const uint8_t msgTag, const bool tagOwner,
                             const ByteArray& request)
 {
-
     auto it = this->endpointMap.find(dstEId);
     if (this->endpointMap.end() == it)
     {
@@ -437,7 +432,6 @@ std::pair<boost::system::error_code, int>
                            const eid_t dstEId, const uint8_t msgTag,
                            const bool tagOwner, const ByteArray& request)
 {
-
     auto it = this->endpointMap.find(dstEId);
     if (this->endpointMap.end() == it)
     {
@@ -472,4 +466,18 @@ void MCTPWrapper::addToEidMap(boost::asio::yield_context yield,
 size_t MCTPWrapper::eraseDevice(eid_t eid)
 {
     return endpointMap.erase(eid);
+}
+
+void MCTPWrapper::listenForNewMctpServices()
+{
+    static const std::string matchRule =
+        "type='signal',member='InterfacesAdded',interface='org.freedesktop."
+        "DBus.ObjectManager',path='/xyz/openbmc_project/"
+        "mctp'";
+    this->matchers.push_back(std::make_unique<sdbusplus::bus::match::match>(
+        *connection, matchRule, internal::NewServiceCallback(*this)));
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Wrapper: Listening for new MCTP services");
+
+    // TODO. Listen for mctp services going down and cleanup match rules
 }

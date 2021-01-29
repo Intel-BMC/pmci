@@ -68,7 +68,7 @@ include_directories(SYSTEM ${BOOST_SRC_DIR})
 
 include_directories(${PROJECT_SOURCE_DIR})
 
-add_library(mctpwplus SHARED mctp_wrapper.cpp dbus_cb.cpp)
+add_library(mctpwplus SHARED mctp_wrapper.cpp dbus_cb.cpp service_monitor.cpp)
 
 if(${BUILD_EXAMPLES})
   add_executable(wrapper_object examples/wrapper_object.cpp)
