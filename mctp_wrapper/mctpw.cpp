@@ -363,10 +363,10 @@ static int receive_cb(sd_bus_message* m, void* userdata,
         {
             return 0;
         }
-        uint8_t messageType;
-        uint8_t srcEid;
-        uint8_t msgTag;
-        bool tagOwner;
+        uint8_t messageType = 0;
+        uint8_t srcEid = 0;
+        uint8_t msgTag = 0;
+        bool tagOwner = false;
         std::vector<uint8_t> payload;
 
         message.read(messageType, srcEid, msgTag, tagOwner, payload);
@@ -416,13 +416,14 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
                           mctpw_receive_message_callback_t rx_cb,
                           void** client_context)
 {
-    clientContext* ctx = new clientContext;
-    UNUSED(receive_requests);
-
     if (!mctpw_bus_handle)
     {
         return -EINVAL;
     }
+
+    auto ctx = std::make_unique<clientContext>();
+    UNUSED(receive_requests);
+
     if (!ctx)
     {
         return -ENOMEM;
@@ -446,17 +447,17 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
         {
             ctx->matchers.push_back(register_signal_handler(
                 static_cast<sdbusplus::bus::bus&>(*ctx->connection),
-                network_reconfiguration_cb, static_cast<void*>(ctx),
+                network_reconfiguration_cb, static_cast<void*>(ctx.get()),
                 "org.freedesktop.DBus.Properties", "PropertiesChanged",
                 ctx->service_h->second, ""));
             ctx->matchers.push_back(register_signal_handler(
                 static_cast<sdbusplus::bus::bus&>(*ctx->connection),
-                network_reconfiguration_cb, static_cast<void*>(ctx),
+                network_reconfiguration_cb, static_cast<void*>(ctx.get()),
                 "org.freedesktop.DBus.ObjectManager", "InterfacesAdded",
                 ctx->service_h->second, ""));
             ctx->matchers.push_back(register_signal_handler(
                 static_cast<sdbusplus::bus::bus&>(*ctx->connection),
-                network_reconfiguration_cb, static_cast<void*>(ctx),
+                network_reconfiguration_cb, static_cast<void*>(ctx.get()),
                 "org.freedesktop.DBus.ObjectManager", "InterfacesRemoved",
                 ctx->service_h->second, ""));
         }
@@ -464,24 +465,22 @@ int mctpw_register_client(void* mctpw_bus_handle, mctpw_message_type_t type,
         {
             ctx->matchers.push_back(register_signal_handler(
                 static_cast<sdbusplus::bus::bus&>(*ctx->connection), receive_cb,
-                static_cast<void*>(ctx), "xyz.openbmc_project.MCTP.Base",
+                static_cast<void*>(ctx.get()), "xyz.openbmc_project.MCTP.Base",
                 "MessageReceivedSignal", ctx->service_h->second, ""));
         }
     }
     catch (std::exception& e)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
-        delete ctx;
         *client_context = nullptr;
         return -EINVAL;
     }
     catch (...)
     {
-        delete ctx;
         *client_context = nullptr;
         return -EINVAL;
     }
-    *client_context = static_cast<void*>(ctx);
+    *client_context = static_cast<void*>(ctx.release());
     return 0;
 }
 
@@ -863,7 +862,7 @@ int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
     try
     {
         clientContext* ctx = static_cast<clientContext*>(client_context);
-        int response;
+        int response = -1;
         std::vector<uint8_t> payload_vector;
 
         payload_vector.push_back(static_cast<uint8_t>(ctx->type));
