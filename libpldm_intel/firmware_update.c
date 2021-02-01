@@ -74,6 +74,7 @@ int encode_request_firmware_data_resp(
 	}
 
 	if (payload_length != requested_comp_image_seg.length + 1 ||
+	    payload_length < PLDM_FWU_BASELINE_TRANSFER_SIZE ||
 	    component_image_portion->length == 0) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
