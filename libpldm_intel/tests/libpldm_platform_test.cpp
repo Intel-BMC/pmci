@@ -1405,8 +1405,8 @@ TEST(GetNumericEffecterValue, testGoodDecodeResponse)
     uint8_t retcompletionCode;
     uint8_t reteffecter_dataSize;
     uint8_t reteffecter_operState;
-    uint8_t retpendingValue[2];
-    uint8_t retpresentValue[2];
+    uint8_t retpendingValue[4];
+    uint8_t retpresentValue[4];
 
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
     struct pldm_get_numeric_effecter_value_resp* resp =
@@ -1838,7 +1838,7 @@ TEST(GetSensorReading, testBadDecodeResponse)
     uint8_t retpresent_state;
     uint8_t retprevious_state;
     uint8_t retevent_state;
-    uint8_t retpresentReading;
+    uint8_t retpresentReading[4];
 
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
     struct pldm_get_sensor_reading_resp* resp =
