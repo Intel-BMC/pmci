@@ -153,7 +153,7 @@ int encode_get_types_resp(uint8_t instance_id, uint8_t completion_code,
 		if (types == NULL) {
 			return PLDM_ERROR_INVALID_DATA;
 		}
-		memcpy(response->types, &(types->byte), PLDM_MAX_TYPES / 8);
+		memcpy(response->types, types, PLDM_MAX_TYPES / 8);
 	}
 
 	return PLDM_SUCCESS;
@@ -203,7 +203,7 @@ int encode_get_commands_resp(uint8_t instance_id, uint8_t completion_code,
 		if (commands == NULL) {
 			return PLDM_ERROR_INVALID_DATA;
 		}
-		memcpy(response->commands, &(commands->byte),
+		memcpy(response->commands, commands,
 		       PLDM_MAX_CMDS_PER_TYPE / 8);
 	}
 

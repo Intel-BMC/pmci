@@ -420,8 +420,8 @@ TEST(GetPLDMVersion, testEncodeResponseInvalid)
 
 TEST(GetPLDMVersion, testEncodeResponse)
 {
-    uint8_t completionCode = 0;
-    uint32_t transferHandle = 0;
+    uint8_t completionCode = PLDM_SUCCESS;
+    uint32_t transferHandle = 0x12345678;
     uint8_t flag = PLDM_START_AND_END;
     uint8_t version[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xc1, 0xc2, 0xc3, 0xc4};
     variable_field versionField{version, sizeof(version)};
@@ -430,22 +430,18 @@ TEST(GetPLDMVersion, testEncodeResponse)
         responseMsg{};
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
 
-    auto rc = encode_get_version_resp(0, PLDM_SUCCESS, 0, PLDM_START_AND_END,
+    auto rc = encode_get_version_resp(0, completionCode, transferHandle, flag,
                                       &versionField, response);
 
     EXPECT_EQ(rc, PLDM_SUCCESS);
-    EXPECT_EQ(completionCode, response->payload[0]);
-    EXPECT_EQ(0, memcmp(response->payload + sizeof(response->payload[0]),
-                        &transferHandle, sizeof(transferHandle)));
-    EXPECT_EQ(0, memcmp(response->payload + sizeof(response->payload[0]) +
-                            sizeof(transferHandle),
-                        &flag, sizeof(flag)));
-    EXPECT_EQ(0, memcmp(response->payload + sizeof(response->payload[0]) +
-                            sizeof(transferHandle) + sizeof(flag),
-                        &version, sizeof(version)));
+    pldm_get_version_resp* encResp =
+        reinterpret_cast<pldm_get_version_resp*>(response->payload);
+    EXPECT_EQ(completionCode, encResp->completion_code);
+    EXPECT_EQ(le32toh(encResp->next_transfer_handle), transferHandle);
+    EXPECT_EQ(encResp->transfer_flag, flag);
+    EXPECT_EQ(0, memcmp(encResp->version_data, &version, sizeof(version)));
 
-    uint8_t* verBytes = response->payload + PLDM_GET_VERSION_RESP_FIXED_BYTES;
-    EXPECT_EQ(0, memcmp(&version, verBytes, sizeof(version)));
+    // Test invalid data
     rc = encode_get_version_resp(0, PLDM_SUCCESS, 0, 0xFF, &versionField,
                                  response);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
