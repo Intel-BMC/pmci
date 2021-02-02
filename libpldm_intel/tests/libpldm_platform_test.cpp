@@ -1458,8 +1458,8 @@ TEST(GetNumericEffecterValue, testBadDecodeResponse)
     uint8_t retcompletionCode;
     uint8_t reteffecter_dataSize;
     uint8_t reteffecter_operState;
-    uint8_t retpendingValue[2];
-    uint8_t retpresentValue[2];
+    uint8_t retpendingValue[4];
+    uint8_t retpresentValue[4];
 
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
     struct pldm_get_numeric_effecter_value_resp* resp =
