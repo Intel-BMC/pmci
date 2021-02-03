@@ -116,12 +116,14 @@ void NumericSensorHandler::getSupportedThresholds(
         if (auto rangeFieldValue =
                 pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_high))
         {
-            thresholdData.emplace_back(
-                thresholds::Level::warning, thresholds::Direction::high,
-                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            double value =
+                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+            thresholdData.emplace_back(thresholds::Level::warning,
+                                       thresholds::Direction::high, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "WarningHigh Supported",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("VALUE=%lf", value));
         }
     }
 
@@ -131,12 +133,14 @@ void NumericSensorHandler::getSupportedThresholds(
         if (auto rangeFieldValue =
                 pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_high))
         {
-            thresholdData.emplace_back(
-                thresholds::Level::critical, thresholds::Direction::high,
-                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            double value =
+                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+            thresholdData.emplace_back(thresholds::Level::critical,
+                                       thresholds::Direction::high, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "CriticalHigh Supported",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("VALUE=%lf", value));
         }
     }
 
@@ -146,12 +150,14 @@ void NumericSensorHandler::getSupportedThresholds(
         if (auto rangeFieldValue =
                 pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_low))
         {
-            thresholdData.emplace_back(
-                thresholds::Level::warning, thresholds::Direction::low,
-                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            double value =
+                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+            thresholdData.emplace_back(thresholds::Level::warning,
+                                       thresholds::Direction::low, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "WarningLow Supported",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("VALUE=%lf", value));
         }
     }
 
@@ -161,12 +167,14 @@ void NumericSensorHandler::getSupportedThresholds(
         if (auto rangeFieldValue =
                 pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_low))
         {
-            thresholdData.emplace_back(
-                thresholds::Level::critical, thresholds::Direction::low,
-                pdr::sensor::calculateSensorValue(_pdr, *rangeFieldValue));
+            double value =
+                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+            thresholdData.emplace_back(thresholds::Level::critical,
+                                       thresholds::Direction::low, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "CriticalLow Supported",
-                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
+                phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
+                phosphor::logging::entry("VALUE=%lf", value));
         }
     }
     // Note:- Fatal values are not supported

@@ -27,8 +27,8 @@ namespace sensor
 
 // Calculate sensor reading in baseUnit(Eg: Volts, Watts) defined in DSP0248
 // Table 74. Returned value can be directly used for D-Bus representation
-static double applyUnitModifiers(const pldm_numeric_sensor_value_pdr& pdr,
-                                 const double& sensorValue)
+double applyUnitModifiers(const pldm_numeric_sensor_value_pdr& pdr,
+                          const double& sensorValue)
 {
     // Sensor/Effecter Units = baseUnit * 10^unitModifier rateUnit
     return sensorValue * std::pow(10, pdr.unit_modifier);

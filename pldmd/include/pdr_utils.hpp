@@ -26,6 +26,10 @@ namespace pdr
 namespace sensor
 {
 
+/** @brief Apply unit modifiers over sensor reading*/
+double applyUnitModifiers(const pldm_numeric_sensor_value_pdr& pdr,
+                          const double& sensorValue);
+
 /** @brief Calculate sensor value*/
 double calculateSensorValue(const pldm_numeric_sensor_value_pdr& pdr,
                             const float& sensorReading);
