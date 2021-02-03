@@ -18,6 +18,7 @@
 #include "base.hpp"
 
 #include <boost/asio.hpp>
+#include <boost/asio/error.hpp>
 #include <boost/asio/spawn.hpp>
 #include <memory>
 #include <sdbusplus/asio/connection.hpp>
