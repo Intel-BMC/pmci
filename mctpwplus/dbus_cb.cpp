@@ -209,10 +209,10 @@ int onMessageReceivedSignal(sd_bus_message* rawMsg, void* userData,
         {
             return -1;
         }
-        uint8_t messageType;
-        uint8_t srcEid;
-        uint8_t msgTag;
-        bool tagOwner;
+        uint8_t messageType = 0;
+        uint8_t srcEid = 0;
+        uint8_t msgTag = 0;
+        bool tagOwner = false;
         std::vector<uint8_t> payload;
 
         message.read(messageType, srcEid, msgTag, tagOwner, payload);
