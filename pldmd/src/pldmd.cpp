@@ -17,6 +17,7 @@
 #include "base.hpp"
 #include "platform.hpp"
 #include "pldm.hpp"
+#include "utils.hpp"
 
 #include <phosphor-logging/log.hpp>
 
@@ -243,23 +244,6 @@ bool validatePLDMRespDecode(const pldm_tid_t tid, const int rc,
     return true;
 }
 
-static inline void printVect(const std::string& msg,
-                             const std::vector<uint8_t>& vec)
-{
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Length:" + std::to_string(vec.size())).c_str());
-
-    std::stringstream ssVec;
-    ssVec << msg;
-    for (auto re : vec)
-    {
-        ssVec << " 0x" << std::hex << std::setfill('0') << std::setw(2)
-              << static_cast<int>(re);
-    }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ssVec.str().c_str());
-}
-
 static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
                                       const mctpw_eid_t dstEid,
                                       const uint16_t timeout,
@@ -273,8 +257,8 @@ static bool doSendReceievePldmMessage(boost::asio::yield_context yield,
         yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
         "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
         "SendReceiveMctpMessagePayload", dstEid, pldmReq, timeout);
-    printVect("Request(MCTP payload):", pldmReq);
-    printVect("Response(MCTP payload):", pldmResp);
+    utils::printVect("Request(MCTP payload):", pldmReq);
+    utils::printVect("Response(MCTP payload):", pldmResp);
     if (ec)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -446,6 +430,7 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
 
     // Insert MCTP Message Type to start of the payload
     payload.insert(payload.begin(), PLDM);
+    utils::printVect("Send PLDM message(MCTP payload):", payload);
 
     // TODO: Use mctp-wrapper provided api to send PLDM message
     auto bus = getSdBus();
@@ -458,9 +443,6 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
                     phosphor::logging::entry("TID=%d", tid));
                 return;
             }
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                "PLDM message send Success",
-                phosphor::logging::entry("TID=%d", tid));
         },
         "xyz.openbmc_project.MCTP_SMBus_PCIe_slot", "/xyz/openbmc_project/mctp",
         "xyz.openbmc_project.MCTP.Base", "SendMctpMessagePayload", dstEid,
@@ -485,6 +467,7 @@ auto msgRecvCallback = [](sdbusplus::message::message& message) {
         // Why: We do not have to process packets from uninitialised Termini
         if (auto tid = getTidFromMapper(srcEid))
         {
+            utils::printVect("PLDM message received(MCTP payload):", payload);
 
             payload.erase(payload.begin());
             if (auto pldmMsgType = getPldmMessageType(payload))

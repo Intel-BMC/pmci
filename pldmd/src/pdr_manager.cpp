@@ -18,6 +18,7 @@
 
 #include "platform.hpp"
 #include "pldm.hpp"
+#include "utils.hpp"
 
 #include <codecvt>
 #include <fstream>
@@ -87,21 +88,6 @@ static void printPDRInfo(pldm_pdr_repository_info& pdrRepoInfo)
 }
 
 // TODO: remove this API after code complete
-static void printVector(const std::string& msg, const std::vector<uint8_t>& vec)
-{
-    printDebug("Length:" + std::to_string(vec.size()));
-
-    std::stringstream ssVec;
-    ssVec << msg;
-    for (auto re : vec)
-    {
-        ssVec << " 0x" << std::hex << std::setfill('0') << std::setw(2)
-              << static_cast<int>(re);
-    }
-    printDebug(ssVec.str().c_str());
-}
-
-// TODO: remove this API after code complete
 static void printPDRResp(const RecordHandle& recordHandle,
                          const RecordHandle& nextRecordHandle,
                          const transfer_op_flag& transferOpFlag,
@@ -118,7 +104,7 @@ static void printPDRResp(const RecordHandle& recordHandle,
     printDebug("GetPDR: nextDataTransferHandle -" +
                std::to_string(nextDataTransferHandle));
     printDebug("GetPDR: transferComplete -" + std::to_string(transferComplete));
-    printVector("PDR:", pdrRecord);
+    utils::printVect("PDR:", pdrRecord);
 }
 
 std::optional<pldm_pdr_repository_info>

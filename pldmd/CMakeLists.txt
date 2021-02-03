@@ -54,6 +54,7 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
                ${PROJECT_SOURCE_DIR}/src/fru.cpp
                ${PROJECT_SOURCE_DIR}/src/base.cpp
+               ${PROJECT_SOURCE_DIR}/src/utils.cpp
 )
 
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/pldm.hpp
