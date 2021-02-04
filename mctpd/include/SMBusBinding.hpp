@@ -28,7 +28,7 @@ class SMBusBinding : public MctpBinding
     bool reserveBandwidth(const mctp_eid_t eid,
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
-                                const mctp_smbus_extra_params* prvt);
+                                const mctp_smbus_pkt_private* prvt);
     bool releaseBandwidth(const mctp_eid_t eid) override;
     std::string bus;
     bool arpMasterSupport;
@@ -41,7 +41,7 @@ class SMBusBinding : public MctpBinding
     boost::asio::posix::stream_descriptor smbusReceiverFd;
     boost::asio::steady_timer reserveBWTimer;
     bool isMuxFd(const int fd);
-    std::vector<std::pair<mctp_eid_t, struct mctp_smbus_extra_params>>
+    std::vector<std::pair<mctp_eid_t, struct mctp_smbus_pkt_private>>
         smbusDeviceTable;
     void scanAllPorts(void);
     void scanPort(const int scanFd);

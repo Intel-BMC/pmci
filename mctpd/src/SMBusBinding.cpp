@@ -161,38 +161,26 @@ static bool isMuxBus(const std::string& bus)
         fs::path("/sys/bus/i2c/devices/i2c-" + bus + "/mux_device"));
 }
 
-/*
- * dstEid can't be removed because this is a callback passed to libmctp and we
- * have to match its expected prototype.
- */
-int getSMBusOutputAddress(uint8_t /*dstEid*/, uint8_t* outAddr)
-{
-    // Mapping should rely on routing table and message binding private
-    // Handling this here until libmctp implements routing infrastructure
-    *outAddr = 0xB0; // Add in card addresses
-    return 0;
-}
-
 std::optional<std::vector<uint8_t>>
     SMBusBinding::getBindingPrivateData(uint8_t dstEid)
 {
-    mctp_smbus_extra_params prvt = {};
+    mctp_smbus_pkt_private prvt = {};
 
     for (auto& device : smbusDeviceTable)
     {
         if (device.first == dstEid)
         {
-            mctp_smbus_extra_params temp = device.second;
+            mctp_smbus_pkt_private temp = device.second;
             prvt.fd = temp.fd;
             if (isMuxFd(prvt.fd))
             {
-                prvt.muxHoldTimeOut = 1000;
-                prvt.muxFlags = IS_MUX_PORT;
+                prvt.mux_hold_timeout = 1000;
+                prvt.mux_flags = IS_MUX_PORT;
             }
             else
             {
-                prvt.muxHoldTimeOut = 0;
-                prvt.muxFlags = 0;
+                prvt.mux_hold_timeout = 0;
+                prvt.mux_flags = 0;
             }
             prvt.slave_addr = temp.slave_addr;
             uint8_t* prvtPtr = reinterpret_cast<uint8_t*>(&prvt);
@@ -221,9 +209,9 @@ bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
             "reserveBandwidth failed. Invalid destination EID");
         return false;
     }
-    const mctp_smbus_extra_params* prvt =
-        reinterpret_cast<const mctp_smbus_extra_params*>(pvtData->data());
-    if (prvt->muxFlags != IS_MUX_PORT)
+    const mctp_smbus_pkt_private* prvt =
+        reinterpret_cast<const mctp_smbus_pkt_private*>(pvtData->data());
+    if (prvt->mux_flags != IS_MUX_PORT)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "reserveBandwidth not required, fd is not a mux port");
@@ -258,8 +246,8 @@ bool SMBusBinding::releaseBandwidth(const mctp_eid_t eid)
             "releaseBandwidth: Invalid destination EID");
         return false;
     }
-    mctp_smbus_extra_params* prvt =
-        reinterpret_cast<mctp_smbus_extra_params*>(pvtData->data());
+    mctp_smbus_pkt_private* prvt =
+        reinterpret_cast<mctp_smbus_pkt_private*>(pvtData->data());
     if (mctp_smbus_exit_pull_model(prvt) < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -273,7 +261,7 @@ bool SMBusBinding::releaseBandwidth(const mctp_eid_t eid)
 }
 
 void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
-                                          const mctp_smbus_extra_params* prvt)
+                                          const mctp_smbus_pkt_private* prvt)
 {
     reserveBWTimer.expires_after(std::chrono::milliseconds(interval * 1000));
     reserveBWTimer.async_wait([this,
@@ -556,18 +544,18 @@ void SMBusBinding::initEndpointDiscovery()
                  " is MCTP Capable")
                     .c_str());
 
-            struct mctp_smbus_extra_params smbusBindingPvt;
+            struct mctp_smbus_pkt_private smbusBindingPvt;
             smbusBindingPvt.fd = std::get<0>(device);
 
             if (isMuxFd(smbusBindingPvt.fd))
             {
-                smbusBindingPvt.muxHoldTimeOut = ctrlTxRetryDelay;
-                smbusBindingPvt.muxFlags = 0x80;
+                smbusBindingPvt.mux_hold_timeout = ctrlTxRetryDelay;
+                smbusBindingPvt.mux_flags = 0x80;
             }
             else
             {
-                smbusBindingPvt.muxHoldTimeOut = 0;
-                smbusBindingPvt.muxFlags = 0;
+                smbusBindingPvt.mux_hold_timeout = 0;
+                smbusBindingPvt.mux_flags = 0;
             }
             /* Set 8 bit i2c slave address */
             smbusBindingPvt.slave_addr =
