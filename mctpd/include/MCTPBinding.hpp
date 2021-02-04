@@ -241,7 +241,7 @@ class MctpBinding
     bool staticEid;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
-    std::shared_ptr<object_server>& objectServer;
+    std::shared_ptr<object_server> objectServer;
     std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
     std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
     std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
