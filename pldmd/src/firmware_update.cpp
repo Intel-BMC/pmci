@@ -16,6 +16,7 @@
 #include "firmware_update.h"
 
 #include "firmware_update.hpp"
+#include "platform.hpp"
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -940,6 +941,7 @@ int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
                     .c_str());
             continue;
         }
+        pldm::platform::pauseSensorPolling();
         int retVal = fwUpdate->runUpdate(yield);
         if (retVal != PLDM_SUCCESS)
         {
@@ -950,6 +952,7 @@ int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
 
             fwUpdate->terminateFwUpdate(yield);
         }
+        pldm::platform::resumeSensorPolling();
         updateMode = false;
     }
     return PLDM_SUCCESS;
@@ -1469,7 +1472,12 @@ bool FWUpdate::preparePassComponentRequest(
     {
         return false;
     }
-    componentTable.transfer_flag = initTransferFlag(compCnt);
+    uint8_t flag = initTransferFlag(compCnt);
+    if (flag == PLDM_ERROR)
+    {
+        return false;
+    }
+    componentTable.transfer_flag = flag;
     return true;
 }
 
@@ -1480,20 +1488,18 @@ uint8_t FWUpdate::initTransferFlag(const uint16_t compCnt)
     {
         return PLDM_START_AND_END;
     }
-    else if (updateProperties.no_of_comp > 1 &&
-             compCnt + 1 < updateProperties.no_of_comp)
+
+    if (updateProperties.no_of_comp > 1)
     {
-        return PLDM_MIDDLE;
+        if (compCnt == 0)
+            return PLDM_START;
+        else if (compCnt + 1 < updateProperties.no_of_comp)
+            return PLDM_MIDDLE;
+        else if (compCnt + 1 == updateProperties.no_of_comp)
+            return PLDM_END;
     }
-    else if (updateProperties.no_of_comp > 1 &&
-             compCnt + 1 == updateProperties.no_of_comp)
-    {
-        return PLDM_END;
-    }
-    else
-    {
-        return PLDM_START;
-    }
+
+    return PLDM_ERROR;
 }
 
 bool FWUpdate::prepareUpdateComponentRequest(
@@ -1769,7 +1775,8 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
                                 uint8_t& compCompatabilityResp,
                                 uint8_t& compCompatabilityRespCode,
                                 bitfield32_t& updateOptFlagsEnabled,
-                                uint16_t& estimatedTimeReqFd)
+                                uint16_t& estimatedTimeReqFd,
+                                const uint16_t compCnt)
 {
     if (!updateMode)
     {
@@ -1786,9 +1793,14 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
     {
         return retVal;
     }
-    fdState = FD_DOWNLOAD;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to DOWNLOAD");
+    if (updateProperties.no_of_comp >= 1 &&
+        compCnt + 1 == updateProperties.no_of_comp)
+    {
+        fdState = FD_DOWNLOAD;
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "FD changed state to DOWNLOAD");
+    }
+
     return PLDM_SUCCESS;
 }
 
@@ -2534,33 +2546,46 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         uint8_t compCompatabilityRespCode;
         bitfield32_t updateOptFlagsEnabled;
         uint16_t estimatedTimeReqFd;
-        currentComp = count;
+        uint32_t compSize;
+        pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
         if (!isComponentApplicable())
         {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "component not applicable");
+            compOffset += compSize;
             continue;
         }
-
         if (!prepareUpdateComponentRequest(component, count))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "UpdateComponentRequest preparation failed");
+            compOffset += compSize;
             continue;
         }
-
-        uint32_t compSize;
-        pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
         uint32_t maxNumReq = findMaxNumReq(compSize);
         retVal =
             doUpdateComponent(yield, component, compImgSetVerStr,
                               compCompatabilityResp, compCompatabilityRespCode,
-                              updateOptFlagsEnabled, estimatedTimeReqFd);
+                              updateOptFlagsEnabled, estimatedTimeReqFd, count);
         if (retVal != PLDM_SUCCESS)
         {
 
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "UpdateComponentRequest command failed");
+            compOffset += compSize;
             continue;
         }
+        if (compCompatabilityResp != 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("Component will not be updated, "
+                 "ComponentCompatibilityResponse Code: " +
+                 std::to_string(compCompatabilityRespCode))
+                    .c_str());
+            compOffset += compSize;
+            continue;
+        }
+
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "UpdateComponent command is success");
 
