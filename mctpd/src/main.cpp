@@ -85,6 +85,13 @@ int main(int argc, char* argv[])
     conn->request_name(mctpServiceName.c_str());
 
     auto bindingPtr = getBindingPtr(*mctpdConfiguration, objectServer, ioc);
+    if (!bindingPtr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Unable to create MCTP binding");
+        return -1;
+    }
+
     try
     {
         bindingPtr->initializeBinding();
