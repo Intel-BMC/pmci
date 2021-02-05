@@ -18,6 +18,7 @@
 #include <phosphor-logging/log.hpp>
 
 #include "fru.h"
+#include "pldm_types.h"
 
 namespace pldm
 {
@@ -26,6 +27,7 @@ namespace fru
 
 static constexpr uint16_t timeout = 100;
 static constexpr size_t retryCount = 3;
+constexpr uint8_t timeStamp104Size = 13;
 
 static inline const std::map<uint8_t, const char*> fruEncodingType{
     {PLDM_FRU_ENCODING_UNSPECIFIED, "Unspecified"},
@@ -140,10 +142,53 @@ class PLDMFRUTable
         return strVal;
     }
 
-    static std::string fruFieldParserTimestamp(const uint8_t*, uint8_t)
+    static std::string fruFieldParserTimestamp(const uint8_t* value,
+                                               uint8_t length)
     {
-        // TODO: Actual Timestamp Calculation
-        return std::string("");
+        timestamp104_t fruStamp;
+        std::string timeStampStr;
+
+        if (length != timeStamp104Size)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Invalid time stamp length");
+            return std::string("");
+        }
+
+        try
+        {
+            std::copy_n(value, timeStamp104Size,
+                        reinterpret_cast<uint8_t*>(&fruStamp));
+        }
+        catch (std::exception& e)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Exception Received FRU timestamp parsing error" +
+                 std::string(e.what()))
+                    .c_str());
+            return std::string("");
+        }
+        catch (...)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Exception Occured FRU timestamp parsing error");
+            return std::string("");
+        }
+
+        if ((fruStamp.month >= 1 && fruStamp.month <= 12) ||
+            (fruStamp.day >= 1 && fruStamp.day <= 31) || (fruStamp.hour < 24) ||
+            (fruStamp.minute < 60) || (fruStamp.second < 60))
+        {
+            timeStampStr.assign(std::to_string(fruStamp.year) + "-" +
+                                std::to_string(fruStamp.month) + "-" +
+                                std::to_string(fruStamp.day));
+            timeStampStr.append(" " + std::to_string(fruStamp.hour) + ":" +
+                                std::to_string(fruStamp.minute) + ":" +
+                                std::to_string(fruStamp.second));
+
+            // TODO: Need to handle CIM conversions and UTC offset
+        }
+        return timeStampStr;
     }
 
     static std::string fruFieldParserU32(const uint8_t* value, uint8_t length)
