@@ -1472,34 +1472,38 @@ bool FWUpdate::preparePassComponentRequest(
     {
         return false;
     }
-    uint8_t flag = initTransferFlag(compCnt);
-    if (flag == PLDM_ERROR)
-    {
-        return false;
-    }
-    componentTable.transfer_flag = flag;
-    return true;
+
+    return initTransferFlag(compCnt, componentTable.transfer_flag);
 }
 
-uint8_t FWUpdate::initTransferFlag(const uint16_t compCnt)
+bool FWUpdate::initTransferFlag(const uint16_t compCnt, uint8_t& flag)
 {
 
     if (updateProperties.no_of_comp == 1)
     {
-        return PLDM_START_AND_END;
+        flag = PLDM_START_AND_END;
+        return true;
     }
 
     if (updateProperties.no_of_comp > 1)
     {
         if (compCnt == 0)
-            return PLDM_START;
+        {
+            flag = PLDM_START;
+        }
         else if (compCnt + 1 < updateProperties.no_of_comp)
-            return PLDM_MIDDLE;
+        {
+            flag = PLDM_MIDDLE;
+        }
         else if (compCnt + 1 == updateProperties.no_of_comp)
-            return PLDM_END;
+        {
+            flag = PLDM_END;
+        }
+
+        return true;
     }
 
-    return PLDM_ERROR;
+    return false;
 }
 
 bool FWUpdate::prepareUpdateComponentRequest(
