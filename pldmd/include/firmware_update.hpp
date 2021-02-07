@@ -293,6 +293,7 @@ class FWUpdate
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
     bool isReserveBandwidthActive = false;
+    bool isComponentAvailableForUpdate = false;
     uint8_t currentDeviceIDRecord;
     const uint16_t timeout = 100;
     const uint16_t fdCmdTimeout = 5000;

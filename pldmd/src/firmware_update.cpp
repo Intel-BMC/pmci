@@ -2534,7 +2534,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "PassComponentTable command failed ");
 
-            return retVal;
+            continue;
         }
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "PassComponentTable command is success");
@@ -2623,7 +2623,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     "TimeoutWaiting for requestFirmwareData packet");
 
-                return PLDM_ERROR;
+                break;
             }
             else
             {
@@ -2642,7 +2642,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                         phosphor::logging::entry("RETVAL=%d", retVal),
                         phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-                    return retVal;
+                    break;
                 }
                 fdReq.clear();
                 if (offset + length > compSize)
@@ -2665,7 +2665,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                     phosphor::logging::entry("RETVAL=%d", retVal),
                     phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-                return retVal;
+                compOffset += compSize;
+                continue;
             }
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "TransferComplete command is success");
@@ -2676,7 +2677,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 "Timeout waiting for Transfer complete",
                 phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-            return PLDM_ERROR;
+            compOffset += compSize;
+            continue;
         }
         expectedCmd = PLDM_VERIFY_COMPLETE;
 
@@ -2693,7 +2695,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                     phosphor::logging::entry("RETVAL=%d", retVal),
                     phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-                return retVal;
+                compOffset += compSize;
+                continue;
             }
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "VerifyComplete command is success");
@@ -2703,7 +2706,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "Timeout waiting for Verify complete",
                 phosphor::logging::entry("COMPONENT=%d", currentComp));
-            return PLDM_ERROR;
+            compOffset += compSize;
+            continue;
         }
         expectedCmd = PLDM_APPLY_COMPLETE;
 
@@ -2723,8 +2727,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                     phosphor::logging::entry("RETVAL=%d", retVal),
                     phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-                return retVal;
+                compOffset += compSize;
+                continue;
             }
+            isComponentAvailableForUpdate = true;
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "ApplyComplete command is success");
         }
@@ -2734,7 +2740,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 "Timeout waiting for Apply complete",
                 phosphor::logging::entry("COMPONENT=%d", currentComp));
 
-            return PLDM_ERROR;
+            compOffset += compSize;
+            continue;
         }
         compOffset += compSize;
     }
@@ -2748,7 +2755,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         }
     }
 
-    if (retVal != PLDM_SUCCESS)
+    if (!isComponentAvailableForUpdate)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "firmware update failed",
