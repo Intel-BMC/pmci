@@ -2587,6 +2587,9 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                  std::to_string(compCompatabilityRespCode))
                     .c_str());
             compOffset += compSize;
+            fdState = FD_READY_XFER;
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "FD changed state to READY XFER");
             continue;
         }
 
