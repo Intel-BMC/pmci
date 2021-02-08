@@ -1012,7 +1012,8 @@ PacketState MctpBinding::sendAndRcvMctpCtrl(
 
     pushToCtrlTxQueue(pktState, destEid, bindingPrivate, req, callback);
 
-    do
+    // Wait for the state to change
+    while (pktState == PacketState::pushedForTransmission)
     {
         timer.expires_after(std::chrono::milliseconds(ctrlTxRetryDelay));
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -1023,8 +1024,7 @@ PacketState MctpBinding::sendAndRcvMctpCtrl(
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "sendAndRcvMctpCtrl: async_wait error");
         }
-    } while (pktState == PacketState::pushedForTransmission);
-    // Wait for the state to change
+    }
 
     return pktState;
 }

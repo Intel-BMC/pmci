@@ -539,4 +539,9 @@ void PCIeBinding::changeDiscoveredFlag(pcie_binding::DiscoveryFlags flag)
     discoveredFlag = flag;
     pcieInterface->set_property(
         "DiscoveredFlag", pcie_binding::convertDiscoveryFlagsToString(flag));
+
+    if (pcie_binding::DiscoveryFlags::Discovered == flag)
+    {
+        getRoutingTableTimer.expires_from_now(boost::posix_time::seconds{0});
+    }
 }
