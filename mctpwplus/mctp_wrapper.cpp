@@ -324,41 +324,82 @@ MCTPWrapper::EndpointMap MCTPWrapper::buildMatchingEndpointMap(
                      DictType<std::string, MctpPropertiesVariantType>>
                 interface;
 
-            if (interfaces.find("xyz.openbmc_project.MCTP.Endpoint") !=
+            if (interfaces.find("xyz.openbmc_project.MCTP.Endpoint") ==
                 interfaces.end())
             {
-                try
-                {
-                    /* SupportedMessageTypes interface should be present for
-                     * each endpoint
-                     */
-                    auto& msgIf = interfaces.at(
-                        "xyz.openbmc_project.MCTP.SupportedMessageTypes");
-                    MctpPropertiesVariantType pv;
-                    // TODO: Add support for vendor defined message types.
-                    pv = msgIf.at(msgTypeToPropertyName.at(config.type));
+                continue;
+            }
+            try
+            {
+                /*SupportedMessageTypes interface is mandatory*/
+                auto& msgIf = interfaces.at(
+                    "xyz.openbmc_project.MCTP.SupportedMessageTypes");
+                MctpPropertiesVariantType pv;
+                pv = msgIf.at(msgTypeToPropertyName.at(config.type));
 
-                    if (std::get<bool>(pv) == true)
+                if (std::get<bool>(pv) == false)
+                {
+                    continue;
+                }
+                if (MessageType::vdpci == config.type)
+                {
+                    static const char* vdMsgTypeInterface =
+                        "xyz.openbmc_project.MCTP.PCIVendorDefined";
+                    auto vendorIdStr = readPropertyValue<std::string>(
+                        *connection, bus.second.c_str(), objectPath.str,
+                        vdMsgTypeInterface, "VendorID");
+                    uint16_t vendorId;
                     {
-                        /* format of of endpoint path: path/Eid */
-                        std::vector<std::string> splitted;
-                        boost::split(splitted, objectPath.str,
-                                     boost::is_any_of("/"));
-                        if (splitted.size())
+                        std::stringstream ss;
+                        ss << std::hex << vendorIdStr;
+                        ss >> vendorId;
+                        if (ss.fail())
                         {
-                            /* take the last element and convert it to eid
-                             */
-                            uint8_t eid = static_cast<eid_t>(
-                                std::stoi(splitted[splitted.size() - 1]));
-                            eids[eid] = bus;
+                            phosphor::logging::log<
+                                phosphor::logging::level::WARNING>(
+                                ("Unable to parse vendor id from " +
+                                 vendorIdStr)
+                                    .c_str());
+                            continue;
                         }
                     }
+                    if (vendorId !=
+                        be16toh(config.vendorDefinedValues->vendorId))
+                    {
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            ("VendorID not matching for " + objectPath.str)
+                                .c_str());
+                        continue;
+                    }
+                    auto msgTypes = readPropertyValue<std::vector<uint16_t>>(
+                        *connection, bus.second.c_str(), objectPath.str,
+                        vdMsgTypeInterface, "MessageTypeProperty");
+                    auto itMsgType = std::find(
+                        msgTypes.begin(), msgTypes.end(),
+                        be16toh(config.vendorDefinedValues->vendorMessageType));
+                    if (msgTypes.end() == itMsgType)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            ("Vendor Message Type not matching for " +
+                             objectPath.str)
+                                .c_str());
+                        continue;
+                    }
                 }
-                catch (std::exception& e)
+                /* format of of endpoint path: path/Eid */
+                std::vector<std::string> splitted;
+                boost::split(splitted, objectPath.str, boost::is_any_of("/"));
+                if (splitted.size())
                 {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        e.what());
+                    /* take the last element and convert it to eid */
+                    uint8_t eid = static_cast<eid_t>(
+                        std::stoi(splitted[splitted.size() - 1]));
+                    eids[eid] = bus;
                 }
+            }
+            catch (std::exception& e)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
             }
         }
     }
