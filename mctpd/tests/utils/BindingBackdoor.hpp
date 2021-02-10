@@ -145,6 +145,47 @@ class BindingBackdoor
                                   const_cast<PrvData*>(frame.prv)};
     }
 
+    void onOutgoingCtrlCommand(const uint8_t command,
+                               std::function<void()>&& handle)
+    {
+        fakeBinding.matchers.match(
+            [command](const mctp_binding_fake::mctp_frame& frame) {
+                if (frame.payload.size() >= sizeof(mctp_ctrl_msg_hdr))
+                {
+                    auto hdr = reinterpret_cast<const mctp_ctrl_msg_hdr*>(
+                        frame.payload.data());
+                    if (hdr->ic_msg_type == MCTP_CTRL_HDR_MSG_TYPE &&
+                        hdr->command_code == command)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            std::move(handle));
+    }
+
+    void onOutgoingCtrlCommand(const uint8_t command, const uint8_t dest,
+                               std::function<void()>&& handle)
+    {
+        fakeBinding.matchers.match(
+            [command, dest](const mctp_binding_fake::mctp_frame& frame) {
+                if (frame.payload.size() >= sizeof(mctp_ctrl_msg_hdr))
+                {
+                    auto hdr = reinterpret_cast<const mctp_ctrl_msg_hdr*>(
+                        frame.payload.data());
+                    if (hdr->ic_msg_type == MCTP_CTRL_HDR_MSG_TYPE &&
+                        hdr->command_code == command &&
+                        frame.header.dest == dest)
+                    {
+                        return true;
+                    }
+                }
+                return false;
+            },
+            std::move(handle));
+    }
+
     template <typename Payload>
     void rx(BindingIO<Payload>& io)
     {

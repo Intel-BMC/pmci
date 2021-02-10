@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <list>
 #include <vector>
 
@@ -90,8 +91,51 @@ struct mctp_binding_fake
         }
     };
 
+    class frame_matchers
+    {
+      public:
+        using predicate = std::function<bool(const mctp_frame&)>;
+        using handler = std::function<void()>;
+
+        void match(predicate&& when, handler&& handle)
+        {
+            matchers.emplace_back(
+                std::make_pair(std::move(when), std::move(handle)));
+        }
+
+        void check(const mctp_frame& frame)
+        {
+            auto it = matchers.begin();
+            while (it != matchers.end())
+            {
+                if (it->first(frame))
+                {
+                    // Extract element from the list before calling callback, as
+                    // condition was met
+                    auto pair = std::move(*it);
+                    matchers.erase(it);
+
+                    // Call handler from current (moved) variable
+                    pair.second();
+
+                    // Start from the beginning, as list could have changed
+                    // during callback
+                    it = matchers.begin();
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+
+      private:
+        std::list<std::pair<predicate, handler>> matchers;
+    };
+
     mctp_binding binding{};
     frame_log log;
+    frame_matchers matchers;
 
     mctp_binding_fake(const size_t packet_size, const size_t prv_size)
     {
@@ -109,6 +153,7 @@ struct mctp_binding_fake
     {
         auto driver = container_of(binding, mctp_binding_fake, binding);
         driver->log.tx.push_back(toMctpFrame(binding, pkt));
+        driver->matchers.check(driver->log.tx.back());
         return 0;
     }
 
