@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-class BindingBasicTest : public AsyncTestBase
+class BindingBasicTest : public AsyncTestBase, public ::testing::Test
 {
   public:
     static constexpr auto messageTimeout = AsyncTestBase::executionTimeout / 2;
@@ -42,28 +42,24 @@ TEST_F(BindingBasicTest, Send_GetEid_Positive)
     constexpr unsigned RESP_MEDIUM_DATA = 12;
 
     auto getEid = makePromise<std::tuple<bool, std::vector<uint8_t>>>();
-    auto getEidReq = [&](boost::asio::yield_context yield) {
+    schedule([&](boost::asio::yield_context yield) {
         std::vector<uint8_t> prv, resp;
 
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
         getEid.promise.set_value({result, resp});
-    };
+    });
 
-    auto getEidResp = [&]() {
-        auto [pkt, hdr, response] =
-            binding->prepareCtrlResponse<mctp_ctrl_resp_get_eid>(
-                binding->log().lastTx());
+    schedule([&]() {
+        auto response =
+            binding->backdoor.prepareCtrlResponse<mctp_ctrl_resp_get_eid>();
 
-        response->completion_code = CC_OK;
-        response->eid = RESP_EID;
-        response->eid_type = RESP_EID_TYPE;
-        response->medium_data = RESP_MEDIUM_DATA;
+        response.payload->completion_code = CC_OK;
+        response.payload->eid = RESP_EID;
+        response.payload->eid_type = RESP_EID_TYPE;
+        response.payload->medium_data = RESP_MEDIUM_DATA;
 
-        binding->rx(pkt);
-    };
-
-    // Execute steps
-    schedule(getEidReq, getEidResp);
+        binding->backdoor.rx(response);
+    });
 
     // Verify GetEid contents
     {
@@ -86,22 +82,18 @@ TEST_F(BindingBasicTest, Send_GetEid_Negative)
     constexpr unsigned CC_FAIL = 255;
 
     auto getEid = makePromise<std::tuple<bool, std::vector<uint8_t>>>();
-    auto getEidReq = [&](boost::asio::yield_context yield) {
+    schedule([&](boost::asio::yield_context yield) {
         std::vector<uint8_t> prv, resp;
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
         getEid.promise.set_value({result, resp});
-    };
+    });
 
-    auto getEidResp = [&]() {
-        auto [pkt, hdr, response] =
-            binding->prepareCtrlResponse<mctp_ctrl_resp_get_eid>(
-                binding->log().lastTx());
-        response->completion_code = CC_FAIL;
-        binding->rx(pkt);
-    };
-
-    // Execute steps
-    schedule(getEidReq, getEidResp);
+    schedule([&]() {
+        auto response =
+            binding->backdoor.prepareCtrlResponse<mctp_ctrl_resp_get_eid>();
+        response.payload->completion_code = CC_FAIL;
+        binding->backdoor.rx(response);
+    });
 
     // Check that GetEid failed
     {
@@ -120,15 +112,12 @@ TEST_F(BindingBasicTest, Send_GetEid_Timeout)
     constexpr unsigned DEST_EID = 10;
 
     auto getEid = makePromise<std::tuple<bool, std::vector<uint8_t>>>();
-    auto getEidReq = [&](boost::asio::yield_context yield) {
+    schedule([&](boost::asio::yield_context yield) {
         std::vector<uint8_t> prv, resp;
 
         bool result = binding->getEidCtrlCmd(yield, prv, DEST_EID, resp);
         getEid.promise.set_value({result, resp});
-    };
-
-    // Execute steps, no response
-    schedule(getEidReq);
+    });
 
     // Check that GetEid has ended with timeout
     {

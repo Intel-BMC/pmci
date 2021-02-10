@@ -1,18 +1,22 @@
 #pragma once
 
 #include "MCTPBinding.hpp"
-#include "mocks/hw/FakeBindingBase.hpp"
+#include "utils/BindingBackdoor.hpp"
 
-class TestBinding : public MctpBinding, public FakeBindingBase
+class TestBinding : public MctpBinding
 {
+    using PrvData = uint8_t;
+
   public:
     static constexpr mctp_eid_t eid = 8;
+    static constexpr size_t packetSize = 4096;
 
     TestBinding(std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, Configuration& conf,
                 boost::asio::io_context& ioc) :
         MctpBinding(objServer, objPath, conf, ioc,
-                    mctp_server::BindingTypes::VendorDefined)
+                    mctp_server::BindingTypes::VendorDefined),
+        driver(packetSize, sizeof(PrvData)), backdoor(driver)
     {
     }
 
@@ -34,12 +38,8 @@ class TestBinding : public MctpBinding, public FakeBindingBase
         mctp_binding_set_tx_enabled(binding, true);
     }
 
-    mctp_binding_fake& fakeBinding() override
-    {
-        return driver;
-    }
-
     mctp_binding_fake driver;
+    BindingBackdoor<PrvData> backdoor;
 
     /** Extract protected functions externally */
     using MctpBinding::getEidCtrlCmd;

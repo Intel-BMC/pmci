@@ -1,4 +1,8 @@
+#pragma once
+
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/post.hpp>
+#include <boost/asio/spawn.hpp>
 #include <chrono>
 #include <future>
 #include <type_traits>
@@ -6,10 +10,9 @@
 
 #include <gtest/gtest.h>
 
-struct AsyncTestBase : ::testing::Test
+struct AsyncTestBase
 {
-    constexpr static auto executionTimeout = std::chrono::milliseconds{500};
-
+    constexpr static auto executionTimeout = std::chrono::milliseconds{100};
     class timeout_occurred : public std::runtime_error
     {
       public:
@@ -17,23 +20,24 @@ struct AsyncTestBase : ::testing::Test
         {
         }
     };
+    template <typename Result>
+    struct AsyncPair
+    {
+        std::promise<Result> promise;
+        std::future<Result> future{promise.get_future()};
+    };
 
     template <typename Result>
     static auto makePromise()
     {
-        struct AsyncPair
-        {
-            std::promise<Result> promise;
-            std::future<Result> future{promise.get_future()};
-        } asyncPair;
-        return asyncPair;
+        return AsyncPair<Result>{};
     }
 
     // Specialization for coroutines
     template <typename Functor>
     std::enable_if_t<
         std::is_invocable<Functor, boost::asio::yield_context>::value>
-        schedule(Functor& func)
+        schedule(Functor&& func)
     {
         boost::asio::spawn(ioc, func);
     }
@@ -42,13 +46,13 @@ struct AsyncTestBase : ::testing::Test
     template <typename Functor>
     std::enable_if_t<
         !std::is_invocable<Functor, boost::asio::yield_context>::value>
-        schedule(Functor& func)
+        schedule(Functor&& func)
     {
         boost::asio::post(ioc, func);
     }
 
     template <typename... Functors>
-    void schedule(Functors&... funcs)
+    void schedule(Functors&&... funcs)
     {
         (schedule(funcs), ...);
     }
@@ -76,7 +80,7 @@ struct AsyncTestBase : ::testing::Test
 
         do
         {
-            ioc.poll();
+            ioc.poll_one();
             if (ready(futures...))
             {
                 return true;
