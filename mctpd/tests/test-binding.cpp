@@ -10,9 +10,11 @@ class BindingBasicTest : public AsyncTestBase
 
     void SetUp() override
     {
-        bus = std::make_shared<mctpd_mock::object_server_mock>(
-            "/xyz/openbmc_project/test_mctp");
-        bus->dbusIfMock->returnByDefault(true);
+        bus = std::make_shared<mctpd_mock::object_server_mock>();
+
+        mctpInterface = bus->backdoor.add_interface(
+            "/xyz/openbmc_project/test_mctp", mctp_server::interface);
+        mctpInterface->returnByDefault(true);
 
         Configuration config{};
         config.reqRetryCount = 0;
@@ -24,8 +26,10 @@ class BindingBasicTest : public AsyncTestBase
         binding->initializeBinding();
     }
 
-    std::shared_ptr<mctpd_mock::object_server_mock> bus;
     std::shared_ptr<TestBinding> binding;
+
+    std::shared_ptr<mctpd_mock::object_server_mock> bus;
+    std::shared_ptr<mctpd_mock::dbus_interface_mock> mctpInterface;
 };
 
 TEST_F(BindingBasicTest, Send_GetEid_Positive)

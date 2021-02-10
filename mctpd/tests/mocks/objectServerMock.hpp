@@ -3,7 +3,10 @@
 #include <systemd/sd-bus.h>
 
 #include <iostream>
+#include <map>
 #include <sdbusplus/asio/object_server.hpp>
+#include <tuple>
+#include <type_traits>
 
 #include "gtest/gtest.h"
 #include <gmock/gmock.h>
@@ -30,47 +33,81 @@ struct register_property_mock
     MOCK_METHOD(bool, register_property, (const std::string&, T));
 };
 
+// Mixin class used to generate proper function for type T
+template <typename T>
+struct set_property_mock
+{
+    MOCK_METHOD(bool, set_property, (const std::string&, T));
+};
+
+template <typename... PropertyTypes>
+class Properties
+{
+  public:
+    template <typename T>
+    T get(const std::string& name)
+    {
+        return std::get<T>(properties.at(name));
+    }
+
+    template <typename T>
+    void put(const std::string& name, const T& value)
+    {
+        properties[name] = value;
+    }
+
+  private:
+    std::map<std::string, std::variant<std::decay_t<PropertyTypes>...>>
+        properties;
+};
+
 template <typename... PropertyTypes>
 class dbus_interface_mock
-    : public MockType<register_property_mock<PropertyTypes>>...
+    : public MockType<register_property_mock<PropertyTypes>>...,
+      public MockType<set_property_mock<PropertyTypes>>...
 {
   public:
     // Need those to properly extract mocked functions
     using MockType<register_property_mock<PropertyTypes>>::register_property...;
     using MockType<
         register_property_mock<PropertyTypes>>::gmock_register_property...;
+    using MockType<set_property_mock<PropertyTypes>>::set_property...;
+    using MockType<set_property_mock<PropertyTypes>>::gmock_set_property...;
 
-    dbus_interface_mock(__attribute__((unused)) const std::string& path,
-                        __attribute__((unused)) const std::string& name)
+    std::string path;
+    std::string name;
+    Properties<PropertyTypes...> properties;
+
+    dbus_interface_mock(const std::string& pathArg,
+                        const std::string& nameArg) :
+        path{pathArg},
+        name{nameArg}
     {
+        returnByDefault(true);
     }
-    virtual ~dbus_interface_mock()
-    {
-    }
+
+    virtual ~dbus_interface_mock() = default;
 
     MOCK_METHOD(bool, initialize, ());
     MOCK_METHOD(bool, register_method, (const std::string&));
     MOCK_METHOD(bool, register_signal, (const std::string&));
 
     template <typename... SignalSignature>
-    bool register_signal(const std::string& name)
+    bool register_signal(const std::string& signalName)
     {
-        return register_signal(name);
+        return register_signal(signalName);
     }
 
     template <typename CallbackType>
-    bool register_method(const std::string& name,
+    bool register_method(const std::string& methodName,
                          __attribute__((unused)) CallbackType&& value)
     {
-        return register_method(name);
+        return register_method(methodName);
     }
 
     std::string get_object_path(void)
     {
-        std::string object_path;
-
-        // todo:add implementation for unit test
-        return object_path;
+        return path;
     }
 
     void returnByDefault(const bool expectedReturn)
@@ -85,11 +122,29 @@ class dbus_interface_mock
 
         // Applies return for each type in PropertyTypes list
         (..., ON_CALL(*this, register_property(_, An<PropertyTypes>()))
-                  .WillByDefault(Return(expectedReturn)));
-        (..., ON_CALL(*this, register_property(
-                                 _, An<PropertyTypes>(),
-                                 An<sdbusplus::asio::PropertyPermission&>()))
-                  .WillByDefault(Return(expectedReturn)));
+                  .WillByDefault([this, expectedReturn](const std::string& n,
+                                                        PropertyTypes p) {
+                      properties.put(n, p);
+                      return expectedReturn;
+                  }));
+
+        (...,
+         ON_CALL(*this,
+                 register_property(_, An<PropertyTypes>(),
+                                   An<sdbusplus::asio::PropertyPermission&>()))
+             .WillByDefault(
+                 [this, expectedReturn](const std::string& n, PropertyTypes p,
+                                        sdbusplus::asio::PropertyPermission&) {
+                     properties.put(n, p);
+                     return expectedReturn;
+                 }));
+
+        (..., ON_CALL(*this, set_property(_, An<PropertyTypes>()))
+                  .WillByDefault([this, expectedReturn](const std::string& n,
+                                                        PropertyTypes p) {
+                      properties.put(n, p);
+                      return expectedReturn;
+                  }));
     }
 };
 
@@ -97,35 +152,79 @@ template <typename dbus_interface_mock>
 class object_server_mock
 {
   public:
-    const std::string mctpIntf = "xyz.openbmc_project.mctp.mock.base";
-    std::shared_ptr<dbus_interface_mock> dbusIfMock;
-
-    object_server_mock(const std::string& path) :
-        dbusIfMock(std::make_shared<dbus_interface_mock>(path, mctpIntf))
+    class Backdoor
     {
+      public:
+        std::shared_ptr<dbus_interface_mock>
+            add_interface(const std::string& path, const std::string& name)
+        {
+            auto it = std::find_if(
+                interfaces.begin(), interfaces.end(),
+                [&](const std::shared_ptr<dbus_interface_mock>& interface) {
+                    return (interface->path == path) &&
+                           (interface->name == name);
+                });
+            if (it != interfaces.end())
+            {
+                return *it;
+            }
+
+            return interfaces.emplace_back(
+                std::make_shared<dbus_interface_mock>(path, name));
+        }
+
+        bool remove_interface(const std::string& path, const std::string& name)
+        {
+            auto it = std::find_if(
+                interfaces.begin(), interfaces.end(),
+                [&](const std::shared_ptr<dbus_interface_mock>& interface) {
+                    return (interface->path == path) &&
+                           (interface->name == name);
+                });
+            if (it != interfaces.end())
+            {
+                interfaces.erase(it);
+                return true;
+            }
+            return false;
+        }
+
+        std::shared_ptr<dbus_interface_mock>
+            get_interface(const std::string& path, const std::string& name)
+        {
+            return add_interface(path, name);
+        }
+
+        std::vector<std::shared_ptr<dbus_interface_mock>> interfaces;
+    };
+
+    object_server_mock()
+    {
+        using ::testing::Return;
+
+        ON_CALL(*this, add_interface)
+            .WillByDefault([this](const std::string& pathArg,
+                                  const std::string& ifaceArg) {
+                return backdoor.add_interface(pathArg, ifaceArg);
+            });
+
+        ON_CALL(*this, remove_interface)
+            .WillByDefault([this](std::shared_ptr<dbus_interface_mock>& iface) {
+                return backdoor.remove_interface(iface->path, iface->name);
+            });
+
+        ON_CALL(*this, add_manager).WillByDefault(Return(true));
     }
 
-    virtual ~object_server_mock()
-    {
-    }
+    virtual ~object_server_mock() = default;
 
-    std::shared_ptr<dbus_interface_mock> add_interface(__attribute__((unused))
-                                                       const std::string& path,
-                                                       __attribute__((unused))
-                                                       const std::string& name)
-    {
-        return dbusIfMock;
-    }
+    MOCK_METHOD(bool, add_manager, (const std::string&));
+    MOCK_METHOD(std::shared_ptr<dbus_interface_mock>, add_interface,
+                (const std::string&, const std::string&));
+    MOCK_METHOD(bool, remove_interface,
+                (std::shared_ptr<dbus_interface_mock>&));
 
-    bool remove_interface(__attribute__((unused))
-                          std::shared_ptr<dbus_interface_mock>& iface)
-    {
-        return true;
-    }
-
-    void add_manager(__attribute__((unused)) const std::string& path)
-    {
-    }
+    Backdoor backdoor;
 };
 
 } // namespace impl
