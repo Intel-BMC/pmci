@@ -1,12 +1,17 @@
+#pragma once
+
 #include "hw/PCIeDriver.hpp"
 #include "mctp_binding_fake.hpp"
 
 struct FakePCIeDriver : public hw::PCIeDriver
 {
-    FakePCIeDriver() = default;
+    static constexpr uint8_t defaultMediumId = 0x0B; // PCIe3
+    static constexpr uint16_t defaultBdf = 0xABBA;
+
     ~FakePCIeDriver() override = default;
 
-    FakePCIeDriver(const size_t prv_size) : hw(prv_size)
+    FakePCIeDriver(const size_t packet_size, const size_t prv_size) :
+        hw(packet_size, prv_size)
     {
     }
 
@@ -29,15 +34,15 @@ struct FakePCIeDriver : public hw::PCIeDriver
         return true;
     }
 
-    bool getBdf(uint16_t&) override
+    bool getBdf(uint16_t& bdf) override
     {
-        // TODO: Mock?
+        bdf = defaultBdf;
         return true;
     }
 
     uint8_t getMediumId() override
     {
-        return true;
+        return defaultMediumId;
     }
 
     bool setEndpointMap(std::vector<hw::EidInfo>&) override
