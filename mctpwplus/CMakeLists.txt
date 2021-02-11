@@ -93,14 +93,11 @@ if(${BUILD_EXAMPLES})
 
   add_executable(mctp_device_manager examples/device_manager.cpp)
   add_dependencies(mctp_device_manager ${PROJECT_NAME})
-  target_link_libraries(mctp_device_manager mctpwplus sdbusplus -lboost_coroutine
-                        -lpthread)
+  target_link_libraries(mctp_device_manager mctpwplus sdbusplus
+                        -lboost_coroutine -lpthread)
 endif()
 
 set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
 set_target_properties(mctpwplus PROPERTIES PUBLIC_HEADER mctp_wrapper.hpp)
 
-install(
-  TARGETS ${PROJECT_NAME} mctpwplus
-  LIBRARY DESTINATION /usr/lib
-  PUBLIC_HEADER DESTINATION /usr/include)
+install(TARGETS ${PROJECT_NAME} mctpwplus)
