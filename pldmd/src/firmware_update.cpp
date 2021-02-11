@@ -2642,6 +2642,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         uint8_t applyResult = 0;
         bitfield16_t compActivationMethodsModification = {};
         expectedCmd = PLDM_REQUEST_FIRMWARE_DATA;
+        int prevProgress = 0;
         while (--maxNumReq)
         {
             startTimer(yield, fdCmdTimeout);
@@ -2674,6 +2675,19 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                     break;
                 }
                 fdReq.clear();
+
+                int progress = ((offset + length) * 100) / compSize;
+                if (prevProgress != progress)
+                {
+                    prevProgress = progress;
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        ("TID: " + std::to_string(currentTid) +
+                         " Component: " + std::to_string(count + 1) +
+                         " update package transfered: " +
+                         std::to_string(progress) + "%")
+                            .c_str());
+                }
+
                 if (offset + length > compSize)
                 {
                     expectedCmd = PLDM_TRANSFER_COMPLETE;
