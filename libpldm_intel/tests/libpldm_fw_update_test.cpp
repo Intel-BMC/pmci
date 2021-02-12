@@ -137,7 +137,7 @@ TEST(GetStatus, testBadEncodeRequest)
 
 TEST(GetStatus, testGoodDecodeResponse)
 {
-    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t completionCode = PLDM_ERROR;
     uint8_t currentState = 0;
     uint8_t previousState = 0;
     uint8_t auxState = 0;
@@ -147,25 +147,31 @@ TEST(GetStatus, testGoodDecodeResponse)
     bitfield32_t updateOptionFlagsEnabled = {0};
 
     std::array<uint8_t, hdrSize + sizeof(struct get_status_resp)> responseMsg{};
+
     struct get_status_resp* inResp =
         reinterpret_cast<struct get_status_resp*>(responseMsg.data() + hdrSize);
-    inResp->aux_state = FD_OPERATION_SUCCESSFUL;
-    inResp->aux_state_status = 0x71;
-    inResp->current_state = FD_ACTIVATE;
-    inResp->previous_state = FD_LEARN_COMPONENTS;
-    inResp->progress_percent = 0x44;
-    inResp->reason_code = FD_TIMEOUT_LEARN_COMPONENT;
-    inResp->update_option_flags_enabled.value = 1;
+
+    inResp->aux_state = FD_OPERATION_IN_PROGRESS;
+    inResp->aux_state_status = FD_AUX_STATE_IN_PROGRESS_OR_SUCCESS;
+    inResp->current_state = FD_IDLE;
+    inResp->previous_state = FD_IDLE;
+    inResp->progress_percent = 0x00;
+    inResp->reason_code = FD_INITIALIZATION;
+    inResp->update_option_flags_enabled.value = 0;
+
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
     response->hdr.command = PLDM_GET_STATUS;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
     response->hdr.type = PLDM_FWU;
     response->payload[0] = PLDM_SUCCESS;
+
     auto rc = decode_get_status_resp(
         response, responseMsg.size() - hdrSize, &completionCode, &currentState,
         &previousState, &auxState, &auxStateStatus, &progressPercent,
         &reasonCode, &updateOptionFlagsEnabled);
+
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(completionCode, PLDM_SUCCESS);
     EXPECT_EQ(currentState, inResp->current_state);
@@ -175,12 +181,12 @@ TEST(GetStatus, testGoodDecodeResponse)
     EXPECT_EQ(progressPercent, inResp->progress_percent);
     EXPECT_EQ(reasonCode, inResp->reason_code);
     EXPECT_EQ(updateOptionFlagsEnabled.value,
-              inResp->update_option_flags_enabled.value);
+              htole32(inResp->update_option_flags_enabled.value));
 }
 
 TEST(GetStatus, testBadDecodeResponse)
 {
-    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t completionCode = PLDM_ERROR;
     uint8_t currentState = false;
     uint8_t previousState = false;
     uint8_t auxState = false;
@@ -188,27 +194,34 @@ TEST(GetStatus, testBadDecodeResponse)
     uint8_t progressPercent = 0;
     uint8_t reasonCode = false;
     bitfield32_t updateOptionFlagsEnabled = {0};
+
     std::array<uint8_t, hdrSize + sizeof(struct get_status_resp)> responseMsg{};
+
     struct get_status_resp* inResp =
         reinterpret_cast<struct get_status_resp*>(responseMsg.data() + hdrSize);
-    inResp->aux_state = 1;
-    inResp->aux_state_status = 0x00;
+
+    inResp->aux_state = FD_OPERATION_FAILED;
+    inResp->aux_state_status = FD_GENERIC_ERROR;
     inResp->current_state = FD_LEARN_COMPONENTS;
-    inResp->previous_state = FD_LEARN_COMPONENTS;
+    inResp->previous_state = FD_IDLE;
     inResp->progress_percent = 0x44;
     inResp->reason_code = FD_TIMEOUT_LEARN_COMPONENT;
     inResp->update_option_flags_enabled.value = 1;
+
     auto response = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
     response->hdr.command = PLDM_GET_STATUS;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
     response->hdr.type = PLDM_FWU;
-    response->payload[0] = PLDM_ERROR;
+    response->payload[0] = PLDM_ERROR_INVALID_DATA;
+
     auto rc = decode_get_status_resp(
         response, responseMsg.size() - hdrSize, &completionCode, &currentState,
         &previousState, &auxState, &auxStateStatus, &progressPercent,
         &reasonCode, &updateOptionFlagsEnabled);
-    EXPECT_EQ(rc, PLDM_ERROR);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
     response->payload[0] = PLDM_SUCCESS;
     inResp->aux_state = 4;
     inResp->aux_state_status = 0x05;
@@ -217,27 +230,126 @@ TEST(GetStatus, testBadDecodeResponse)
     inResp->progress_percent = 0x44;
     inResp->reason_code = 8;
     inResp->update_option_flags_enabled.value = 1;
+
     rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
                                 &completionCode, &currentState, &previousState,
                                 &auxState, &auxStateStatus, &progressPercent,
                                 &reasonCode, &updateOptionFlagsEnabled);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(NULL, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, 0, &completionCode, &currentState,
+                                &previousState, &auxState, &auxStateStatus,
+                                &progressPercent, &reasonCode,
+                                &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize, NULL,
+                                &currentState, &previousState, &auxState,
+                                &auxStateStatus, &progressPercent, &reasonCode,
+                                &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, NULL, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, NULL, &auxState,
+                                &auxStateStatus, &progressPercent, &reasonCode,
+                                &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                NULL, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, NULL, &progressPercent, &reasonCode,
+                                &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, NULL, &reasonCode,
+                                &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                NULL, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->aux_state = FD_OPERATION_IN_PROGRESS - 1;
+    inResp->aux_state_status = FD_AUX_STATE_IN_PROGRESS_OR_SUCCESS - 1;
+    inResp->current_state = FD_IDLE - 1;
+    inResp->previous_state = FD_IDLE - 1;
+    inResp->progress_percent = 0x66;
+    inResp->reason_code = FD_INITIALIZATION - 1;
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->aux_state = FD_WAIT + 1;
+    inResp->aux_state_status = FD_AUX_STATE_IN_PROGRESS_OR_SUCCESS + 1;
+    inResp->current_state = FD_ACTIVATE + 1;
+    inResp->previous_state = FD_ACTIVATE + 1;
+    inResp->progress_percent = 0x82;
+    inResp->reason_code = FD_TIMEOUT_DOWNLOAD + 1;
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->aux_state_status = FD_VENDOR_DEFINED_STATUS_CODE_END + 1;
+    inResp->progress_percent = 0xFF;
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    inResp->aux_state_status = FD_VENDOR_DEFINED_STATUS_CODE_START - 1;
     inResp->reason_code = FD_STATUS_VENDOR_DEFINED_MIN - 1;
     rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
                                 &completionCode, &currentState, &previousState,
                                 &auxState, &auxStateStatus, &progressPercent,
                                 &reasonCode, &updateOptionFlagsEnabled);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
-    rc = decode_get_status_resp(NULL, responseMsg.size() - hdrSize,
+
+    inResp->aux_state_status = FD_TIMEOUT - 1;
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
                                 &completionCode, &currentState, &previousState,
                                 &auxState, &auxStateStatus, &progressPercent,
                                 &reasonCode, &updateOptionFlagsEnabled);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
-    rc = decode_get_status_resp(response, 0, &completionCode, &currentState,
-                                &previousState, &auxState, &auxStateStatus,
-                                &progressPercent, &reasonCode,
-                                &updateOptionFlagsEnabled);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
+    inResp->aux_state_status = FD_GENERIC_ERROR + 1;
+    rc = decode_get_status_resp(response, responseMsg.size() - hdrSize,
+                                &completionCode, &currentState, &previousState,
+                                &auxState, &auxStateStatus, &progressPercent,
+                                &reasonCode, &updateOptionFlagsEnabled);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
 TEST(CancelUpdate, testGoodEncodeRequest)

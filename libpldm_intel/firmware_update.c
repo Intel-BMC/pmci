@@ -1331,9 +1331,10 @@ int decode_get_meta_data_req(const struct pldm_msg *msg,
 						transfer_operation_flag));
 }
 
-/** @brief Check validity of Current/Previous Status in GetStatus command
+/** @brief Check validity of current or previous status in GetStatus command
  *
- *	@param[in] state - state
+ *	@param[in] state - current or previous different state machine state of
+ *the FD
  *	@return validity
  */
 static bool check_state_validity(const uint8_t state)
@@ -1352,9 +1353,10 @@ static bool check_state_validity(const uint8_t state)
 	}
 }
 
-/** @brief Check validity of Aux State in GetStatus command
+/** @brief Check validity of aux state in GetStatus command
  *
- *	@param[in] aux_state - Aux state
+ *	@param[in] aux_state - provides additional information to the UA to
+ *describe the current operation state of the FD
  *	@return validity
  */
 static bool check_aux_state_validity(const uint8_t aux_state)
@@ -1370,9 +1372,9 @@ static bool check_aux_state_validity(const uint8_t aux_state)
 	}
 }
 
-/** @brief Check validity of Aux State Status in GetStatus command
+/** @brief Check validity of aux state status in GetStatus command
  *
- *	@param[in] aux_state_status - Aux state status
+ *	@param[in] aux_state_status - aux state status
  *	@return validity
  */
 static bool check_aux_state_status_validity(const uint8_t aux_state_status)
@@ -1388,9 +1390,10 @@ static bool check_aux_state_status_validity(const uint8_t aux_state_status)
 	return false;
 }
 
-/** @brief Check validity of Reason Code in GetStatus command
+/** @brief Check validity of reason code in GetStatus command
  *
- *	@param[in] reason_code - Reason code
+ *	@param[in] reason_code - Provides the reason for why the current state
+ *entered the IDLE state
  *	@return validity
  */
 static bool check_reason_code_validity(const uint8_t reason_code)
@@ -1466,7 +1469,9 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	    reason_code == NULL || update_option_flags_enabled == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	*completion_code = msg->payload[0];
+
 	if (PLDM_SUCCESS != *completion_code) {
 		return *completion_code;
 	}
@@ -1483,6 +1488,7 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	if (!check_response_msg_validity(response)) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
+
 	*current_state = response->current_state;
 	*previous_state = response->previous_state;
 	*aux_state = response->aux_state;
@@ -1491,6 +1497,7 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	*reason_code = response->reason_code;
 	update_option_flags_enabled->value =
 	    le32toh(response->update_option_flags_enabled.value);
+
 	return PLDM_SUCCESS;
 }
 

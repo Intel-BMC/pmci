@@ -38,6 +38,7 @@ extern "C" {
 #define PLDM_FWU_MIN_DESCRIPTOR_IDENTIFIERS_LEN 5
 /* Maximum progress percentage value*/
 #define FW_UPDATE_MAX_PROGRESS_PERCENT 0x65
+
 /** @brief PLDM FW update error completion codes
  */
 enum fw_update_error_completion_codes {
@@ -102,7 +103,7 @@ enum comp_code {
 	FD_VENDOR_COMP_STATUS_CODE_RANGE_MAX = 0xEF
 };
 
-/** @brief PLDM Firmware Update States
+/** @brief PLDM Firmware Update current or previous different states
  */
 enum pldm_firmware_update_state {
 	FD_IDLE = 0,
@@ -114,7 +115,7 @@ enum pldm_firmware_update_state {
 	FD_ACTIVATE = 6
 };
 
-/** @brief PLDM Firmware Update AuxStates
+/** @brief PLDM Firmware Update aux state
  */
 enum pldm_firmware_update_aux_state {
 	FD_OPERATION_IN_PROGRESS = 0,
@@ -123,7 +124,7 @@ enum pldm_firmware_update_aux_state {
 	FD_WAIT = 3
 };
 
-/** @brief PLDM Firmware Update AuxStateStatus
+/** @brief PLDM Firmware Update aux state status
  */
 enum pldm_firmware_update_aux_state_status {
 	FD_AUX_STATE_IN_PROGRESS_OR_SUCCESS = 0x00,
@@ -133,7 +134,7 @@ enum pldm_firmware_update_aux_state_status {
 	FD_VENDOR_DEFINED_STATUS_CODE_END = 0xEF
 };
 
-/** @brief PLDM Firmware Update ReasonCode
+/** @brief PLDM Firmware Update reason code
  */
 enum pldm_firmware_update_reason_code {
 	FD_INITIALIZATION = 0,
@@ -961,7 +962,7 @@ int decode_get_meta_data_req(const struct pldm_msg *msg,
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *		   'msg.payload'
+ * 'msg.payload'
  */
 int encode_get_status_req(const uint8_t instance_id, struct pldm_msg *msg);
 
@@ -975,17 +976,16 @@ int encode_get_status_req(const uint8_t instance_id, struct pldm_msg *msg);
  *
  *  @param[in] msg - Response message
  *  @param[in] payload_length - Length of response message payload
- *  @param[out] completion_code - Pointer to response msg's PLDM completion
- *code
+ *  @param[out] completion_code - Pointer to response msg's PLDM completion code
  *  @param[out] current_state - Pointer to current state machine state
  *  @param[out] previous_state - Pointer to previous different state machine
- * state
+ *state
  *  @param[out] aux_state - Pointer to current operation state
  *  @param[out] aux_state_status - Pointer to aux state status
  *  @param[out] progress_percent - Pointer to current progress percentage
  *  @param[out] reason_code - Pointer to reason for entering current state
- *  @param[out] update_option_flags_enabled - Pointer to
- *updateOptionFlagsEnabled
+ *  @param[out] update_option_flags_enabled - Pointer to update option flags
+ *enabled
  *  @return pldm_completion_codes
  */
 int decode_get_status_resp(const struct pldm_msg *msg,
