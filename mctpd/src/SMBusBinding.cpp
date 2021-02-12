@@ -316,6 +316,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         arpMasterSupport = conf.arpMasterSupport;
         bus = conf.bus;
         bmcSlaveAddr = conf.bmcSlaveAddr;
+        pcieMuxDevAddr = conf.pcieMuxDevAddr;
 
         // TODO: If we are not top most busowner, wait for top mostbus owner to
         // issue EID Pool
@@ -502,6 +503,12 @@ void SMBusBinding::readResponse()
 
 void SMBusBinding::scanAllPorts()
 {
+    if (mctp_smbus_close_mux(outFd, pcieMuxDevAddr) < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "scanAllPorts: mctp_smbus_close_mux failed.");
+    }
+
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Scanning root port");
     // Scan rootbus

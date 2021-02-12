@@ -23,6 +23,7 @@ struct SMBusConfiguration : Configuration
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
+    int pcieMuxDevAddr = 0;
 
     ~SMBusConfiguration() override;
 };

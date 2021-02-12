@@ -33,6 +33,7 @@ class SMBusBinding : public MctpBinding
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
+    int pcieMuxDevAddr;
     struct mctp_binding_smbus* smbus = nullptr;
     int inFd{-1};  // in_fd for the smbus binding
     int outFd{-1}; // out_fd for the root bus
