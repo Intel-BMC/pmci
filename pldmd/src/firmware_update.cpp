@@ -1872,9 +1872,8 @@ int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
                                      COMMAND_NOT_EXPECTED,
                                      PLDM_TRANSFER_COMPLETE))
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "TransferComplete: Failed to send PLDM message",
-                phosphor::logging::entry("TID=%d", currentTid));
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "TransferComplete: sendErrorCompletionCode failed");
         }
         return COMMAND_NOT_EXPECTED;
     }
@@ -1894,41 +1893,54 @@ int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
 {
     const struct pldm_msg* msgReq =
         reinterpret_cast<const pldm_msg*>(pldmReq.data());
-    auto retVal = decode_transfer_complete_req(msgReq, &transferResult);
+    int retVal = decode_transfer_complete_req(msgReq, &transferResult);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "TransferComplete: decode request failed",
-            phosphor::logging::entry("TID=%d", currentTid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("transferComplete: decode request failed. RETVAL:" +
+             std::to_string(retVal))
+                .c_str());
         if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_TRANSFER_COMPLETE))
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "TransferComplete: Failed to send PLDM message",
-                phosphor::logging::entry("TID=%d", currentTid));
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "transferComplete: sendErrorCompletionCode failed.");
+        }
+        return retVal;
+    }
+    retVal = validateTransferComplete(transferResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("transferComplete: invalid transferResult. transferResult: " +
+             std::to_string(transferResult))
+                .c_str());
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_TRANSFER_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "transferComplete: sendErrorCompletionCode failed");
         }
         return retVal;
     }
     std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
     struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
-    uint8_t compCode = validateTransferComplete(transferResult);
-    retVal = encode_transfer_complete_resp(msgReq->hdr.instance_id, compCode,
-                                           msgResp);
+    retVal = encode_transfer_complete_resp(
+        msgReq->hdr.instance_id, static_cast<uint8_t>(retVal), msgResp);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "TransferComplete: encode response failed",
-            phosphor::logging::entry("TID=%d", currentTid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("transferComplete: encode response failed. RETVAL:" +
+             std::to_string(retVal))
+                .c_str());
         return retVal;
     }
     if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "TransferComplete: Failed to send PLDM message",
-            phosphor::logging::entry("TID=%d", currentTid));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "TransferComplete: Failed to send PLDM message");
         return PLDM_ERROR;
     }
     return PLDM_SUCCESS;
@@ -1950,9 +1962,8 @@ int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
                                      COMMAND_NOT_EXPECTED,
                                      PLDM_VERIFY_COMPLETE))
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "VerifyComplete: Failed to send PLDM message",
-                phosphor::logging::entry("TID=%d", currentTid));
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "VerifyComplete: sendErrorCompletionCode failed");
         }
         return COMMAND_NOT_EXPECTED;
     }
@@ -1975,38 +1986,51 @@ int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
     int retVal = decode_verify_complete_req(msgReq, &verifyResult);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "VerifyComplete: decode request failed",
-            phosphor::logging::entry("TID=%d", currentTid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("verifyComplete: decode request failed. RETVAL:" +
+             std::to_string(retVal))
+                .c_str());
         if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_VERIFY_COMPLETE))
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "VerifyComplete: Failed to send PLDM message",
-                phosphor::logging::entry("TID=%d", currentTid));
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "verifyComplete: sendErrorCompletionCode failed");
+        }
+        return retVal;
+    }
+    retVal = validateVerifyComplete(verifyResult);
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("verifyComplete: invalid verifyResult. verifyResult: " +
+             std::to_string(verifyResult))
+                .c_str());
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_VERIFY_COMPLETE))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "verifyComplete: sendErrorCompletionCode failed.");
         }
         return retVal;
     }
     std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
     struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
-    uint8_t compCode = validateVerifyComplete(verifyResult);
-    retVal =
-        encode_verify_complete_resp(msgReq->hdr.instance_id, compCode, msgResp);
+    retVal = encode_verify_complete_resp(msgReq->hdr.instance_id,
+                                         static_cast<uint8_t>(retVal), msgResp);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "VerifyComplete: encode response failed",
-            phosphor::logging::entry("TID=%d", currentTid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("VerifyComplete: encode response failed. RETVAL:" +
+             std::to_string(retVal))
+                .c_str());
         return retVal;
     }
     if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "VerifyComplete: Failed to send PLDM message",
-            phosphor::logging::entry("TID=%d", currentTid));
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "verifyComplete: sendErrorCompletionCode failed.");
         return PLDM_ERROR;
     }
     return PLDM_SUCCESS;
@@ -2660,11 +2684,17 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             retVal = processTransferComplete(fdReq, transferResult);
             if (retVal != PLDM_SUCCESS)
             {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "transferComplete: Failed to run transferComplete command",
-                    phosphor::logging::entry("RETVAL=%d", retVal),
-                    phosphor::logging::entry("COMPONENT=%d", currentComp));
-
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("runUpdate: processTransferComplete failed for "
+                     "COMPONENT: " +
+                     std::to_string(currentComp) +
+                     ".RETVAL: " + std::to_string(retVal))
+                        .c_str());
+                if (doCancelUpdateComponent(yield))
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        "runUpdate: Failed to run CancelUpdateComponent");
+                }
                 compOffset += compSize;
                 continue;
             }
@@ -2690,11 +2720,16 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             if (retVal != PLDM_SUCCESS)
             {
 
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "verifyComplete: Failed to run verifyComplete command",
-                    phosphor::logging::entry("RETVAL=%d", retVal),
-                    phosphor::logging::entry("COMPONENT=%d", currentComp));
-
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("runUpdate: processVerifyComplete failed for COMPONENT: " +
+                     std::to_string(currentComp) +
+                     ".RETVAL: " + std::to_string(retVal))
+                        .c_str());
+                if (doCancelUpdateComponent(yield))
+                {
+                    phosphor::logging::log<phosphor::logging::level::WARNING>(
+                        "runUpdate: Failed to run CancelUpdateComponent");
+                }
                 compOffset += compSize;
                 continue;
             }
