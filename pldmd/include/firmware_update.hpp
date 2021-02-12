@@ -226,7 +226,7 @@ class FWUpdate
                           uint8_t& compCompatabilityResp,
                           uint8_t& compCompatabilityRespCode,
                           bitfield32_t& updateOptFlagsEnabled,
-                          uint16_t& estimatedTimeReqFd, const uint16_t compCnt);
+                          uint16_t& estimatedTimeReqFd);
     int updateComponent(const boost::asio::yield_context& yield,
                         const struct update_component_req& component,
                         variable_field& compVerStr,

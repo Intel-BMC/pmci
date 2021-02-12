@@ -1779,8 +1779,7 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
                                 uint8_t& compCompatabilityResp,
                                 uint8_t& compCompatabilityRespCode,
                                 bitfield32_t& updateOptFlagsEnabled,
-                                uint16_t& estimatedTimeReqFd,
-                                const uint16_t compCnt)
+                                uint16_t& estimatedTimeReqFd)
 {
     if (!updateMode)
     {
@@ -1797,13 +1796,10 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
     {
         return retVal;
     }
-    if (updateProperties.no_of_comp >= 1 &&
-        compCnt + 1 == updateProperties.no_of_comp)
-    {
-        fdState = FD_DOWNLOAD;
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "FD changed state to DOWNLOAD");
-    }
+
+    fdState = FD_DOWNLOAD;
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "FD changed state to DOWNLOAD");
 
     return PLDM_SUCCESS;
 }
@@ -2594,7 +2590,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         retVal =
             doUpdateComponent(yield, component, compImgSetVerStr,
                               compCompatabilityResp, compCompatabilityRespCode,
-                              updateOptFlagsEnabled, estimatedTimeReqFd, count);
+                              updateOptFlagsEnabled, estimatedTimeReqFd);
         if (retVal != PLDM_SUCCESS)
         {
 
