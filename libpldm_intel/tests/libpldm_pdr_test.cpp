@@ -318,21 +318,21 @@ TEST(PDRAccess, testGetNext)
     EXPECT_EQ(pldm_pdr_get_record_count(repo), 4u);
     EXPECT_EQ(pldm_pdr_get_repo_size(repo), sizeof(in2) * 4);
     hdl = pldm_pdr_get_next_record(repo, hdl, &outData, &size, &nextRecHdl);
-    EXPECT_NE(outData, nullptr);
+    ASSERT_NE(outData, nullptr);
     EXPECT_NE(hdl, nullptr);
     EXPECT_EQ(size, sizeof(in2));
     EXPECT_EQ(nextRecHdl, 3u);
     EXPECT_EQ(memcmp(outData, in2.data(), sizeof(in2)), 0);
     outData = nullptr;
     hdl = pldm_pdr_get_next_record(repo, hdl, &outData, &size, &nextRecHdl);
-    EXPECT_NE(outData, nullptr);
+    ASSERT_NE(outData, nullptr);
     EXPECT_NE(hdl, nullptr);
     EXPECT_EQ(size, sizeof(in2));
     EXPECT_EQ(nextRecHdl, 4u);
     EXPECT_EQ(memcmp(outData, in2.data(), sizeof(in2)), 0);
     outData = nullptr;
     hdl = pldm_pdr_get_next_record(repo, hdl, &outData, &size, &nextRecHdl);
-    EXPECT_NE(outData, nullptr);
+    ASSERT_NE(outData, nullptr);
     EXPECT_NE(hdl, nullptr);
     EXPECT_EQ(size, sizeof(in2));
     EXPECT_EQ(nextRecHdl, 0u);
@@ -577,7 +577,7 @@ TEST(EntityAssociationPDR, testBuild)
     pldm_entity* out = nullptr;
     pldm_entity_association_tree_visit(tree, &out, &num);
     EXPECT_EQ(num, 9u);
-    EXPECT_NE(out, nullptr);
+    ASSERT_NE(out, nullptr);
 
     EXPECT_EQ(out[0].entity_type, 1u);
     EXPECT_EQ(out[0].entity_instance_num, 1u);
@@ -631,7 +631,7 @@ TEST(EntityAssociationPDR, testSpecialTrees)
     pldm_entity* out = nullptr;
     pldm_entity_association_tree_visit(tree, &out, &num);
     EXPECT_EQ(num, 1u);
-    EXPECT_NE(out, nullptr);
+    ASSERT_NE(out, nullptr);
     EXPECT_EQ(out[0].entity_type, 1u);
     EXPECT_EQ(out[0].entity_instance_num, 1u);
     EXPECT_EQ(out[0].entity_container_id, 0u);
@@ -651,7 +651,7 @@ TEST(EntityAssociationPDR, testSpecialTrees)
     EXPECT_NE(node, nullptr);
     pldm_entity_association_tree_visit(tree, &out, &num);
     EXPECT_EQ(num, 3u);
-    EXPECT_NE(out, nullptr);
+    ASSERT_NE(out, nullptr);
     EXPECT_EQ(out[0].entity_type, 1u);
     EXPECT_EQ(out[0].entity_instance_num, 1u);
     EXPECT_EQ(out[0].entity_container_id, 0u);
@@ -680,7 +680,7 @@ TEST(EntityAssociationPDR, testSpecialTrees)
         tree, &entities[2], node1, PLDM_ENTITY_ASSOCIAION_PHYSICAL);
     EXPECT_NE(node2, nullptr);
     pldm_entity_association_tree_visit(tree, &out, &num);
-    EXPECT_NE(out, nullptr);
+    ASSERT_NE(out, nullptr);
     EXPECT_EQ(num, 3u);
     EXPECT_EQ(out[0].entity_type, 1u);
     EXPECT_EQ(out[0].entity_instance_num, 1u);
@@ -712,7 +712,7 @@ TEST(EntityAssociationPDR, testSpecialTrees)
     EXPECT_NE(node2, nullptr);
     pldm_entity_association_tree_visit(tree, &out, &num);
     EXPECT_EQ(num, 4u);
-    EXPECT_NE(out, nullptr);
+    ASSERT_NE(out, nullptr);
     EXPECT_EQ(out[0].entity_type, 1u);
     EXPECT_EQ(out[0].entity_instance_num, 1u);
     EXPECT_EQ(out[0].entity_container_id, 0u);
