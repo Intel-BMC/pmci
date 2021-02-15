@@ -123,7 +123,10 @@ void MCTPWrapper::detectMctpEndpointsAsync(StatusCallback&& registerCB)
     boost::asio::spawn(connection->get_io_context(),
                        [&, this](boost::asio::yield_context yield) {
                            auto ec = detectMctpEndpoints(yield);
-                           registerCB(ec, this);
+                           if (registerCB)
+                           {
+                               registerCB(ec, this);
+                           }
                        });
 }
 
@@ -376,7 +379,10 @@ void MCTPWrapper::sendReceiveAsync(ReceiveCallback callback, eid_t dstEId,
             phosphor::logging::entry("EID=%d", dstEId));
         boost::system::error_code ec =
             boost::system::errc::make_error_code(boost::system::errc::io_error);
-        callback(ec, response);
+        if (callback)
+        {
+            callback(ec, response);
+        }
         return;
     }
 
@@ -427,7 +433,10 @@ void MCTPWrapper::sendAsync(const SendCallback& callback, const eid_t dstEId,
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "sendAsync: Eid not found in end point map",
             phosphor::logging::entry("EID=%d", dstEId));
-        callback(ec, -1);
+        if (callback)
+        {
+            callback(ec, -1);
+        }
         return;
     }
 
