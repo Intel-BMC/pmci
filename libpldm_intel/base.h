@@ -155,8 +155,8 @@ struct pldm_cc_only_rsp {
  */
 struct pldm_get_types_resp {
 	uint8_t completion_code; //!< completion code
-	bitfield8_t types[8]; //!< each bit represents whether a given PLDM Type
-			      //!< is supported
+	// Each bit represents whether a given PLDM type is supported
+	bitfield8_t types[PLDM_MAX_TYPES / 8];
 } __attribute__((packed));
 
 /** @struct pldm_get_commands_req

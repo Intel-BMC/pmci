@@ -229,7 +229,7 @@ int decode_get_types_resp(const struct pldm_msg *msg, size_t payload_length,
 	struct pldm_get_types_resp *response =
 	    (struct pldm_get_types_resp *)msg->payload;
 
-	memcpy(&(types->byte), response->types, PLDM_MAX_TYPES / 8);
+	memcpy(types, response->types, PLDM_MAX_TYPES / 8);
 
 	return PLDM_SUCCESS;
 }
