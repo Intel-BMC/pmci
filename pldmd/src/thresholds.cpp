@@ -20,8 +20,6 @@
 
 #include <phosphor-logging/log.hpp>
 
-static constexpr bool debug = false;
-
 namespace thresholds
 {
 
@@ -141,7 +139,7 @@ static std::vector<ChangeParam> checkThresholds(NumericSensor& sensor,
         }
     }
 
-    if constexpr (debug)
+    if (debug)
     {
         // Throttle debug output, so that it does not continuously spam
         ++cDebugThrottle;

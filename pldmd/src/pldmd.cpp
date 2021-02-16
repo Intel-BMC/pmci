@@ -24,6 +24,7 @@
 
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
+bool debug = false;
 
 // TODO. Expose these functions from header files
 namespace pldm::fru
@@ -596,6 +597,20 @@ void onDeviceUpdate(void*, const mctpw::Event& evt,
     return;
 }
 
+void enableDebug()
+{
+    if (auto envPtr = std::getenv("PLDM_DEBUG"))
+    {
+        std::string value(envPtr);
+        if (value == "1")
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "PLDM debug enabled");
+            debug = true;
+        }
+    }
+}
+
 int main(void)
 {
     auto ioc = std::make_shared<boost::asio::io_context>();
@@ -619,6 +634,8 @@ int main(void)
 
     auto objManager =
         std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
+
+    enableDebug();
 
     // TODO - Read from entity manager about the transport bindings to be
     // supported by PLDM

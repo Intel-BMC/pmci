@@ -304,6 +304,35 @@ void resumeSensorPolling()
         "Sensor polling resumed");
 }
 
+void initializeSensorPollIntf()
+{
+    static std::unique_ptr<sdbusplus::asio::dbus_interface> pausePollInterface =
+        nullptr;
+    if (pausePollInterface != nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "pausePollInterface already initialized");
+        return;
+    }
+
+    const char* objPath = "/xyz/openbmc_project/sensors";
+    auto objServer = getObjServer();
+    pausePollInterface = objServer->add_unique_interface(
+        objPath, "xyz.openbmc_project.PLDM.SensorPoll");
+    pausePollInterface->register_method("PauseSensorPoll",
+                                        [](const bool pause) {
+                                            if (pause)
+                                            {
+                                                pauseSensorPolling();
+                                            }
+                                            else
+                                            {
+                                                resumeSensorPolling();
+                                            }
+                                        });
+    pausePollInterface->initialize();
+}
+
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const pldm::base::CommandSupportTable& /*commandTable*/)
 {
@@ -323,6 +352,11 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
 
     initEffecters(yield, tid);
 
+    if (debug)
+    {
+        initializeSensorPollIntf();
+    }
+
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Platform Monitoring and Control initialisation success",
         phosphor::logging::entry("TID=%d", tid));
@@ -336,7 +370,8 @@ bool deleteMnCTerminus(const pldm_tid_t tid)
     if (entry == platforms.end())
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("No Platform Monitoring and Control resources related to TID " +
+            ("No Platform Monitoring and Control resources related to "
+             "TID " +
              std::to_string(tid))
                 .c_str());
         return false;
