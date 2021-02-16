@@ -1789,19 +1789,9 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
     {
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal = updateComponent(
-        yield, component, compVerStr, compCompatabilityResp,
-        compCompatabilityRespCode, updateOptFlagsEnabled, estimatedTimeReqFd);
-    if (retVal != PLDM_SUCCESS)
-    {
-        return retVal;
-    }
-
-    fdState = FD_DOWNLOAD;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to DOWNLOAD");
-
-    return PLDM_SUCCESS;
+    return updateComponent(yield, component, compVerStr, compCompatabilityResp,
+                           compCompatabilityRespCode, updateOptFlagsEnabled,
+                           estimatedTimeReqFd);
 }
 
 int FWUpdate::updateComponent(const boost::asio::yield_context& yield,
@@ -2606,22 +2596,26 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             compOffset += compSize;
             continue;
         }
-        if (compCompatabilityResp != 0)
+        if (compCompatabilityResp != COMPONENT_CAN_BE_UPDATED)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("Component will not be updated, "
-                 "ComponentCompatibilityResponse Code: " +
+                ("Component will not be updated for component: " +
+                 std::to_string(count + 1) +
+                 " ,ComponentCompatibilityResponse Code: " +
                  std::to_string(compCompatabilityRespCode))
                     .c_str());
             compOffset += compSize;
-            fdState = FD_READY_XFER;
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "FD changed state to READY XFER");
             continue;
         }
 
+        fdState = FD_DOWNLOAD;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "UpdateComponent command is success");
+            "FD changed state to DOWNLOAD");
+
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("UpdateComponent command is success for component: " +
+             std::to_string(count + 1))
+                .c_str());
 
         if (!reserveBandwidth(yield, currentTid, PLDM_FWU, reserveEidTimeOut))
         {
