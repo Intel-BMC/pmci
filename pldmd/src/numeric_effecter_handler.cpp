@@ -317,20 +317,12 @@ static std::optional<size_t> getEffecterValueSize(const uint8_t dataSize)
 bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
                                          double& value)
 {
-    int rc;
-
-    std::optional<size_t> dataSize =
-        getEffecterValueSize(_pdr.effecter_data_size);
-    if (dataSize == std::nullopt)
+    if (value < minSettable || value > maxSettable)
     {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid effecter value");
         return false;
     }
-    // pldm_set_numeric_effecter_value_req already have a effecter_value[1]
-    // Hence subtract `sizeof(uint8_t)` from the whole size
-    size_t payloadLength = sizeof(pldm_set_numeric_effecter_value_req) -
-                           sizeof(uint8_t) + *dataSize;
-    std::vector<uint8_t> req(pldmMsgHdrSize + payloadLength);
-    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
 
     std::optional<double> settableValue =
         pdr::effecter::calculateSettableEffecterValue(_pdr, value);
@@ -341,21 +333,33 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
         return false;
     }
 
-    // Largest settable value for an effecter is 4 bytes in length.
-    double largestSettable = std::numeric_limits<float>::max();
-    double smallestSettable = std::numeric_limits<float>::min();
-    if (*settableValue > largestSettable || *settableValue < smallestSettable ||
-        *settableValue < minSettable || *settableValue > maxSettable)
+    std::optional<union_effecter_data_size> effecterValue =
+        pdr::effecter::formatSettableEffecterValue(_pdr, *settableValue);
+    if (effecterValue == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Invalid effecter value");
+            "Effecter value formatting failed. Invalid effecter value");
         return false;
     }
 
-    real32_t effecterValue = static_cast<real32_t>(*settableValue);
+    std::optional<size_t> dataSize =
+        getEffecterValueSize(_pdr.effecter_data_size);
+    if (dataSize == std::nullopt)
+    {
+        return false;
+    }
+
+    // pldm_set_numeric_effecter_value_req already have a effecter_value[1]
+    // Hence subtract `sizeof(uint8_t)` from the whole size
+    size_t payloadLength = sizeof(pldm_set_numeric_effecter_value_req) -
+                           sizeof(uint8_t) + *dataSize;
+    std::vector<uint8_t> req(pldmMsgHdrSize + payloadLength);
+    pldm_msg* reqMsg = reinterpret_cast<pldm_msg*>(req.data());
+
+    int rc;
     rc = encode_set_numeric_effecter_value_req(
         createInstanceId(_tid), _effecterID, _pdr.effecter_data_size,
-        reinterpret_cast<uint8_t*>(&effecterValue), reqMsg, payloadLength);
+        reinterpret_cast<uint8_t*>(&(*effecterValue)), reqMsg, payloadLength);
     if (!validatePLDMReqEncode(_tid, rc, "SetNumericEffecterValue"))
     {
         return false;

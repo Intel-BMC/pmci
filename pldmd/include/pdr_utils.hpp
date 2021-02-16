@@ -61,6 +61,12 @@ std::optional<double>
     calculateSettableEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,
                                    const double& value);
 
+/** @brief Encode the value as per effecterValue in SetNumericEffecterValue
+ * command*/
+std::optional<union_effecter_data_size>
+    formatSettableEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,
+                                const double value);
+
 /** @brief Fetch the effecter value as per data size*/
 std::optional<float>
     fetchEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,

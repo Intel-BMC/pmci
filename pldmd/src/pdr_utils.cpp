@@ -186,18 +186,67 @@ std::optional<double>
     // from the PDR for the numeric effecter
     //  There for: m = (Y - B) / m
 
-    if (!pdr.resolution)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Invalid resolution");
-        return std::nullopt;
-    }
-    double effecterReading = std::round(
-        (extractUnitModifiers(pdr, value) - static_cast<double>(pdr.offset)) /
-        static_cast<double>(pdr.resolution));
+    double resolution =
+        std::isnan(pdr.resolution) ? 1 : static_cast<double>(pdr.resolution);
+    double offset =
+        std::isnan(pdr.offset) ? 0 : static_cast<double>(pdr.offset);
+    double effecterReading =
+        std::round((extractUnitModifiers(pdr, value) - offset) / resolution);
     return effecterReading;
 
     // Note:- Accuracy and Tolerance is not handled
+}
+
+template <class T>
+T verifiedCast(const double value)
+{
+    if (value < std::numeric_limits<T>::min() ||
+        value > std::numeric_limits<T>::max())
+    {
+        throw std::runtime_error("Value out of range");
+    }
+    return static_cast<T>(value);
+}
+
+std::optional<union_effecter_data_size>
+    formatSettableEffecterValue(const pldm_numeric_effecter_value_pdr& pdr,
+                                const double value)
+{
+    union_effecter_data_size formattedValue;
+    try
+    {
+        switch (pdr.effecter_data_size)
+        {
+            case PLDM_EFFECTER_DATA_SIZE_UINT8:
+                formattedValue.value_u8 = verifiedCast<uint8_t>(value);
+                break;
+            case PLDM_EFFECTER_DATA_SIZE_SINT8:
+                formattedValue.value_s8 = verifiedCast<int8_t>(value);
+                break;
+            case PLDM_EFFECTER_DATA_SIZE_UINT16:
+                formattedValue.value_u16 = verifiedCast<uint16_t>(value);
+                break;
+            case PLDM_EFFECTER_DATA_SIZE_SINT16:
+                formattedValue.value_s16 = verifiedCast<int16_t>(value);
+                break;
+            case PLDM_EFFECTER_DATA_SIZE_UINT32:
+                formattedValue.value_u32 = verifiedCast<uint32_t>(value);
+                break;
+            case PLDM_EFFECTER_DATA_SIZE_SINT32:
+                formattedValue.value_s32 = verifiedCast<int32_t>(value);
+                break;
+            default:
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Effecter data size not recognized");
+                return std::nullopt;
+        }
+        return formattedValue;
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
+        return std::nullopt;
+    }
 }
 
 // Fetch the effecter value as per data size
