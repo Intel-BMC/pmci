@@ -74,7 +74,7 @@ class PCIeBinding : public MctpBinding,
     boost::posix_time::seconds getRoutingInterval;
     boost::asio::deadline_timer getRoutingTableTimer;
     std::vector<routingTableEntry_t> routingTable;
-    bool endpointDiscoveryFlow();
+    void endpointDiscoveryFlow();
     void updateRoutingTable();
     void processRoutingTableChanges(
         const std::vector<routingTableEntry_t>& newTable,

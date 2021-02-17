@@ -51,7 +51,7 @@ PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
     }
 }
 
-bool PCIeBinding::endpointDiscoveryFlow()
+void PCIeBinding::endpointDiscoveryFlow()
 {
     struct mctp_astpcie_pkt_private pktPrv;
     pktPrv.routing = PCIE_ROUTE_TO_RC;
@@ -64,13 +64,10 @@ bool PCIeBinding::endpointDiscoveryFlow()
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
         if (!discoveryNotifyCtrlCmd(yield, prvData, MCTP_EID_NULL))
         {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
+            phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Discovery Notify failed");
-            return false;
         }
-        return true;
     });
-    return false;
 }
 
 mctp_server::BindingModeTypes
@@ -461,13 +458,7 @@ void PCIeBinding::initializeBinding()
 
     if (bindingModeType == mctp_server::BindingModeTypes::Endpoint)
     {
-        boost::asio::post(io, [this]() {
-            if (!endpointDiscoveryFlow())
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Send Discovery Notify Error");
-            }
-        });
+        endpointDiscoveryFlow();
     }
 
     if (hw->getBdf(bdf))
