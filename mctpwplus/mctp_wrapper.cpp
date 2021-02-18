@@ -172,12 +172,6 @@ boost::system::error_code
 
     endpointMap = buildMatchingEndpointMap(yield, bus_vector.value());
 
-    // No need to register for dbus signal multiple times. This method may
-    // be called again from reconfiguration callbacks
-    if (!matchers.empty())
-    {
-        return ec;
-    }
     for (auto& [busId, serviceName] : bus_vector.value())
     {
         registerListeners(serviceName);
