@@ -56,42 +56,38 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
 
     void discoveryFlow()
     {
+        auto notifyCalled = makePromise<void>();
+        binding->backdoor.onOutgoingCtrlCommand(
+            MCTP_CTRL_CMD_DISCOVERY_NOTIFY, [&]() {
+                sendCtrlResponseAsync<mctp_ctrl_resp_discovery_notify>(
+                    mctp_astpcie_pkt_private{PCIE_ROUTE_TO_RC, 0},
+                    [](auto& payload) {
+                        payload.completion_code = MCTP_CTRL_CC_SUCCESS;
+                    });
+                notifyCalled.promise.set_value();
+            });
+        waitFor(notifyCalled.future);
+
         schedule([&]() {
-            auto response =
-                binding->backdoor
-                    .prepareCtrlResponse<mctp_ctrl_resp_discovery_notify>(
-                        mctp_astpcie_pkt_private{PCIE_ROUTE_TO_RC, 0});
-            response.payload->completion_code = MCTP_CTRL_CC_SUCCESS;
-            binding->backdoor.rx(response);
+            sendCtrlRequestAsync<mctp_ctrl_msg_hdr>(
+                MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY, {0, 0},
+                {PCIE_BROADCAST_FROM_RC, busOwnerBdf});
         });
 
         schedule([&]() {
-            auto request =
-                binding->backdoor.prepareCtrlRequest<mctp_ctrl_msg_hdr>(
-                    MCTP_CTRL_CMD_PREPARE_ENDPOINT_DISCOVERY, {0, 0},
-                    {PCIE_BROADCAST_FROM_RC, busOwnerBdf});
-            binding->backdoor.rx(request);
-        });
-
-        auto sendDiscovery = makePromise<mctp_ctrl_resp_endpoint_discovery>();
-        schedule([&]() {
-            auto request =
-                binding->backdoor.prepareCtrlRequest<mctp_ctrl_msg_hdr>(
-                    MCTP_CTRL_CMD_ENDPOINT_DISCOVERY, {0, 0},
-                    {PCIE_BROADCAST_FROM_RC, busOwnerBdf});
-            binding->backdoor.rx(request);
+            sendCtrlRequestAsync<mctp_ctrl_msg_hdr>(
+                MCTP_CTRL_CMD_ENDPOINT_DISCOVERY, {0, 0},
+                {PCIE_BROADCAST_FROM_RC, busOwnerBdf});
         });
 
         auto discoveryDone = makePromise<void>();
         schedule([&]() {
-            auto request =
-                binding->backdoor.prepareCtrlRequest<mctp_ctrl_cmd_set_eid>(
-                    MCTP_CTRL_CMD_SET_ENDPOINT_ID, {0, 0},
-                    {PCIE_ROUTE_BY_ID, busOwnerBdf});
-            request.payload->eid = assignedEid;
-            request.payload->operation = set_eid;
-            binding->backdoor.rx(request);
-
+            sendCtrlRequestAsync<mctp_ctrl_cmd_set_eid>(
+                MCTP_CTRL_CMD_SET_ENDPOINT_ID, {0, 0},
+                {PCIE_ROUTE_BY_ID, busOwnerBdf}, [&](auto& payload) {
+                    payload.eid = assignedEid;
+                    payload.operation = set_eid;
+                });
             discoveryDone.promise.set_value();
         });
 
@@ -115,36 +111,36 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
                     sizeof(mctp_ctrl_resp_get_routing_table_entry) *
                     ENDPOINT_COUNT;
 
-                auto response =
-                    binding->backdoor
-                        .prepareCtrlResponse<mctp_ctrl_resp_get_routing_table>(
-                            {}, TABLE_SIZE);
+                sendCtrlResponseAsync<mctp_ctrl_resp_get_routing_table>(
+                    [&](auto& payload) {
+                        payload.completion_code = MCTP_CTRL_CC_SUCCESS;
+                        payload.number_of_entries = ENDPOINT_COUNT;
+                        payload.next_entry_handle = 0xff;
 
-                response.payload->completion_code = MCTP_CTRL_CC_SUCCESS;
-                response.payload->number_of_entries = ENDPOINT_COUNT;
-                response.payload->next_entry_handle = 0xff;
+                        auto populateEntry =
+                            [&](const RoutingTableParam& params,
+                                mctp_ctrl_resp_get_routing_table_entry&
+                                    tableEntry) {
+                                auto& entry = tableEntry.entry;
+                                entry.phys_address_size =
+                                    sizeof(tableEntry.bdf);
+                                entry.phys_transport_binding_id =
+                                    MCTP_BINDING_PCIE;
+                                entry.eid_range_size = 1;
 
-                auto populateEntry =
-                    [&](const RoutingTableParam& params,
-                        mctp_ctrl_resp_get_routing_table_entry& tableEntry) {
-                        auto& entry = tableEntry.entry;
-                        entry.phys_address_size = sizeof(tableEntry.bdf);
-                        entry.phys_transport_binding_id = MCTP_BINDING_PCIE;
-                        entry.eid_range_size = 1;
+                                tableEntry.bdf = htobe16(params.bdf);
+                                entry.starting_eid = params.eid;
+                                entry.entry_type = params.entryTypesMask;
+                            };
 
-                        tableEntry.bdf = htobe16(params.bdf);
-                        entry.starting_eid = params.eid;
-                        entry.entry_type = params.entryTypesMask;
-                    };
-
-                mctp_ctrl_resp_get_routing_table_entry* ptrEntryDest =
-                    getEntryArray(response.payload);
-                for (const RoutingTableParam& entrySrc : entries)
-                {
-                    populateEntry(entrySrc, *ptrEntryDest++);
-                }
-
-                binding->backdoor.rx(response);
+                        mctp_ctrl_resp_get_routing_table_entry* ptrEntryDest =
+                            getEntryArray(&payload);
+                        for (const RoutingTableParam& entrySrc : entries)
+                        {
+                            populateEntry(entrySrc, *ptrEntryDest++);
+                        }
+                    },
+                    TABLE_SIZE);
             });
     }
 
@@ -158,19 +154,18 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
                 const size_t TABLE_SIZE =
                     sizeof(msg_type_entry) * MSG_TYPE_COUNT;
 
-                auto response = binding->backdoor.prepareCtrlResponse<
-                    mctp_ctrl_resp_get_msg_type_support>({}, TABLE_SIZE);
+                sendCtrlResponseAsync<mctp_ctrl_resp_get_msg_type_support>(
+                    [&](auto& payload) {
+                        payload.completion_code = MCTP_CTRL_CC_SUCCESS;
+                        payload.msg_type_count = MSG_TYPE_COUNT;
 
-                response.payload->completion_code = MCTP_CTRL_CC_SUCCESS;
-                response.payload->msg_type_count = MSG_TYPE_COUNT;
-
-                msg_type_entry* ptrTypeDest = getTypeArray(response.payload);
-                for (const uint8_t typeSrc : types)
-                {
-                    *ptrTypeDest++ = msg_type_entry{typeSrc};
-                }
-
-                binding->backdoor.rx(response);
+                        msg_type_entry* ptrTypeDest = getTypeArray(&payload);
+                        for (const uint8_t typeSrc : types)
+                        {
+                            *ptrTypeDest++ = msg_type_entry{typeSrc};
+                        }
+                    },
+                    TABLE_SIZE);
             });
     }
 
@@ -178,16 +173,13 @@ class PCIeDiscoveredTestBase : public PCIeTestBase, public MessageHelpers
     {
         binding->backdoor.onOutgoingCtrlCommand(
             MCTP_CTRL_CMD_GET_ENDPOINT_UUID, eid, [this, uuidStr]() {
-                auto response =
-                    binding->backdoor
-                        .prepareCtrlResponse<mctp_ctrl_resp_get_uuid>();
-
-                boost::uuids::uuid uuid =
-                    boost::lexical_cast<boost::uuids::uuid>(uuidStr);
-                response.payload->completion_code = MCTP_CTRL_CC_SUCCESS;
-                response.payload->uuid = *reinterpret_cast<guid_t*>(&uuid.data);
-
-                binding->backdoor.rx(response);
+                sendCtrlResponseAsync<mctp_ctrl_resp_get_uuid>(
+                    [&](auto& payload) {
+                        boost::uuids::uuid uuid =
+                            boost::lexical_cast<boost::uuids::uuid>(uuidStr);
+                        payload.completion_code = MCTP_CTRL_CC_SUCCESS;
+                        payload.uuid = *reinterpret_cast<guid_t*>(&uuid.data);
+                    });
             });
     }
 };

@@ -124,8 +124,14 @@ install(FILES ${CONFIG_FILES} DESTINATION /usr/share/mctp/)
 if(${MCTPD_BUILD_UT})
   include(CTest)
 
-  set(SRC src/SMBusBinding.cpp src/MCTPBinding.cpp src/utils/Configuration.cpp)
-  set(TEST_FILES tests/test-mctpd.cpp tests/test-binding.cpp)
+  set(SRC
+      src/PCIeBinding.cpp src/SMBusBinding.cpp src/MCTPBinding.cpp
+      src/hw/DeviceMonitor.cpp src/hw/PCIeDriver.cpp
+      src/utils/Configuration.cpp)
+
+  set(TEST_FILES
+      tests/test-mctpd.cpp tests/test-binding.cpp
+      tests/test-pcie_binding-devices.cpp tests/test-pcie_binding-discovery.cpp)
 
   enable_testing()
 

@@ -45,6 +45,130 @@ class PCIeTestBase : public AsyncTestBase
         return std::make_pair(iface, async);
     }
 
+    auto observeAnyInterfaceRemoved()
+    {
+        using ::testing::_;
+
+        auto async = makePromise<void>();
+        EXPECT_CALL(*bus, remove_interface(_))
+            .WillOnce([&](auto& interface) {
+                async.promise.set_value();
+                return bus->backdoor.remove_interface(interface->path,
+                                                      interface->name);
+            })
+            .WillRepeatedly([&](auto& interface) {
+                return bus->backdoor.remove_interface(interface->path,
+                                                      interface->name);
+            });
+
+        return async;
+    }
+
+    template <typename Payload>
+    void sendCtrlRequestAsync(const uint8_t command,
+                              TestPCIeBinding::Backdoor::Route route,
+                              const TestPCIeBinding::PrvDataType& prvData = {},
+                              std::function<void(Payload&)>&& setup = nullptr,
+                              const size_t padding = 0)
+    {
+        auto request = binding->backdoor.prepareCtrlRequest<Payload>(
+            command, route, prvData, padding);
+
+        if (setup)
+        {
+            setup(*request.payload);
+        }
+
+        binding->backdoor.rx(request);
+    }
+
+    template <typename Payload>
+    void sendCtrlRequest(const uint8_t command,
+                         TestPCIeBinding::Backdoor::Route route,
+                         const TestPCIeBinding::PrvDataType& prvData = {},
+                         std::function<void(Payload&)>&& setup = nullptr,
+                         const size_t padding = 0)
+    {
+        auto async = makePromise<void>();
+        binding->backdoor.onOutgoingCtrlCommand(
+            command, [&]() { async.promise.set_value(); });
+        sendCtrlRequestAsync(command, route, prvData, std::move(setup),
+                             padding);
+        try
+        {
+            waitFor(async.future);
+        }
+        catch (timeout_occurred& e)
+        {
+            throw timeout_occurred(
+                "Timeout while waiting for response to command: " +
+                std::to_string(command));
+        }
+    }
+
+    template <typename Payload, typename ResponsePayload>
+    ResponsePayload
+        sendCtrlRequest(const uint8_t command,
+                        TestPCIeBinding::Backdoor::Route route,
+                        const TestPCIeBinding::PrvDataType& prvData = {},
+                        std::function<void(Payload&)>&& setup = nullptr,
+                        const size_t padding = 0)
+    {
+        auto async = makePromise<ResponsePayload>();
+        binding->backdoor.onOutgoingCtrlCommand(command, [&]() {
+            async.promise.set_value(lastOutgoingPayload<ResponsePayload>());
+        });
+        sendCtrlRequestAsync(command, route, prvData, std::move(setup),
+                             padding);
+        try
+        {
+            return waitFor(async.future);
+        }
+        catch (timeout_occurred& e)
+        {
+            throw timeout_occurred(
+                "Timeout while waiting for response to command: " +
+                std::to_string(command));
+        }
+    }
+
+    template <typename Payload>
+    void sendCtrlResponseAsync(const TestPCIeBinding::PrvDataType& prvData = {},
+                               std::function<void(Payload&)>&& setup = nullptr,
+                               const size_t padding = 0)
+    {
+        auto response =
+            binding->backdoor.prepareCtrlResponse<Payload>(prvData, padding);
+
+        if (setup)
+        {
+            setup(*response.payload);
+        }
+
+        binding->backdoor.rx(response);
+    }
+
+    template <typename Payload>
+    void sendCtrlResponseAsync(std::function<void(Payload&)>&& setup = nullptr,
+                               const size_t padding = 0)
+    {
+        sendCtrlResponseAsync<Payload>({}, std::move(setup), padding);
+    }
+
+    template <typename T>
+    T lastOutgoingPayload()
+    {
+        auto frame = binding->backdoor.lastOutgoingMessage<T>();
+        return *frame.payload;
+    }
+
+    template <typename T>
+    TestPCIeBinding::BindingIO<T> lastOutgoingFrame()
+    {
+        auto frame = binding->backdoor.lastOutgoingMessage<T>();
+        return frame;
+    }
+
     PcieConfiguration config{};
     std::shared_ptr<TestPCIeBinding> binding;
 
