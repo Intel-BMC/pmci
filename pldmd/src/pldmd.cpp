@@ -15,6 +15,7 @@
 */
 
 #include "base.hpp"
+#include "mctp_wrapper.hpp"
 #include "platform.hpp"
 #include "pldm.hpp"
 #include "utils.hpp"
@@ -122,6 +123,7 @@ bool releaseBandwidth(const boost::asio::yield_context& yield,
     reservedPLDMType = pldmInvalidType;
     return true;
 }
+std::unique_ptr<mctpw::MCTPWrapper> mctpWrapper;
 
 std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
 {
@@ -587,6 +589,35 @@ extern void
 extern void setObjServer(
     const std::shared_ptr<sdbusplus::asio::object_server>& newServer);
 
+void onDeviceUpdate(void*, const mctpw::Event& evt,
+                    boost::asio::yield_context& yield)
+{
+    switch (evt.type)
+    {
+        case mctpw::Event::EventType::deviceAdded: {
+            pldm::platform::pauseSensorPolling();
+            initDevice(evt.eid, yield);
+            pldm::platform::resumeSensorPolling();
+            break;
+        }
+        case mctpw::Event::EventType::deviceRemoved: {
+            auto tid = pldm::getTidFromMapper(evt.eid);
+            if (tid)
+            {
+                deleteDevice(tid.value());
+            }
+            break;
+        }
+        default:
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Unsupported event type in onDeviceUpdate",
+                phosphor::logging::entry("TYPE=%d",
+                                         static_cast<int>(evt.type)));
+            break;
+    }
+    return;
+}
+
 int main(void)
 {
     auto ioc = std::make_shared<boost::asio::io_context>();
@@ -614,20 +645,26 @@ int main(void)
     // Register for PLDM message signals
     pldm::pldmMsgRecvCallbackInit();
 
-    // TODO: List Endpoints that support registered PLDM message type
+    // TODO - Read from entity manager about the transport bindings to be
+    // supported by PLDM
+    mctpw::MCTPConfiguration config(mctpw::MessageType::pldm,
+                                    mctpw::BindingType::mctpOverSmBus);
 
-    // Using dummy EID exposed by emulator until the discovery is implemented
-    mctpw_eid_t dummyEid = 20;
-
-    // TODO: Assign TID and find supported PLDM type and execute
-    // corresponding init methods
+    pldm::mctpWrapper = std::make_unique<mctpw::MCTPWrapper>(
+        conn, config, onDeviceUpdate, nullptr);
 
     // Create yield context for each new TID and pass to the Init methods
-    boost::asio::spawn(*ioc, [&dummyEid](boost::asio::yield_context yield) {
-        pldm::platform::pauseSensorPolling();
-        initDevice(dummyEid, yield);
-        pldm::platform::resumeSensorPolling();
+    boost::asio::spawn(*ioc, [](boost::asio::yield_context yield) {
+        pldm::mctpWrapper->detectMctpEndpoints(yield);
+        auto& eidMap = pldm::mctpWrapper->getEndpointMap();
+        for (auto& [eid, service] : eidMap)
+        {
+            pldm::platform::pauseSensorPolling();
+            initDevice(eid, yield);
+            pldm::platform::resumeSensorPolling();
+        }
     });
+
     ioc->run();
 
     return 0;
