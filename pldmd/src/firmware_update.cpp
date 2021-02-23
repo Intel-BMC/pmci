@@ -2459,7 +2459,7 @@ constexpr uint32_t convertSecondsToMilliseconds(const uint16_t seconds)
 
 boost::system::error_code
     FWUpdate::startTimer(const boost::asio::yield_context& yield,
-                         const uint16_t interval)
+                         const uint32_t interval)
 {
     boost::system::error_code ec;
     expectedCommandTimer->expires_after(std::chrono::milliseconds(interval));
@@ -2639,7 +2639,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         int prevProgress = 0;
         while (--maxNumReq)
         {
-            startTimer(yield, fdCmdTimeout);
+            startTimer(yield, requestFirmwareDataIdleTimeoutMs);
             if (!fdReqMatched)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(

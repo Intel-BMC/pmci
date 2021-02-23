@@ -190,7 +190,7 @@ class FWUpdate
     bool isComponentApplicable();
     boost::system::error_code
         startTimer(const boost::asio::yield_context& yield,
-                   const uint16_t interval);
+                   const uint32_t interval);
     uint64_t getApplicableComponents();
 
     int doRequestUpdate(const boost::asio::yield_context& yield,
@@ -297,6 +297,9 @@ class FWUpdate
     uint8_t currentDeviceIDRecord;
     const uint16_t timeout = 100;
     const uint16_t fdCmdTimeout = 5000;
+    // Time in milliseconds for the update agent to wait for request firmware
+    // data command
+    const uint32_t requestFirmwareDataIdleTimeoutMs = 90000;
     const uint16_t reserveEidTimeOut = 900;
     const size_t retryCount = 3;
     const uint16_t delayBtw = 500;
