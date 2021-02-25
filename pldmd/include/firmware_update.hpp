@@ -13,46 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
+
+#include "fwu_utils.hpp"
+
 #include <boost/asio/steady_timer.hpp>
 #include <fstream>
 #include <sdbusplus/asio/object_server.hpp>
-#include <vector>
+
+#include "firmware_update.h"
 
 namespace pldm
 {
 namespace fwu
 {
-using FWUVariantType = std::variant<uint8_t, uint16_t, uint32_t, uint64_t,
-                                    std::string, std::vector<uint8_t>>;
-using FWUProperties = std::map<std::string, FWUVariantType>;
-using DescriptorsMap = std::map<std::string, std::string>;
-using DevIDRecordsMap =
-    std::map<uint8_t, std::pair<FWUProperties, DescriptorsMap>>;
-using CompPropertiesMap = std::map<uint16_t, FWUProperties>;
-using FDProperties =
-    std::tuple<FWUProperties, DescriptorsMap, CompPropertiesMap>;
 constexpr size_t pkgHeaderIdentifierSize = 16;
-
-enum class DescriptorIdentifierType : uint16_t
-{
-    pciVendorID = 0,
-    ianaEnterpriseID = 1,
-    uuid = 2,
-    pnpVendorID = 3,
-    acpiVendorID = 4,
-    pciDeviceID = 0x0100,
-    pciSubsystemVendorID = 0x0101,
-    pciSubsystemID = 0x0102,
-    pciRevisionID = 0x0103,
-    pnpProductIdentifier = 0x0104,
-    acpiProductIdentifier = 0x0105
-};
-
-struct DescriptorHeader
-{
-    DescriptorIdentifierType type;
-    uint16_t size;
-};
 
 struct PLDMPkgHeaderInfo
 {
@@ -91,94 +66,10 @@ struct CompImgInfo
     uint8_t compVerStrLen;
 } __attribute__((packed));
 
-class FWInventoryInfo
-{
-  public:
-    FWInventoryInfo() = delete;
-    FWInventoryInfo(const pldm_tid_t _tid);
-    ~FWInventoryInfo();
-
-    /** @brief runs inventory commands
-     */
-    std::optional<FDProperties>
-        runInventoryCommands(boost::asio::yield_context yield);
-    /** @brief API that adds inventory info to D-Bus
-     */
-    void addInventoryInfoToDBus();
-
-  private:
-    /** @brief run query device identifiers command
-     * @return PLDM_SUCCESS on success and corresponding error completion code
-     * on failure
-     */
-    int runQueryDeviceIdentifiers(boost::asio::yield_context yield);
-
-    /** @brief run get firmware parameters command
-     * @return PLDM_SUCCESS on success and corresponding error completion code
-     * on failure
-     */
-    int runGetFirmwareParameters(boost::asio::yield_context yield);
-
-    /** @brief API that unpacks get firmware parameters component data.
-     */
-    void unpackCompData(const uint16_t count,
-                        const std::vector<uint8_t>& compData);
-
-    /** @brief API that copies get firmware parameters component image set data
-     * to fwuProperties map.
-     */
-    void copyCompImgSetData(
-        const struct get_firmware_parameters_resp& respData,
-        const struct variable_field& activeCompImgSetVerStr,
-        const struct variable_field& pendingCompImgSetVerStr);
-
-    /** @brief API that copies get firmware parameters component data to
-     * fwuProperties map.
-     */
-    void copyCompData(const uint16_t count,
-                      const struct component_parameter_table* componentData,
-                      struct variable_field* activeCompVerStr,
-                      struct variable_field* pendingCompVerStr);
-    /** @brief API that adds component image set info to D-Bus
-     */
-    void addCompImgSetDataToDBus();
-
-    /** @brief API that adds descriptor data to D-Bus
-     */
-    void addDescriptorsToDBus();
-
-    /** @brief API that adds component info to D-Bus
-     */
-    void addCompDataToDBus();
-
-    /** @brief API that adds pci descriptors to D-Bus
-     */
-    void addPCIDescriptorsToDBus(const std::string& objPath);
-
-    /** @brief API that gets auto apply property
-     */
-    bool getCompAutoApply(const uint32_t capabilitiesDuringUpdate);
-
-    pldm_tid_t tid;
-    std::shared_ptr<sdbusplus::asio::object_server> objServer;
-    const uint16_t timeout = 100;
-    const size_t retryCount = 3;
-    // map that holds the component properties of a terminus
-    CompPropertiesMap compPropertiesMap;
-    // map that holds the general properties of a terminus
-    FWUProperties fwuProperties;
-    // map that holds the descriptors of a terminus
-    DescriptorsMap descriptors;
-    uint16_t initialDescriptorType;
-    std::string activeCompImgSetVerStr;
-    std::string pendingCompImgSetVerStr;
-};
-
 class FWUpdate
 {
   public:
     FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord);
-    ~FWUpdate();
     int runUpdate(const boost::asio::yield_context& yield);
     void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t messageTag,
                                 const bool _tagOwner,
@@ -191,6 +82,10 @@ class FWUpdate
     boost::system::error_code
         startTimer(const boost::asio::yield_context& yield,
                    const uint32_t interval);
+    uint32_t findMaxNumReq(const uint32_t size)
+    {
+        return (1 + (size / PLDM_FWU_BASELINE_TRANSFER_SIZE)) * 3;
+    }
     uint64_t getApplicableComponents();
 
     int doRequestUpdate(const boost::asio::yield_context& yield,
@@ -366,19 +261,20 @@ class PLDMImg
     bool getDevIdRcrdProperty(T& value, const std::string& name,
                               uint8_t recordCount);
 
-    /** @brief API that runs PLDM firmware package update
-     */
-    int runPkgUpdate(const boost::asio::yield_context& yield);
-    std::unique_ptr<FWUpdate> fwUpdate;
     /** @brief API that is used to read raw bytes from pldm firmware update
      * image
      */
     bool readData(const size_t startAddr, std::vector<uint8_t>& data,
                   const size_t dataLen);
+
     constexpr uint32_t getImagesize()
     {
         return static_cast<uint32_t>(pldmImgSize);
     };
+    std::vector<std::pair<uint8_t, pldm_tid_t>> getMatchedTermini()
+    {
+        return matchedTermini;
+    }
 
   private:
     /** @brief API that gets descriptor identifiers data length

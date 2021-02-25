@@ -51,6 +51,8 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/numeric_effecter_handler.cpp
                ${PROJECT_SOURCE_DIR}/src/state_effecter_handler.cpp
                ${PROJECT_SOURCE_DIR}/src/sdbus-asio.cpp
+               ${PROJECT_SOURCE_DIR}/src/fwu_inventory.cpp
+               ${PROJECT_SOURCE_DIR}/src/fwu_utils.cpp
                ${PROJECT_SOURCE_DIR}/src/firmware_update.cpp
                ${PROJECT_SOURCE_DIR}/src/fru.cpp
                ${PROJECT_SOURCE_DIR}/src/base.cpp

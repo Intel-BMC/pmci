@@ -13,766 +13,31 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "firmware_update.h"
-
 #include "firmware_update.hpp"
+
+#include "fwu_inventory.hpp"
 #include "platform.hpp"
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
 #include <xyz/openbmc_project/PLDM/FWU/FWUBase/server.hpp>
 
+#include "firmware_update.h"
 #include "utils.h"
 
 namespace pldm
 {
 namespace fwu
 {
-// map that holds the properties of all terminus
-std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
+using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
+extern std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
 std::shared_ptr<boost::asio::steady_timer> expectedCommandTimer = nullptr;
+std::unique_ptr<PLDMImg> pldmImg = nullptr;
+std::unique_ptr<FWUpdate> fwUpdate = nullptr;
+
 const std::array<uint8_t, pkgHeaderIdentifierSize> pkgHdrIdentifier = {
     0xF0, 0x18, 0x87, 0x8C, 0xCB, 0x7D, 0x49, 0x43,
     0x98, 0x00, 0xA0, 0x2F, 0x05, 0x9A, 0xCA, 0x02};
-
-using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
-constexpr size_t PLDMCCOnlyResponse = sizeof(struct PLDMEmptyRequest) + 1;
-constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
-std::unique_ptr<PLDMImg> pldmImg = nullptr;
-
-void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
-                                      const uint8_t messageTag,
-                                      const bool _tagOwner,
-                                      const std::vector<uint8_t>& req)
-{
-    if (req.size() < hdrSize)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Invalid FW request");
-        return;
-    }
-    const struct pldm_msg_hdr* msgHdr =
-        reinterpret_cast<const pldm_msg_hdr*>(req.data());
-
-    if (expectedCmd == PLDM_REQUEST_FIRMWARE_DATA &&
-        msgHdr->command == PLDM_TRANSFER_COMPLETE)
-    {
-        expectedCmd = PLDM_TRANSFER_COMPLETE;
-        fdTransferCompleted = true;
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("TransferComplete received from TID: " +
-             std::to_string(currentTid))
-                .c_str());
-    }
-
-    if (tid != currentTid || msgHdr->command != expectedCmd)
-    {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("Firmware update in progress for TID: " +
-             std::to_string(currentTid))
-                .c_str());
-        return;
-    }
-    msgTag = messageTag;
-    tagOwner = _tagOwner;
-    fdReqMatched = true;
-    fdReq = req;
-    expectedCommandTimer->cancel();
-    return;
-}
-
-void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
-                              const bool tagOwner,
-                              std::vector<uint8_t>& message)
-{
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "PLDM Firmware update message received",
-        phosphor::logging::entry("TID=0x%X", tid));
-    // pldmImg points to null if FW update is not in progress at this point
-    // firmware device should not send any firmware update commands
-    if (!pldmImg)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Firmware update is not in process, command not excepted");
-        return;
-    }
-    pldmImg->fwUpdate->validateReqForFWUpdCmd(tid, msgTag, tagOwner, message);
-    return;
-}
-
-/** @brief Calculate the maximum number of request from firmware device.
- * Firmware device can request for same data again, so three times the
- * component size is used for calculating the maximum number of request.
- */
-static uint32_t findMaxNumReq(const uint32_t size)
-{
-    return (size / PLDM_FWU_BASELINE_TRANSFER_SIZE) * 3;
-}
-
-/** @brief API that deletes PLDM firmware device resorces. This API should be
- * called when PLDM firmware update capable device is removed from the platform.
- */
-bool deleteFWDevice(const pldm_tid_t tid)
-{
-    auto itr = terminusFwuProperties.find(tid);
-    if (itr == terminusFwuProperties.end())
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("PLDM firmware update device not matched for TID " +
-             std::to_string(tid))
-                .c_str());
-        return false;
-    }
-    terminusFwuProperties.erase(itr);
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("PLDM firmware update device resources deleted for TID " +
-         std::to_string(tid))
-            .c_str());
-    return true;
-}
-
-template <typename T>
-static void processDescriptor(const DescriptorHeader& header, const T& data,
-                              DescriptorsMap& descriptorData)
-
-{
-    std::string value;
-    try
-    {
-        value = std::to_string(data);
-    }
-    catch (const std::exception& e)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
-        return;
-    }
-
-    switch (header.type)
-    {
-        case pldm::fwu::DescriptorIdentifierType::pciVendorID: {
-            descriptorData["PCIVendorID"] = value;
-            break;
-        }
-        case pldm::fwu::DescriptorIdentifierType::pciDeviceID: {
-            descriptorData["PCIDeviceID"] = value;
-            break;
-        }
-        case pldm::fwu::DescriptorIdentifierType::pciSubsystemVendorID: {
-            descriptorData["PCISubsystemVendorID"] = value;
-            break;
-        }
-        case pldm::fwu::DescriptorIdentifierType::pciSubsystemID: {
-            descriptorData["PCISubsystemID"] = value;
-            break;
-        }
-        case pldm::fwu::DescriptorIdentifierType::pciRevisionID: {
-            descriptorData["PCIRevisionID"] = value;
-            break;
-        }
-        // TODO Add cases for other Descriptor Identifier Types
-        default: {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Descriptor identifier type not matched");
-            break;
-        }
-    }
-}
-
-static void processDescriptor(const DescriptorHeader& /*header*/,
-                              const std::vector<uint8_t>& /*data*/,
-                              DescriptorsMap& /*descriptorData*/)
-{
-    // TODO process non-standard descriptor sizes(Eg: PnP 3 byes) and bigger
-    // sizes(Eg: UUID 16 bytes)
-}
-
-static void createAsyncDelay(boost::asio::yield_context yield,
-                             const uint16_t delay)
-{
-    boost::asio::steady_timer timer(*getIoContext());
-    boost::system::error_code ec;
-
-    timer.expires_after(std::chrono::milliseconds(delay));
-    timer.async_wait(yield[ec]);
-}
-
-static void unpackDescriptors(const uint8_t count,
-                              const std::vector<uint8_t>& data,
-                              uint16_t& initialDescriptorType,
-                              DescriptorsMap& descriptorData)
-{
-    size_t found = 0;
-    auto it = std::begin(data);
-
-    while (it != std::end(data) && found != count)
-    {
-        size_t bytesLeft = std::distance(it, std::end(data));
-        // Check header size
-        if (bytesLeft <= sizeof(DescriptorHeader))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "No headers left");
-            break;
-        }
-
-        // Unpack header
-        const auto hdr = reinterpret_cast<const DescriptorHeader*>(&*it);
-        std::advance(it, sizeof(*hdr));
-        bytesLeft = std::distance(it, std::end(data));
-
-        // Check data size
-        if (bytesLeft < hdr->size)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Invalid descriptor data size");
-            break;
-        }
-        if (!found)
-        {
-            initialDescriptorType = static_cast<uint16_t>(hdr->type);
-        }
-        // Unpack data
-        if (hdr->size == sizeof(uint8_t))
-        {
-            processDescriptor(*hdr, *it, descriptorData);
-        }
-        else if (hdr->size == sizeof(uint16_t))
-        {
-            processDescriptor(*hdr, *reinterpret_cast<const uint16_t*>(&*it),
-                              descriptorData);
-        }
-        else if (hdr->size == sizeof(uint32_t))
-        {
-            processDescriptor(*hdr, *reinterpret_cast<const uint32_t*>(&*it),
-                              descriptorData);
-        }
-        else
-        {
-            std::vector<uint8_t> descriptorDataVect;
-            std::copy(it, std::next(it, hdr->size),
-                      std::back_inserter(descriptorDataVect));
-            processDescriptor(*hdr, descriptorDataVect, descriptorData);
-        }
-        std::advance(it, hdr->size);
-
-        found++;
-    }
-
-    if (found != count)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Descriptor count not matched",
-            phosphor::logging::entry("ACTUAL_DESCRIPTOR_COUNT=%d", found),
-            phosphor::logging::entry("EXPECTED_DESCRIPTOR_COUNT=%d", count));
-    }
-}
-
-int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
-{
-    uint8_t instanceID = createInstanceId(tid);
-    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
-
-    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
-
-    int retVal = encode_query_device_identifiers_req(
-        instanceID, msgReq, PLDM_QUERY_DEVICE_IDENTIFIERS_REQ_BYTES);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "QueryDeviceIdentifiers: encode request failed",
-            phosphor::logging::entry("TID=%d", tid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
-        return retVal;
-    }
-
-    std::vector<uint8_t> pldmResp;
-
-    if (!sendReceivePldmMessage(yield, tid, timeout, retryCount, pldmReq,
-                                pldmResp))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "QueryDeviceIdentifiers: Failed to send or receive PLDM message",
-            phosphor::logging::entry("TID=%d", tid));
-        return PLDM_ERROR;
-    }
-    auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
-    size_t payloadLen = pldmResp.size() - hdrSize;
-    uint8_t completionCode = PLDM_SUCCESS;
-    uint32_t deviceIdentifiersLen = 0;
-    uint8_t descriptorCount = 0;
-    constexpr size_t maxDescriptorDataLen = 255;
-    std::vector<uint8_t> descriptorDataVect(maxDescriptorDataLen);
-
-    struct variable_field descriptorData;
-    descriptorData.length = descriptorDataVect.size();
-    descriptorData.ptr = descriptorDataVect.data();
-
-    retVal = decode_query_device_identifiers_resp(
-        msgResp, payloadLen, &completionCode, &deviceIdentifiersLen,
-        &descriptorCount, &descriptorData);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "QueryDeviceIdentifiers: decode response failed",
-            phosphor::logging::entry("TID=%d", tid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
-
-        return retVal;
-    }
-
-    unpackDescriptors(descriptorCount, descriptorDataVect,
-                      initialDescriptorType, descriptors);
-    return PLDM_SUCCESS;
-}
-
-static std::string toString(const struct variable_field& var)
-{
-    if (var.ptr == NULL || var.length == 0)
-    {
-        return "";
-    }
-    std::string str(reinterpret_cast<const char*>(var.ptr), var.length);
-    std::replace_if(
-        str.begin(), str.end(), [](const char& c) { return !isprint(c); }, ' ');
-    return str;
-}
-
-void FWInventoryInfo::copyCompImgSetData(
-    const struct get_firmware_parameters_resp& respData,
-    const struct variable_field& activeCompImgSetVerData,
-    const struct variable_field& pendingCompImgSetVerData)
-{
-    fwuProperties["CapabilitiesDuringUpdate"] =
-        htole32(respData.capabilities_during_update);
-    fwuProperties["ComponentCount"] = htole16(respData.comp_count);
-    activeCompImgSetVerStr = toString(activeCompImgSetVerData);
-    fwuProperties["ActiveCompImgSetVerStr"] = activeCompImgSetVerStr;
-
-    if (pendingCompImgSetVerData.length != 0)
-    {
-        pendingCompImgSetVerStr = toString(pendingCompImgSetVerData);
-        fwuProperties["PendingCompImgSetVerStr"] = pendingCompImgSetVerStr;
-    }
-}
-
-void FWInventoryInfo::copyCompData(
-    const uint16_t count, const struct component_parameter_table* componentData,
-    struct variable_field* activeCompVerData,
-    struct variable_field* pendingCompVerData)
-{
-    std::map<std::string, FWUVariantType> compProperties;
-    compProperties["ComponentClassification"] =
-        componentData->comp_classification;
-    compProperties["ComponentIdentifier"] = componentData->comp_identifier;
-    compProperties["ComponentClassificationIndex"] =
-        componentData->comp_classification_index;
-    compProperties["ActiveComponentComparisonStamp"] =
-        componentData->active_comp_comparison_stamp;
-    compProperties["ActiveComponentReleaseDate"] =
-        componentData->active_comp_release_date;
-    std::string activeCompVerStr(
-        reinterpret_cast<const char*>(activeCompVerData->ptr),
-        activeCompVerData->length);
-    compProperties["ActiveComponentVersionString"] = activeCompVerStr;
-
-    compProperties["PendingComponentComparisonStamp"] =
-        componentData->pending_comp_comparison_stamp;
-    compProperties["PendingComponentReleaseDate"] =
-        componentData->pending_comp_release_date;
-    std::string pendingCompVerStr(
-        reinterpret_cast<const char*>(pendingCompVerData->ptr),
-        pendingCompVerData->length);
-    compProperties["PendingComponentVersionString"] = pendingCompVerStr;
-
-    compProperties["ComponentActivationMethods"] =
-        componentData->comp_activation_methods;
-    compProperties["CapabilitiesDuringUpdate"] =
-        componentData->capabilities_during_update;
-    compPropertiesMap[count] = compProperties;
-}
-
-void FWInventoryInfo::unpackCompData(const uint16_t count,
-                                     const std::vector<uint8_t>& compData)
-{
-    struct component_parameter_table compDataObj;
-    struct variable_field activeCompVerStr;
-    struct variable_field pendingCompVerStr;
-
-    uint16_t found = 0;
-    size_t bytesLeft = 0;
-    auto it = std::begin(compData);
-
-    while (it < std::end(compData) && found != count)
-    {
-        bytesLeft = std::distance(it, std::end(compData));
-
-        if (bytesLeft < sizeof(compDataObj))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "GetFirmwareParameters: invalid component data");
-            break;
-        }
-
-        int retVal = decode_get_firmware_parameters_comp_resp(
-            &it[0], bytesLeft, &compDataObj, &activeCompVerStr,
-            &pendingCompVerStr);
-
-        if (retVal != PLDM_SUCCESS)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "GetFirmwareParameters: decode response of component data "
-                "failed",
-                phosphor::logging::entry("TID=%d", tid),
-                phosphor::logging::entry("RETVAL=%d", retVal));
-            break;
-        }
-
-        size_t offSet = sizeof(struct component_parameter_table) +
-                        compDataObj.active_comp_ver_str_len +
-                        compDataObj.pending_comp_ver_str_len;
-
-        if (offSet > bytesLeft)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "GetFirmwareParameters: invalid component data");
-            break;
-        }
-        std::advance(it, offSet);
-        found++;
-        copyCompData(found, &compDataObj, &activeCompVerStr,
-                     &pendingCompVerStr);
-    }
-
-    if (found != count)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Component count not matched",
-            phosphor::logging::entry("ACTUAL_COMP_COUNT=%d", found),
-            phosphor::logging::entry("EXPECTED_COMP_COUNT=%d", count));
-    }
-}
-
-int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
-{
-    uint8_t instanceID = createInstanceId(tid);
-    std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
-
-    struct pldm_msg* msgReq = reinterpret_cast<pldm_msg*>(pldmReq.data());
-
-    int retVal = encode_get_firmware_parameters_req(
-        instanceID, msgReq, PLDM_QUERY_DEVICE_IDENTIFIERS_REQ_BYTES);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: encode response failed",
-            phosphor::logging::entry("TID=%d", tid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
-        return retVal;
-    }
-
-    std::vector<uint8_t> pldmResp;
-
-    if (!sendReceivePldmMessage(yield, tid, timeout, retryCount, pldmReq,
-                                pldmResp))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: Failed to send or receive PLDM message",
-            phosphor::logging::entry("TID=%d", tid));
-        return PLDM_ERROR;
-    }
-    auto respMsg = reinterpret_cast<pldm_msg*>(pldmResp.data());
-    size_t payloadLen = pldmResp.size() - hdrSize;
-
-    struct get_firmware_parameters_resp resp;
-    struct variable_field activeCompImageSetVerStr;
-    struct variable_field pendingCompImageSetVerStr;
-
-    retVal = decode_get_firmware_parameters_comp_img_set_resp(
-        respMsg, payloadLen, &resp, &activeCompImageSetVerStr,
-        &pendingCompImageSetVerStr);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: decode response failed",
-            phosphor::logging::entry("TID=%d", tid),
-            phosphor::logging::entry("RETVAL=%d", retVal));
-
-        return retVal;
-    }
-
-    copyCompImgSetData(resp, activeCompImageSetVerStr,
-                       pendingCompImageSetVerStr);
-
-    size_t compDataOffset = hdrSize + sizeof(get_firmware_parameters_resp) +
-                            resp.active_comp_image_set_ver_str_len +
-                            resp.pending_comp_image_set_ver_str_len;
-
-    if (pldmResp.size() < compDataOffset)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFirmwareParameters: Response length is invalid");
-        return PLDM_ERROR_INVALID_LENGTH;
-    }
-
-    std::vector<uint8_t> compData(pldmResp.begin() + compDataOffset,
-                                  pldmResp.end());
-    unpackCompData(resp.comp_count, compData);
-
-    return PLDM_SUCCESS;
-}
-
-FWInventoryInfo::FWInventoryInfo(const pldm_tid_t _tid) :
-    tid(_tid), objServer(getObjServer())
-{
-}
-
-FWInventoryInfo::~FWInventoryInfo()
-{
-}
-
-static bool fwuBaseInitialized = false;
-
-static void initializeFWUBase()
-{
-    std::string objPath = "/xyz/openbmc_project/pldm/fwu";
-    expectedCommandTimer =
-        std::make_shared<boost::asio::steady_timer>(*getIoContext());
-    auto objServer = getObjServer();
-    auto fwuBaseIface = objServer->add_interface(objPath, FWUBase::interface);
-    fwuBaseIface->register_method(
-        "StartFWUpdate",
-        [](const boost::asio::yield_context yield, const std::string filePath) {
-            int rc = -1;
-            if (pldmImg)
-            {
-                return rc;
-            }
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                "StartFWUpdate is called");
-            try
-            {
-                pldmImg = std::make_unique<PLDMImg>(filePath);
-                if (!pldmImg->processPkgHdr())
-                {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "processPkgHdr: Failed");
-                }
-                else
-                {
-                    rc = 0;
-                }
-            }
-            catch (const std::exception&)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Failed to process pldm image",
-                    phosphor::logging::entry("PLDM_IMAGE=%s",
-                                             filePath.c_str()));
-            }
-            rc = pldmImg->runPkgUpdate(yield);
-            if (rc != PLDM_SUCCESS)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "StartFWUpdate: runPkgUpdate failed.");
-            }
-            pldmImg = nullptr;
-            return rc;
-        });
-    fwuBaseIface->initialize();
-    fwuBaseInitialized = true;
-}
-
-void FWInventoryInfo::addPCIDescriptorsToDBus(const std::string& objPath)
-{
-    auto pciDevIntf = objServer->add_interface(
-        objPath, "xyz.openbmc_project.PLDM.FWU.PCIDescriptor");
-    for (auto& it : descriptors)
-    {
-        std::replace_if(
-            it.second.begin(), it.second.end(),
-            [](const char& c) { return !isprint(c); }, ' ');
-        pciDevIntf->register_property(it.first, it.second);
-    }
-    pciDevIntf->initialize();
-}
-
-void FWInventoryInfo::addDescriptorsToDBus()
-{
-    const std::string objPath = "/xyz/openbmc_project/pldm/fwu/" +
-                                std::to_string(tid) + "/deviceDescriptors";
-
-    switch (
-        static_cast<pldm::fwu::DescriptorIdentifierType>(initialDescriptorType))
-    {
-        case pldm::fwu::DescriptorIdentifierType::pciVendorID: {
-            addPCIDescriptorsToDBus(objPath);
-            break;
-        }
-        // TODO Add cases for other Descriptor Identifier Types
-        default: {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "addDescriptorsToDBus: Descriptor identifier type not matched",
-                phosphor::logging::entry("TID=%d", tid));
-            break;
-        }
-    }
-}
-
-void FWInventoryInfo::addCompImgSetDataToDBus()
-{
-    const std::string compImgSetPath = "/xyz/openbmc_project/pldm/fwu/" +
-                                       std::to_string(tid) +
-                                       "/componentImageSetInfo";
-    auto activeCompImgSetInfoIntf = objServer->add_interface(
-        compImgSetPath,
-        "xyz.openbmc_project.PLDM.FWU.ActiveComponentImageSetInfo");
-    activeCompImgSetInfoIntf->register_property(
-        "ActiveComponentImageSetVersionString", activeCompImgSetVerStr);
-    activeCompImgSetInfoIntf->initialize();
-
-    auto pendingCompImgSetInfoIntf = objServer->add_interface(
-        compImgSetPath,
-        "xyz.openbmc_project.PLDM.FWU.PendingComponentImageSetInfo");
-    pendingCompImgSetInfoIntf->register_property(
-        "PendingComponentImageSetVersionString", pendingCompImgSetVerStr);
-    pendingCompImgSetInfoIntf->initialize();
-}
-
-void FWInventoryInfo::addInventoryInfoToDBus()
-{
-    try
-    {
-        addCompImgSetDataToDBus();
-    }
-    catch (const std::exception&)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to add component image set info to D-Bus",
-            phosphor::logging::entry("TID=%d", tid));
-    }
-    try
-    {
-        addDescriptorsToDBus();
-    }
-    catch (const std::exception&)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to add descriptor data to D-Bus",
-            phosphor::logging::entry("TID=%d", tid));
-    }
-    try
-    {
-        addCompDataToDBus();
-    }
-    catch (const std::exception&)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to add component info to D-Bus",
-            phosphor::logging::entry("TID=%d", tid));
-    }
-}
-
-void FWInventoryInfo::addCompDataToDBus()
-{
-    const std::string objPath = "/xyz/openbmc_project/pldm/fwu/" +
-                                std::to_string(tid) +
-                                "/componentImageSetInfo/component_";
-    for (auto& itr : compPropertiesMap)
-    {
-        const std::string compPath = objPath + std::to_string(itr.first);
-        auto compProps = itr.second;
-        auto activeCompInfoIntf = objServer->add_interface(
-            compPath, "xyz.openbmc_project.PLDM.FWU.ActiveComponentInfo");
-        activeCompInfoIntf->register_property(
-            "ComponentClassification",
-            std::get<uint16_t>(compProps["ComponentClassification"]));
-        activeCompInfoIntf->register_property(
-            "ComponentIdentifier",
-            std::get<uint16_t>(compProps["ComponentIdentifier"]));
-        activeCompInfoIntf->register_property(
-            "ComponentClassificationIndex",
-            std::get<uint8_t>(compProps["ComponentClassificationIndex"]));
-        activeCompInfoIntf->register_property(
-            "ActiveComponentComparisonStamp",
-            std::get<uint32_t>(compProps["ActiveComponentComparisonStamp"]));
-        activeCompInfoIntf->register_property(
-            "ActiveComponentReleaseDate",
-            std::get<uint64_t>(compProps["ActiveComponentReleaseDate"]));
-        activeCompInfoIntf->register_property(
-            "ComponentAutoApply", getCompAutoApply(std::get<uint32_t>(
-                                      compProps["CapabilitiesDuringUpdate"])));
-        std::string activeCompStr =
-            std::get<std::string>(compProps["ActiveComponentVersionString"]);
-        std::replace_if(
-            activeCompStr.begin(), activeCompStr.end(),
-            [](const char& c) { return !isprint(c); }, ' ');
-        activeCompInfoIntf->register_property("ActiveComponentVersionString",
-                                              activeCompStr);
-        // TODO expose ComponentActivationMethods and CapabilitiesDuringUpdate
-        // to separate interfaces.
-        activeCompInfoIntf->register_property(
-            "ComponentActivationMethods",
-            std::get<uint16_t>(compProps["ComponentActivationMethods"]));
-        activeCompInfoIntf->register_property(
-            "CapabilitiesDuringUpdate",
-            std::get<uint32_t>(compProps["CapabilitiesDuringUpdate"]));
-        activeCompInfoIntf->initialize();
-
-        auto pendingCompInfoIntf = objServer->add_interface(
-            compPath, "xyz.openbmc_project.PLDM.FWU.PendingComponentInfo");
-        pendingCompInfoIntf->register_property(
-            "PendingComponentComparisonStamp",
-            std::get<uint32_t>(compProps["PendingComponentComparisonStamp"]));
-        pendingCompInfoIntf->register_property(
-            "PendingComponentReleaseDate",
-            std::get<uint64_t>(compProps["PendingComponentReleaseDate"]));
-        std::string pendingCompSrt =
-            std::get<std::string>(compProps["PendingComponentVersionString"]);
-        std::replace_if(
-            pendingCompSrt.begin(), pendingCompSrt.end(),
-            [](const char& c) { return !isprint(c); }, ' ');
-        pendingCompInfoIntf->register_property("PendingComponentVersionString",
-                                               pendingCompSrt);
-        pendingCompInfoIntf->initialize();
-    }
-}
-
-bool FWInventoryInfo::getCompAutoApply(const uint32_t capabilitiesDuringUpdate)
-{
-    constexpr size_t capabilitiesDuringUpdateMask = 0xFFFE;
-    return capabilitiesDuringUpdate & capabilitiesDuringUpdateMask;
-}
-
-std::optional<FDProperties>
-    FWInventoryInfo::runInventoryCommands(boost::asio::yield_context yield)
-{
-    int retVal = runQueryDeviceIdentifiers(yield);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to run QueryDeviceIdentifiers command");
-        return std::nullopt;
-    }
-
-    retVal = runGetFirmwareParameters(yield);
-
-    if (retVal != PLDM_SUCCESS)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to run GetFirmwareParameters command");
-        return std::nullopt;
-    }
-    FDProperties fdProperties =
-        std::make_tuple(fwuProperties, descriptors, compPropertiesMap);
-    return fdProperties;
-}
 
 PLDMImg::PLDMImg(const std::string& pldmImgPath)
 {
@@ -915,47 +180,6 @@ bool PLDMImg::processPkgHdrInfo()
                                  hdrItr + headerInfo->pkgVersionStringLen);
     copyPkgHdrInfoToMap(headerInfo, pkgVersionString);
     return true;
-}
-
-static bool updateMode = false;
-int PLDMImg::runPkgUpdate(const boost::asio::yield_context& yield)
-{
-    if (updateMode)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "runPkgUpdate: Cannot start firmware update. Firmware update is "
-            "already in progress");
-        return PLDM_ERROR;
-    }
-    for (const auto& it : matchedTermini)
-    {
-        pldm_tid_t matchedTid = it.second;
-        uint8_t matchedDevIdRecord = it.first;
-        fwUpdate = std::make_unique<FWUpdate>(matchedTid, matchedDevIdRecord);
-        if (!fwUpdate->setMatchedFDDescriptors())
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                ("runPkgUpdate: Failed to set TargetFDProperties for "
-                 "TID: " +
-                 std::to_string(matchedTid))
-                    .c_str());
-            continue;
-        }
-        pldm::platform::pauseSensorPolling();
-        int retVal = fwUpdate->runUpdate(yield);
-        if (retVal != PLDM_SUCCESS)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                ("runUpdate failed for TID: " + std::to_string(matchedTid) +
-                 ". RETVAL:" + std::to_string(retVal))
-                    .c_str());
-
-            fwUpdate->terminateFwUpdate(yield);
-        }
-        pldm::platform::resumeSensorPolling();
-        updateMode = false;
-    }
-    return PLDM_SUCCESS;
 }
 
 bool PLDMImg::verifyPkgHdrChecksum()
@@ -1235,6 +459,7 @@ void PLDMImg::copyDevIdentificationInfoToMap(
     pkgDevIDRecords[deviceIDRecord] =
         std::make_pair(devIdentificationProps, pkgDescriptorRecords);
 }
+
 void PLDMImg::copyCompImgInfoToMap(const uint16_t count,
                                    const CompImgInfo* compInfo,
                                    const std::string& compVerStr)
@@ -1253,37 +478,13 @@ void PLDMImg::copyCompImgInfoToMap(const uint16_t count,
     properties["CompVerStr"] = compVerStr;
     pkgCompProperties[count] = properties;
 }
+
 size_t PLDMImg::getDescriptorDataLen(const FWDevIdRecord& data,
                                      const size_t applicableComponentsLen)
 {
     return (htole16(data.recordLength) - sizeof(FWDevIdRecord) -
             applicableComponentsLen - data.comImgSetVerStrLen -
             htole16(data.fwDevPkgDataLen));
-}
-
-FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
-    currentTid(_tid), currentDeviceIDRecord(_deviceIDRecord), state(FD_IDLE)
-{
-}
-
-FWUpdate::~FWUpdate()
-{
-}
-
-bool FWUpdate::setMatchedFDDescriptors()
-{
-    auto itr = terminusFwuProperties.find(currentTid);
-    if (itr == terminusFwuProperties.end())
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            ("setMatchedFDDescriptors: targetFDProperties not found for "
-             "TID: " +
-             std::to_string(currentTid))
-                .c_str());
-        return false;
-    }
-    targetFDProperties = itr->second;
-    return true;
 }
 
 template <typename T>
@@ -1350,6 +551,68 @@ bool PLDMImg::getDevIdRcrdProperty(T& value, const std::string& name,
     phosphor::logging::log<phosphor::logging::level::ERR>(
         ("getDevIdRcrdProperty: Failed to find " + name).c_str());
     return false;
+}
+
+FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
+    currentTid(_tid), currentDeviceIDRecord(_deviceIDRecord), state(FD_IDLE)
+{
+}
+
+void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
+                                      const uint8_t messageTag,
+                                      const bool _tagOwner,
+                                      const std::vector<uint8_t>& req)
+{
+    if (req.size() < hdrSize)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Invalid FW request");
+        return;
+    }
+    const struct pldm_msg_hdr* msgHdr =
+        reinterpret_cast<const pldm_msg_hdr*>(req.data());
+
+    if (expectedCmd == PLDM_REQUEST_FIRMWARE_DATA &&
+        msgHdr->command == PLDM_TRANSFER_COMPLETE)
+    {
+        expectedCmd = PLDM_TRANSFER_COMPLETE;
+        fdTransferCompleted = true;
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("TransferComplete received from TID: " +
+             std::to_string(currentTid))
+                .c_str());
+    }
+
+    if (tid != currentTid || msgHdr->command != expectedCmd)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("Firmware update in progress for TID: " +
+             std::to_string(currentTid))
+                .c_str());
+        return;
+    }
+    msgTag = messageTag;
+    tagOwner = _tagOwner;
+    fdReqMatched = true;
+    fdReq = req;
+    expectedCommandTimer->cancel();
+    return;
+}
+
+bool FWUpdate::setMatchedFDDescriptors()
+{
+    auto itr = terminusFwuProperties.find(currentTid);
+    if (itr == terminusFwuProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("setMatchedFDDescriptors: targetFDProperties not found for "
+             "TID: " +
+             std::to_string(currentTid))
+                .c_str());
+        return false;
+    }
+    targetFDProperties = itr->second;
+    return true;
 }
 
 bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
@@ -2357,6 +1620,11 @@ int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context& yield)
     int retVal = encode_cancel_update_component_req(instanceID, msgReq);
     if (!validatePLDMReqEncode(currentTid, retVal, "CancelUpdateComponent"))
     {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("CancelUpdateComponent: encode_cancel_update_component_req "
+             "failed. RETVAL: " +
+             std::to_string(retVal))
+                .c_str());
         return retVal;
     }
     std::vector<uint8_t> pldmResp;
@@ -2375,6 +1643,12 @@ int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context& yield)
     if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
                                 "CancelUpdateComponent"))
     {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("CancelUpdateComponent: decode_cancel_update_component_resp "
+             "failed. RETVAL: " +
+             std::to_string(retVal) +
+             ". COMPLETION_CODE: " + std::to_string(completionCode))
+                .c_str());
         return retVal;
     }
     return PLDM_SUCCESS;
@@ -2493,7 +1767,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             "Component cannot be put in update mode");
         return PLDM_ERROR;
     }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+    phosphor::logging::log<phosphor::logging::level::INFO>(
         "RequestUpdate command is success");
     createAsyncDelay(yield, delayBtw);
 
@@ -2533,8 +1807,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         if (!preparePassComponentRequest(componentTable, count))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("PassComponentRequest preparation failed, component: " +
-                 std::to_string(count + 1))
+                ("runUpdate: preparePassComponentRequest failed. COMPONENT: " +
+                 std::to_string(count))
                     .c_str());
             return PLDM_ERROR;
         }
@@ -2544,14 +1818,16 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("PassComponentTable command failed, component: " +
-                 std::to_string(count + 1))
+                ("runUpdate: doPassComponentTable failed. COMPONENT: " +
+                 std::to_string(count))
                     .c_str());
 
             continue;
         }
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "PassComponentTable command is success");
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("PassComponentTable command is success.COMPONENT: " +
+             std::to_string(count))
+                .c_str());
 
         createAsyncDelay(yield, delayBtw);
     }
@@ -2576,9 +1852,9 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         if (!prepareUpdateComponentRequest(component, count))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("UpdateComponentRequest preparation failed,current "
-                 "component: " +
-                 std::to_string(count + 1))
+                ("runUpdate: prepareUpdateComponentRequest failed. "
+                 "COMPONENT: " +
+                 std::to_string(count))
                     .c_str());
             compOffset += compSize;
             continue;
@@ -2592,16 +1868,19 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         {
 
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "UpdateComponentRequest command failed");
+                ("runUpdate: doUpdateComponent failed. RETVAL: " +
+                 std::to_string(retVal) +
+                 ". COMPONENT: " + std::to_string(count))
+                    .c_str());
             compOffset += compSize;
             continue;
         }
         if (compCompatabilityResp != COMPONENT_CAN_BE_UPDATED)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("Component will not be updated for component: " +
-                 std::to_string(count + 1) +
-                 " ,ComponentCompatibilityResponse Code: " +
+                ("COMPONENT: " + std::to_string(count) +
+                 " will not be updated, "
+                 "ComponentCompatibilityResponse Code: " +
                  std::to_string(compCompatabilityRespCode))
                     .c_str());
             compOffset += compSize;
@@ -2611,16 +1890,16 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         fdState = FD_DOWNLOAD;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "FD changed state to DOWNLOAD");
-
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("UpdateComponent command is success for component: " +
-             std::to_string(count + 1))
+            ("UpdateComponent command is success. COMPONENT: " +
+             std::to_string(count))
                 .c_str());
 
         if (!reserveBandwidth(yield, currentTid, PLDM_FWU, reserveEidTimeOut))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("reserveBandwidth failed,TID: " + std::to_string(currentTid))
+                ("runUpdate: reserveBandwidth failed. TID: " +
+                 std::to_string(currentTid))
                     .c_str());
         }
         else
@@ -2659,13 +1938,11 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 if (retVal != PLDM_SUCCESS)
                 {
                     phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        ("runUpdate: Failed to run "
-                         "RequestFirmwareData command,RETVAL: " +
+                        ("runUpdate: processRequestFirmwareData failed. "
+                         "RETVAL: " +
                          std::to_string(retVal) +
-                         " TID: " + std::to_string(currentTid) +
-                         " component: " + std::to_string(count + 1))
+                         ". COMPONENT: " + std::to_string(count))
                             .c_str());
-
                     break;
                 }
                 fdReq.clear();
@@ -2698,29 +1975,33 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             if (retVal != PLDM_SUCCESS)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: Failed to run transferComplete "
-                     "command,RETVAL: " +
+                    ("runUpdate: processTransferComplete failed. RETVAL: " +
                      std::to_string(retVal) +
-
-                     " component: " + std::to_string(count + 1))
+                     ". COMPONENT: " + std::to_string(count))
                         .c_str());
-                if (doCancelUpdateComponent(yield))
+                retVal = doCancelUpdateComponent(yield);
+                if (retVal != PLDM_SUCCESS)
                 {
                     phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        "runUpdate: Failed to run CancelUpdateComponent");
+                        ("runUpdate: Failed to run CancelUpdateComponent. "
+                         "RETVAL: " +
+                         std::to_string(retVal) +
+                         ". COMPONENT: " + std::to_string(count))
+                            .c_str());
                 }
-
                 compOffset += compSize;
                 continue;
             }
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "TransferComplete command is success");
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("TransferComplete command is success. COMPONENT: " +
+                 std::to_string(count))
+                    .c_str());
         }
         else
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("Timeout waiting for Transfer complete,component: " +
-                 std::to_string(count + 1))
+                ("Timeout waiting for Transfer complete. COMPONENT: " +
+                 std::to_string(count))
                     .c_str());
 
             compOffset += compSize;
@@ -2737,32 +2018,33 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             {
 
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: Failed to run verifyComplete "
-                     "command,RETVAL: " +
-                     std::to_string(retVal) +
-
-                     " component: " + std::to_string(count + 1))
+                    ("runUpdate: processVerifyComplete failed for COMPONENT: " +
+                     std::to_string(count) +
+                     ".RETVAL: " + std::to_string(retVal))
                         .c_str());
-                if (doCancelUpdateComponent(yield))
+                retVal = doCancelUpdateComponent(yield);
+                if (retVal != PLDM_SUCCESS)
                 {
                     phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        "runUpdate: Failed to run CancelUpdateComponent");
+                        ("runUpdate: Failed to run CancelUpdateComponent. "
+                         "RETVAL: " +
+                         std::to_string(retVal) +
+                         ". COMPONENT: " + std::to_string(count))
+                            .c_str());
                 }
-
                 compOffset += compSize;
                 continue;
             }
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "VerifyComplete command is success");
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("VerifyComplete command is success. COMPONENT: " +
+                 std::to_string(count))
+                    .c_str());
         }
         else
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-
-                ("Timeout waiting for Verify complete,component: " +
-                 std::to_string(count + 1))
-                    .c_str());
-
+                "Timeout waiting for Verify complete",
+                phosphor::logging::entry("COMPONENT=%d", count));
             compOffset += compSize;
             continue;
         }
@@ -2776,26 +2058,25 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                                           compActivationMethodsModification);
             if (retVal != PLDM_SUCCESS)
             {
-
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: Failed to run verifyComplete "
-                     "command,RETVAL: " +
+                    ("runUpdate: processApplyComplete failed. RETVAL: " +
                      std::to_string(retVal) +
-
-                     " component: " + std::to_string(count + 1))
+                     ". COMPONENT: " + std::to_string(count))
                         .c_str());
 
                 compOffset += compSize;
                 continue;
             }
             isComponentAvailableForUpdate = true;
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                "ApplyComplete command is success");
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("ApplyComplete command is success. COMPONENT: " +
+                 std::to_string(count))
+                    .c_str());
         }
         else
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("Timeout waiting for Apply complete,component: " +
+                ("Timeout waiting for Apply complete. COMPONENT: " +
                  std::to_string(count + 1))
                     .c_str());
 
@@ -2810,15 +2091,15 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         if (!releaseBandwidth(yield, currentTid, PLDM_FWU))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "releaseBandwidth failed");
+                "runUpdate: releaseBandwidth failed");
         }
     }
 
     if (!isComponentAvailableForUpdate)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "firmware update failed",
-            phosphor::logging::entry("RETVAL=%d", retVal));
+            ("firmware update failed. RETVAL: " + std::to_string(retVal))
+                .c_str());
         return retVal;
     }
 
@@ -2828,20 +2109,21 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                                 estimatedTimeForSelfContainedActivation);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("ActivateFirmware command failed,RETVAL: " +
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("runUpdate: doActivateFirmware failed. RETVAL: " +
              std::to_string(retVal))
                 .c_str());
         return retVal;
     }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+    phosphor::logging::log<phosphor::logging::level::INFO>(
         "ActivateFirmware command is success");
+
     createAsyncDelay(yield, estimatedTimeForSelfContainedActivation);
     retVal = getStatus(yield);
     if (retVal != PLDM_SUCCESS)
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("GetStatus command failed,RETVAL: " + std::to_string(retVal))
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("getStatus command  failed. RETVAL: " + std::to_string(retVal))
                 .c_str());
         return retVal;
     }
@@ -2853,6 +2135,139 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
+void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
+                              const bool tagOwner,
+                              std::vector<uint8_t>& message)
+{
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "PLDM Firmware update message received",
+        phosphor::logging::entry("TID=0x%X", tid));
+    // pldmImg points to null if FW update is not in progress at this point
+    // firmware device should not send any firmware update commands
+    if (!pldmImg || !fwUpdate)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Firmware update is not in process, command not excepted");
+        return;
+    }
+    fwUpdate->validateReqForFWUpdCmd(tid, msgTag, tagOwner, message);
+    return;
+}
+
+/** @brief API that deletes PLDM firmware device resorces. This API should be
+ * called when PLDM firmware update capable device is removed from the platform.
+ */
+bool deleteFWDevice(const pldm_tid_t tid)
+{
+    auto itr = terminusFwuProperties.find(tid);
+    if (itr == terminusFwuProperties.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM firmware update device not matched for TID " +
+             std::to_string(tid))
+                .c_str());
+        return false;
+    }
+    terminusFwuProperties.erase(itr);
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("PLDM firmware update device resources deleted for TID " +
+         std::to_string(tid))
+            .c_str());
+    return true;
+}
+
+static bool updateMode = false;
+static int initUpdate(const boost::asio::yield_context& yield)
+{
+    if (updateMode)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "initUpdate: Cannot start firmware update. Firmware update is "
+            "already in progress");
+        return PLDM_ERROR;
+    }
+    auto matchedTermini = pldmImg->getMatchedTermini();
+    for (const auto& it : matchedTermini)
+    {
+        pldm_tid_t matchedTid = it.second;
+        uint8_t matchedDevIdRecord = it.first;
+        fwUpdate = std::make_unique<FWUpdate>(matchedTid, matchedDevIdRecord);
+        if (!fwUpdate->setMatchedFDDescriptors())
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("initUpdate: Failed to set TargetFDProperties for "
+                 "TID: " +
+                 std::to_string(matchedTid))
+                    .c_str());
+            continue;
+        }
+        pldm::platform::pauseSensorPolling();
+        int retVal = fwUpdate->runUpdate(yield);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("runUpdate failed for TID: " + std::to_string(matchedTid) +
+                 ". RETVAL:" + std::to_string(retVal))
+                    .c_str());
+
+            fwUpdate->terminateFwUpdate(yield);
+        }
+        pldm::platform::resumeSensorPolling();
+        updateMode = false;
+    }
+    return PLDM_SUCCESS;
+}
+
+static bool fwuBaseInitialized = false;
+static void initializeFWUBase()
+{
+    std::string objPath = "/xyz/openbmc_project/pldm/fwu";
+    expectedCommandTimer =
+        std::make_shared<boost::asio::steady_timer>(*getIoContext());
+    auto objServer = getObjServer();
+    auto fwuBaseIface = objServer->add_interface(objPath, FWUBase::interface);
+    fwuBaseIface->register_method(
+        "StartFWUpdate",
+        [](const boost::asio::yield_context yield, const std::string filePath) {
+            int rc = -1;
+            if (pldmImg)
+            {
+                return rc;
+            }
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "StartFWUpdate is called");
+            try
+            {
+                pldmImg = std::make_unique<PLDMImg>(filePath);
+                if (!pldmImg->processPkgHdr())
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "processPkgHdr: Failed");
+                }
+                else
+                {
+                    rc = 0;
+                }
+            }
+            catch (const std::exception&)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to process pldm image",
+                    phosphor::logging::entry("PLDM_IMAGE=%s",
+                                             filePath.c_str()));
+            }
+            rc = initUpdate(yield);
+            if (rc != PLDM_SUCCESS)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "StartFWUpdate: initUpdate failed.");
+            }
+            pldmImg = nullptr;
+            return rc;
+        });
+    fwuBaseIface->initialize();
+    fwuBaseInitialized = true;
+}
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
 {
     if (!fwuBaseInitialized)
