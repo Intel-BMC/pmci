@@ -101,7 +101,6 @@ MCTPWrapper::MCTPWrapper(boost::asio::io_context& ioContext,
     receiveCallback(rxCb), config(configIn),
     connection(std::make_shared<sdbusplus::asio::connection>(ioContext))
 {
-    listenForNewMctpServices();
 }
 
 MCTPWrapper::MCTPWrapper(std::shared_ptr<sdbusplus::asio::connection> conn,
@@ -111,7 +110,6 @@ MCTPWrapper::MCTPWrapper(std::shared_ptr<sdbusplus::asio::connection> conn,
     networkChangeCallback(networkChangeCb),
     receiveCallback(rxCb), config(configIn), connection(conn)
 {
-    listenForNewMctpServices();
 }
 
 MCTPWrapper::~MCTPWrapper() noexcept
@@ -176,6 +174,9 @@ boost::system::error_code
     {
         registerListeners(serviceName);
     }
+
+    listenForNewMctpServices();
+
     return ec;
 }
 
