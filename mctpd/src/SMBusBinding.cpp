@@ -305,8 +305,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
                 mctp_server::BindingTypes::MctpOverSmbus),
     smbusReceiverFd(ioc), reserveBWTimer(ioc)
 {
-    std::shared_ptr<dbus_interface> smbusInterface =
-        objServer->add_interface(objPath, smbus_server::interface);
+    smbusInterface = objServer->add_interface(objPath, smbus_server::interface);
 
     try
     {
@@ -391,7 +390,8 @@ void SMBusBinding::SMBusInit()
 
     mctp_set_rx_all(mctp, &MctpBinding::rxMessage,
                     static_cast<MctpBinding*>(this));
-
+    mctp_set_rx_ctrl(mctp, &MctpBinding::handleMCTPControlRequests,
+                     static_cast<MctpBinding*>(this));
     std::string rootPort;
     if (!getBusNumFromPath(bus, rootPort))
     {
@@ -626,4 +626,17 @@ bool SMBusBinding::handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
         return true;
     }
     return false;
+}
+
+bool SMBusBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                                       std::vector<uint8_t>& request,
+                                       std::vector<uint8_t>& response)
+{
+    if (!MctpBinding::handleSetEndpointId(destEid, bindingPrivate, request,
+                                          response))
+    {
+        return false;
+    }
+
+    return true;
 }

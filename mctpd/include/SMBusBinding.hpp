@@ -20,6 +20,9 @@ class SMBusBinding : public MctpBinding
     bool handleGetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
                              std::vector<uint8_t>& request,
                              std::vector<uint8_t>& response) override;
+    bool handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
+                             std::vector<uint8_t>& request,
+                             std::vector<uint8_t>& response) override;
 
   private:
     void SMBusInit();
@@ -41,6 +44,7 @@ class SMBusBinding : public MctpBinding
     std::vector<std::pair<int, int>> muxFds;
     boost::asio::posix::stream_descriptor smbusReceiverFd;
     boost::asio::steady_timer reserveBWTimer;
+    std::shared_ptr<dbus_interface> smbusInterface;
     bool isMuxFd(const int fd);
     std::vector<std::pair<mctp_eid_t, struct mctp_smbus_pkt_private>>
         smbusDeviceTable;
