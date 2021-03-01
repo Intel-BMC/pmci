@@ -50,11 +50,23 @@ void SMBusBinding::scanPort(const int scanFd)
             // busy slave
             continue;
         }
-
-        else if (i2c_smbus_read_byte(scanFd) < 0)
+        else
         {
-            // no device
-            continue;
+            if ((it >= 0x30 && it <= 0x37) || (it >= 0x50 && it <= 0x5F))
+            {
+                // EEPROM address range. Use read to detect
+                if (i2c_smbus_read_byte(scanFd) < 0)
+                {
+                    continue;
+                }
+            }
+            else
+            {
+                if (i2c_smbus_write_quick(scanFd, I2C_SMBUS_WRITE) < 0)
+                {
+                    continue;
+                }
+            }
         }
 
         /* If we are scanning a mux fd, we will encounter root bus
