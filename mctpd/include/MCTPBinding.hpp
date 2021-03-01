@@ -12,6 +12,8 @@
 class SMBusBinding;
 class PCIeBinding;
 
+constexpr uint8_t vendorIdNoMoreSets = 0xff;
+
 enum MctpStatus
 {
     mctpErrorOperationNotAllowed = -5,

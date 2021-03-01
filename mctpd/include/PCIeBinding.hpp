@@ -10,8 +10,6 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <xyz/openbmc_project/MCTP/Binding/PCIe/server.hpp>
 
-constexpr uint8_t vendorIdNoMoreSets = 0xff;
-
 using pcie_binding =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::PCIe;
 
