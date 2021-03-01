@@ -149,7 +149,7 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context& yield)
     return;
 }
 
-bool FWUpdate::prepareRequestUpdateCommand(std::string& vrnStr)
+bool FWUpdate::prepareRequestUpdateCommand()
 {
     uint16_t tempShort = 0;
     updateProperties.max_transfer_size = PLDM_FWU_BASELINE_TRANSFER_SIZE;
@@ -174,8 +174,9 @@ bool FWUpdate::prepareRequestUpdateCommand(std::string& vrnStr)
         return false;
     }
 
-    if (!pldmImg->getDevIdRcrdProperty<std::string>(vrnStr, "CompImgSetVerStr",
-                                                    currentDeviceIDRecord))
+    if (!pldmImg->getDevIdRcrdProperty<std::string>(
+            componentImageSetVersionString, "CompImgSetVerStr",
+            currentDeviceIDRecord))
     {
         return false;
     }
@@ -296,8 +297,8 @@ bool FWUpdate::prepareUpdateComponentRequest(
     return true;
 }
 
-int FWUpdate::doRequestUpdate(const boost::asio::yield_context& yield,
-                              struct variable_field& compImgSetVerStrn)
+int FWUpdate::processRequestUpdate(const boost::asio::yield_context& yield)
+
 {
     if (updateMode)
     {
@@ -307,16 +308,18 @@ int FWUpdate::doRequestUpdate(const boost::asio::yield_context& yield,
     {
         return NOT_IN_UPDATE_MODE;
     }
-    int retVal = requestUpdate(yield, compImgSetVerStrn);
-    if (retVal != PLDM_SUCCESS)
+
+    variable_field compImgSetVerStr;
+    if (!prepareRequestUpdateCommand())
     {
-        return retVal;
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "RequestUpdateCommand preparation failed");
+        return PLDM_ERROR;
     }
-    updateMode = true;
-    fdState = FD_LEARN_COMPONENTS;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to LEARN COMPONENTS");
-    return PLDM_SUCCESS;
+    compImgSetVerStr.ptr = reinterpret_cast<const uint8_t*>(
+        componentImageSetVersionString.c_str());
+    compImgSetVerStr.length = componentImageSetVersionString.length();
+    return requestUpdate(yield, compImgSetVerStr);
 }
 
 int FWUpdate::requestUpdate(const boost::asio::yield_context& yield,
@@ -443,11 +446,8 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doPassComponentTable(
-    const boost::asio::yield_context& yield,
-    const struct pass_component_table_req& componentTable,
-    struct variable_field& compImgSetVerStr, uint8_t& compResp,
-    uint8_t& compRespCode)
+int FWUpdate::processPassComponentTable(const boost::asio::yield_context& yield)
+
 {
     if (!updateMode)
     {
@@ -457,20 +457,49 @@ int FWUpdate::doPassComponentTable(
     {
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal = passComponentTable(yield, componentTable, compImgSetVerStr,
-                                    compResp, compRespCode);
-    if (retVal != PLDM_SUCCESS)
+    uint8_t totalCompsAcceptedByFd = 0;
+    for (uint16_t count = 0; count < compCount; ++count)
     {
-        return retVal;
+        struct pass_component_table_req componentTable;
+        struct variable_field ComponentVersionString;
+        uint8_t compResp;
+        uint8_t compRespCode;
+
+        if (!isComponentApplicable())
+        {
+            continue;
+        }
+        if (!preparePassComponentRequest(componentTable, count))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "processPassComponentTable: PassComponentRequest preparation "
+                "failed");
+            return PLDM_ERROR;
+        }
+
+        ComponentVersionString.ptr = reinterpret_cast<const uint8_t*>(
+            componentImageSetVersionString.c_str());
+        ComponentVersionString.length = componentImageSetVersionString.length();
+        int retVal =
+            passComponentTable(yield, componentTable, ComponentVersionString,
+                               compResp, compRespCode);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("PassComponentTable command failed, component: " +
+                 std::to_string(count) + " retVal: " + std::to_string(retVal))
+                    .c_str());
+
+            continue;
+        }
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("PassComponentTable command success, component: " +
+             std::to_string(count))
+                .c_str());
+        ++totalCompsAcceptedByFd;
+        createAsyncDelay(yield, delayBtw);
     }
-    if (componentTable.transfer_flag == PLDM_END ||
-        componentTable.transfer_flag == PLDM_START_AND_END)
-    {
-        fdState = FD_READY_XFER;
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "FD changed state to READY XFER");
-    }
-    return PLDM_SUCCESS;
+    return (totalCompsAcceptedByFd > 0) ? PLDM_SUCCESS : PLDM_ERROR;
 }
 
 int FWUpdate::passComponentTable(
@@ -516,13 +545,13 @@ int FWUpdate::passComponentTable(
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
-                                const struct update_component_req& component,
-                                variable_field& compVerStr,
-                                uint8_t& compCompatabilityResp,
-                                uint8_t& compCompatabilityRespCode,
-                                bitfield32_t& updateOptFlagsEnabled,
-                                uint16_t& estimatedTimeReqFd)
+int FWUpdate::processUpdateComponent(const boost::asio::yield_context& yield,
+                                     const uint16_t count,
+                                     uint8_t& compCompatabilityResp,
+                                     uint8_t& compCompatabilityRespCode,
+                                     bitfield32_t& updateOptFlagsEnabled,
+                                     uint16_t& estimatedTimeReqFd)
+
 {
     if (!updateMode)
     {
@@ -532,9 +561,21 @@ int FWUpdate::doUpdateComponent(const boost::asio::yield_context& yield,
     {
         return COMMAND_NOT_EXPECTED;
     }
-    return updateComponent(yield, component, compVerStr, compCompatabilityResp,
-                           compCompatabilityRespCode, updateOptFlagsEnabled,
-                           estimatedTimeReqFd);
+    variable_field ComponentVersionString;
+    struct update_component_req component;
+    ComponentVersionString.ptr = reinterpret_cast<const uint8_t*>(
+        componentImageSetVersionString.c_str());
+    ComponentVersionString.length = componentImageSetVersionString.length();
+    if (!prepareUpdateComponentRequest(component, count))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "UpdateComponentRequest preparation failed");
+
+        return PLDM_SUCCESS;
+    }
+    return updateComponent(yield, component, ComponentVersionString,
+                           compCompatabilityResp, compCompatabilityRespCode,
+                           updateOptFlagsEnabled, estimatedTimeReqFd);
 }
 
 int FWUpdate::updateComponent(const boost::asio::yield_context& yield,
@@ -852,27 +893,70 @@ int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processRequestFirmwareData(const std ::vector<uint8_t>& pldmReq,
-                                         uint32_t& offset, uint32_t& length,
-                                         const uint32_t componentSize,
-                                         const uint32_t componentOffset)
+int FWUpdate::processRequestFirmwareData(
+    const boost::asio::yield_context& yield, const uint32_t componentSize,
+    const uint32_t componentOffset)
 {
     if (!updateMode || fdState != FD_DOWNLOAD)
     {
-        const struct pldm_msg* msgReq =
-            reinterpret_cast<const pldm_msg*>(pldmReq.data());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
-                                     COMMAND_NOT_EXPECTED,
-                                     PLDM_REQUEST_FIRMWARE_DATA))
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "RequestFirmwareData: Failed to send PLDM message",
-                phosphor::logging::entry("TID=%d", currentTid));
-        }
         return COMMAND_NOT_EXPECTED;
     }
-    return requestFirmwareData(pldmReq, offset, length, componentSize,
-                               componentOffset);
+    uint32_t maxNumReq = findMaxNumReq(componentSize);
+    uint32_t offset = 0;
+    uint32_t length = 0;
+    int retVal = 0;
+    int prevProgress = 0;
+    initialize_fw_update(updateProperties.max_transfer_size, componentSize);
+
+    while (--maxNumReq)
+    {
+        startTimer(yield, fdCmdTimeout);
+        if (!fdReqMatched)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "TimeoutWaiting for requestFirmwareData packet");
+
+            break;
+        }
+
+        if (fdTransferCompleted)
+        {
+            fdTransferCompleted = false;
+            break;
+        }
+        retVal = requestFirmwareData(fdReq, offset, length, componentSize,
+                                     componentOffset);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("processRequestFirmwareData: Failed to run "
+                 "RequestFirmwareData"
+                 "command, retVal=" +
+                 std::to_string(retVal) +
+                 " component=" + std::to_string(currentComp))
+                    .c_str());
+            continue;
+        }
+        fdReq.clear();
+        int progress = ((offset + length) * 100) / componentSize;
+        if (prevProgress != progress)
+        {
+            prevProgress = progress;
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("TID: " + std::to_string(currentTid) +
+                 " Component: " + std::to_string(currentComp + 1) +
+                 " update package transfered: " + std::to_string(progress) +
+                 "%")
+                    .c_str());
+        }
+        if (offset + length > componentSize)
+        {
+            expectedCmd = PLDM_TRANSFER_COMPLETE;
+            break;
+        }
+    }
+
+    return retVal;
 }
 
 int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
@@ -968,7 +1052,7 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doActivateFirmware(
+int FWUpdate::processActivateFirmware(
     const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
 {
@@ -1218,32 +1302,21 @@ boost::system::error_code
 
 int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
 {
-    if (updateMode || state != FD_IDLE)
-    {
-        return ALREADY_IN_UPDATE_MODE;
-    }
     uint32_t compOffset = 0;
     compCount = pldmImg->getTotalCompCount();
-    variable_field compImgSetVerStr;
-    std::string versionStr;
-    if (!prepareRequestUpdateCommand(versionStr))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "RequestUpdateCommand preparation failed");
-        return PLDM_ERROR;
-    }
-    compImgSetVerStr.ptr = reinterpret_cast<const uint8_t*>(versionStr.c_str());
-    compImgSetVerStr.length = versionStr.length();
-
-    int retVal = doRequestUpdate(yield, compImgSetVerStr);
+    int retVal = processRequestUpdate(yield);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
-            "Component cannot be put in update mode");
-        return PLDM_ERROR;
+            "FD cannot be put in update mode");
+        return retVal;
     }
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "RequestUpdate command is success");
+    updateMode = true;
+    fdState = FD_LEARN_COMPONENTS;
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
 
     // fdWillSendGetPkgDataCmd will be set to 0x01 if there was package data
@@ -1268,49 +1341,22 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     }
     applicableComponentsVal = getApplicableComponents();
 
-    for (uint16_t count = 0; count < compCount; ++count)
+    retVal = processPassComponentTable(yield);
+    if (retVal != PLDM_SUCCESS)
     {
-        struct pass_component_table_req componentTable;
-        uint8_t compResp;
-        uint8_t compRespCode;
-
-        if (!isComponentApplicable())
-        {
-            continue;
-        }
-
-        if (!preparePassComponentRequest(componentTable, count))
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("runUpdate: preparePassComponentRequest failed. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-            return PLDM_ERROR;
-        }
-
-        retVal = doPassComponentTable(yield, componentTable, compImgSetVerStr,
-                                      compResp, compRespCode);
-        if (retVal != PLDM_SUCCESS)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("runUpdate: doPassComponentTable failed. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-
-            continue;
-        }
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("PassComponentTable command is success.COMPONENT: " +
-             std::to_string(count))
-                .c_str());
-
-        createAsyncDelay(yield, delayBtw);
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "runUpdate: processPassComponentTable failed");
+        return retVal;
     }
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "PassComponentTable command is success");
+    fdState = FD_READY_XFER;
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "FD changed state to READY XFER");
 
     compOffset = pldmImg->getHeaderLen();
     for (uint16_t count = 0; count < compCount; ++count)
     {
-        struct update_component_req component;
         uint8_t compCompatabilityResp;
         uint8_t compCompatabilityRespCode;
         bitfield32_t updateOptFlagsEnabled;
@@ -1324,29 +1370,19 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             compOffset += compSize;
             continue;
         }
-        if (!prepareUpdateComponentRequest(component, count))
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("runUpdate: prepareUpdateComponentRequest failed. "
-                 "COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-            compOffset += compSize;
-            continue;
-        }
-        uint32_t maxNumReq = findMaxNumReq(compSize);
-        retVal =
-            doUpdateComponent(yield, component, compImgSetVerStr,
-                              compCompatabilityResp, compCompatabilityRespCode,
-                              updateOptFlagsEnabled, estimatedTimeReqFd);
+
+        retVal = processUpdateComponent(
+            yield, count, compCompatabilityResp, compCompatabilityRespCode,
+            updateOptFlagsEnabled, estimatedTimeReqFd);
         if (retVal != PLDM_SUCCESS)
         {
 
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("runUpdate: doUpdateComponent failed. RETVAL: " +
+                ("runUpdate: processUpdateComponent failed. RETVAL: " +
                  std::to_string(retVal) +
                  ". COMPONENT: " + std::to_string(count))
                     .c_str());
+
             compOffset += compSize;
             continue;
         }
@@ -1363,7 +1399,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         }
 
         fdState = FD_DOWNLOAD;
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::INFO>(
             "FD changed state to DOWNLOAD");
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("UpdateComponent command is success. COMPONENT: " +
@@ -1381,67 +1417,13 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         {
             isReserveBandwidthActive = true;
         }
-        uint32_t offset;
-        uint32_t length;
-
-        initialize_fw_update(updateProperties.max_transfer_size, compSize);
         uint8_t verifyResult = 0;
         uint8_t transferResult = 0;
         uint8_t applyResult = 0;
         bitfield16_t compActivationMethodsModification = {};
         expectedCmd = PLDM_REQUEST_FIRMWARE_DATA;
-        int prevProgress = 0;
-        while (--maxNumReq)
-        {
-            startTimer(yield, requestFirmwareDataIdleTimeoutMs);
-            if (!fdReqMatched)
-            {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    "TimeoutWaiting for requestFirmwareData packet");
 
-                break;
-            }
-            else
-            {
-                if (fdTransferCompleted)
-                {
-                    fdTransferCompleted = false;
-                    break;
-                }
-                retVal = processRequestFirmwareData(fdReq, offset, length,
-                                                    compSize, compOffset);
-                if (retVal != PLDM_SUCCESS)
-                {
-                    phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        ("runUpdate: processRequestFirmwareData failed. "
-                         "RETVAL: " +
-                         std::to_string(retVal) +
-                         ". COMPONENT: " + std::to_string(count))
-                            .c_str());
-                    break;
-                }
-                fdReq.clear();
-
-                int progress = ((offset + length) * 100) / compSize;
-                if (prevProgress != progress)
-                {
-                    prevProgress = progress;
-                    phosphor::logging::log<phosphor::logging::level::INFO>(
-                        ("TID: " + std::to_string(currentTid) +
-                         " Component: " + std::to_string(count + 1) +
-                         " update package transfered: " +
-                         std::to_string(progress) + "%")
-                            .c_str());
-                }
-
-                if (offset + length > compSize)
-                {
-                    expectedCmd = PLDM_TRANSFER_COMPLETE;
-                    break;
-                }
-            }
-        }
-
+        retVal = processRequestFirmwareData(yield, compSize, compOffset);
         startTimer(yield, fdCmdTimeout);
 
         if (fdReqMatched)
@@ -1580,8 +1562,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
 
     bool8_t selfContainedActivationReq = true;
     uint16_t estimatedTimeForSelfContainedActivation = 0;
-    retVal = doActivateFirmware(yield, selfContainedActivationReq,
-                                estimatedTimeForSelfContainedActivation);
+    retVal = processActivateFirmware(yield, selfContainedActivationReq,
+                                     estimatedTimeForSelfContainedActivation);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(

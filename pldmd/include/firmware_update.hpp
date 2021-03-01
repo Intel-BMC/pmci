@@ -48,8 +48,7 @@ class FWUpdate
     }
     uint64_t getApplicableComponents();
 
-    int doRequestUpdate(const boost::asio::yield_context& yield,
-                        struct variable_field& compImgSetVerStrn);
+    int processRequestUpdate(const boost::asio::yield_context& yield);
     int requestUpdate(const boost::asio::yield_context& yield,
                       struct variable_field& compImgSetVerStrn);
     int sendPackageData(const boost::asio::yield_context& yield);
@@ -65,23 +64,18 @@ class FWUpdate
                           uint32_t& nextDataTransferHandle,
                           uint8_t& transferFlag,
                           std::vector<uint8_t>& portionOfMetaData);
-    int doPassComponentTable(
-        const boost::asio::yield_context& yield,
-        const struct pass_component_table_req& componentTable,
-        struct variable_field& compImgSetVerStr, uint8_t& compResp,
-        uint8_t& compRespCode);
+    int processPassComponentTable(const boost::asio::yield_context& yield);
     int passComponentTable(
         const boost::asio::yield_context& yield,
         const struct pass_component_table_req& componentTable,
         struct variable_field& compImgSetVerStr, uint8_t& compResp,
         uint8_t& compRespCode);
-    int doUpdateComponent(const boost::asio::yield_context& yield,
-                          const struct update_component_req& component,
-                          variable_field& compVerStr,
-                          uint8_t& compCompatabilityResp,
-                          uint8_t& compCompatabilityRespCode,
-                          bitfield32_t& updateOptFlagsEnabled,
-                          uint16_t& estimatedTimeReqFd);
+    int processUpdateComponent(const boost::asio::yield_context& yield,
+                               const uint16_t count,
+                               uint8_t& compCompatabilityResp,
+                               uint8_t& compCompatabilityRespCode,
+                               bitfield32_t& updateOptFlagsEnabled,
+                               uint16_t& estimatedTimeReqFd);
     int updateComponent(const boost::asio::yield_context& yield,
                         const struct update_component_req& component,
                         variable_field& compVerStr,
@@ -89,8 +83,7 @@ class FWUpdate
                         uint8_t& compCompatabilityRespCode,
                         bitfield32_t& updateOptFlagsEnabled,
                         uint16_t& estimatedTimeReqFd);
-    int processRequestFirmwareData(const std ::vector<uint8_t>& pldmReq,
-                                   uint32_t& offset, uint32_t& length,
+    int processRequestFirmwareData(const boost::asio::yield_context& yield,
                                    const uint32_t componentSize,
                                    const uint32_t componentOffset);
     int requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
@@ -115,9 +108,10 @@ class FWUpdate
     int applyComplete(const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
                       bitfield16_t& compActivationMethodsModification);
     int sendMetaData(const boost::asio::yield_context& yield);
-    int doActivateFirmware(const boost::asio::yield_context& yield,
-                           bool8_t selfContainedActivationReq,
-                           uint16_t& estimatedTimeForSelfContainedActivation);
+    int processActivateFirmware(
+        const boost::asio::yield_context& yield,
+        bool8_t selfContainedActivationReq,
+        uint16_t& estimatedTimeForSelfContainedActivation);
     int activateFirmware(const boost::asio::yield_context& yield,
                          bool8_t selfContainedActivationReq,
                          uint16_t& estimatedTimeForSelfContainedActivation);
@@ -133,7 +127,7 @@ class FWUpdate
     bool sendErrorCompletionCode(const uint8_t fdInstanceId,
                                  const uint8_t complCode,
                                  const uint8_t command);
-    bool prepareRequestUpdateCommand(std::string& vrnStr);
+    bool prepareRequestUpdateCommand();
     bool preparePassComponentRequest(
         struct pass_component_table_req& componentTable,
         const uint16_t compCnt);
@@ -175,6 +169,7 @@ class FWUpdate
     uint8_t progressPercent = 0;
     uint8_t reasonCode = 0;
     bool fdTransferCompleted = false;
+    std::string componentImageSetVersionString;
     bitfield32_t updateOptionFlagsEnabled = {0};
     uint8_t completionCode = PLDM_SUCCESS;
     struct request_update_req updateProperties = {};
