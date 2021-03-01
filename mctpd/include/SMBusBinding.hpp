@@ -26,6 +26,9 @@ class SMBusBinding : public MctpBinding
     bool handleGetVersionSupport(mctp_eid_t destEid, void* bindingPrivate,
                                  std::vector<uint8_t>& request,
                                  std::vector<uint8_t>& response) override;
+    bool handleGetMsgTypeSupport(mctp_eid_t destEid, void* bindingPrivate,
+                                 std::vector<uint8_t>& request,
+                                 std::vector<uint8_t>& response) override;
 
   private:
     void SMBusInit();

@@ -654,3 +654,17 @@ bool SMBusBinding::handleGetVersionSupport(mctp_eid_t destEid,
 
     return true;
 }
+
+bool SMBusBinding::handleGetMsgTypeSupport(mctp_eid_t destEid,
+                                           void* bindingPrivate,
+                                           std::vector<uint8_t>& request,
+                                           std::vector<uint8_t>& response)
+{
+    if (!MctpBinding::handleGetMsgTypeSupport(destEid, bindingPrivate, request,
+                                              response))
+    {
+        return false;
+    }
+
+    return true;
+}
