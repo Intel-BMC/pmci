@@ -367,6 +367,17 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
             initializeEidPool(conf.eidPool);
         }
 
+        if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
+        {
+            discoveredFlag = DiscoveryFlags::kNotApplicable;
+        }
+        else
+        {
+            discoveredFlag = DiscoveryFlags::kUnDiscovered;
+        }
+
+        registerProperty(smbusInterface, "DiscoveredFlag",
+                         convertToString(discoveredFlag));
         registerProperty(smbusInterface, "ArpMasterSupport", arpMasterSupport);
         registerProperty(smbusInterface, "BusPath", bus);
         registerProperty(smbusInterface, "BmcSlaveAddress", bmcSlaveAddr);
@@ -695,6 +706,15 @@ bool SMBusBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
         return false;
     }
 
+    response.resize(sizeof(mctp_ctrl_resp_set_eid));
+    auto resp = reinterpret_cast<mctp_ctrl_resp_set_eid*>(response.data());
+
+    if (resp->completion_code == MCTP_CTRL_CC_SUCCESS)
+    {
+        updateDiscoveredFlag(DiscoveryFlags::kDiscovered);
+        mctpInterface->set_property("Eid", ownEid);
+    }
+
     return true;
 }
 
@@ -806,4 +826,33 @@ mctp_eid_t SMBusBinding::getEIDFromDeviceTable(
         }
     }
     return eid;
+}
+
+std::string SMBusBinding::convertToString(DiscoveryFlags flag)
+{
+    std::string discoveredStr;
+    switch (flag)
+    {
+        case DiscoveryFlags::kUnDiscovered: {
+            discoveredStr = "Undiscovered";
+            break;
+        }
+        case DiscoveryFlags::kDiscovered: {
+            discoveredStr = "Discovered";
+            break;
+        }
+        case DiscoveryFlags::kNotApplicable:
+        default: {
+            discoveredStr = "NotApplicable";
+            break;
+        }
+    }
+
+    return discoveredStr;
+}
+
+void SMBusBinding::updateDiscoveredFlag(DiscoveryFlags flag)
+{
+    discoveredFlag = flag;
+    smbusInterface->set_property("DiscoveredFlag", convertToString(flag));
 }

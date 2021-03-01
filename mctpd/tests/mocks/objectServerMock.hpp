@@ -91,6 +91,7 @@ class dbus_interface_mock
     MOCK_METHOD(bool, initialize, ());
     MOCK_METHOD(bool, register_method, (const std::string&));
     MOCK_METHOD(bool, register_signal, (const std::string&));
+    MOCK_METHOD(bool, set_property, (const std::string&));
 
     template <typename... SignalSignature>
     bool register_signal(const std::string& signalName)
@@ -103,6 +104,13 @@ class dbus_interface_mock
                          __attribute__((unused)) CallbackType&& value)
     {
         return register_method(methodName);
+    }
+
+    template <typename PropertyType>
+    bool set_property(const std::string& nameStr,
+                      __attribute__((unused)) PropertyType value)
+    {
+        return set_property(nameStr);
     }
 
     std::string get_object_path(void)

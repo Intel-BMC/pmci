@@ -158,6 +158,13 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
+    EXPECT_CALL(
+        *smbusInterface,
+        register_property(StrEq("DiscoveredFlag"), An<const std::string&>(),
+                          Eq(sdbusplus::asio::PropertyPermission::readOnly)))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(*mctpInterface, initialize())
         .Times(1)
         .WillRepeatedly(Return(true));

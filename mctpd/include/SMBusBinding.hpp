@@ -6,6 +6,13 @@
 
 #include <iostream>
 
+enum class DiscoveryFlags : uint8_t
+{
+    kNotApplicable = 0,
+    kUnDiscovered,
+    kDiscovered,
+};
+
 class SMBusBinding : public MctpBinding
 {
   public:
@@ -50,6 +57,7 @@ class SMBusBinding : public MctpBinding
     struct mctp_binding_smbus* smbus = nullptr;
     int inFd{-1};  // in_fd for the smbus binding
     int outFd{-1}; // out_fd for the root bus
+    DiscoveryFlags discoveredFlag;
     boost::asio::posix::stream_descriptor smbusReceiverFd;
     boost::asio::steady_timer reserveBWTimer;
     std::shared_ptr<dbus_interface> smbusInterface;
@@ -68,4 +76,6 @@ class SMBusBinding : public MctpBinding
     mctp_eid_t
         getEIDFromDeviceTable(const std::vector<uint8_t>& bindingPrivate);
     void removeDeviceTableEntry(const mctp_eid_t eid);
+    void updateDiscoveredFlag(DiscoveryFlags flag);
+    std::string convertToString(DiscoveryFlags flag);
 };
