@@ -102,8 +102,8 @@ static std::string getMessageType(uint8_t msgType)
         case MCTP_MESSAGE_TYPE_SPDM: // 0x05
             msgTypeValue = "SPDM";
             break;
-        case MCTP_MESSAGE_TYPE_SPDM_SECURE_MESSAGES: // 0x06
-            msgTypeValue = "SECURESPDM";
+        case MCTP_MESSAGE_TYPE_SECUREDMSG: // 0x06
+            msgTypeValue = "SECUREDMSG";
             break;
         case MCTP_MESSAGE_TYPE_VDPCI: // 0x7E
             msgTypeValue = "VDPCI";
@@ -330,7 +330,7 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
             reqHeader.push_back(msgType);
             reqHeader.push_back(rqDInstanceID);
         }
-        else if (messageType == "SECURESPDM")
+        else if (messageType == "SECUREDMSG")
         {
             // MCTPMsgType | SessionId | SPDMVersion | RequestResponseCode
             constexpr size_t minSpdmReqSize = 4;
@@ -394,7 +394,7 @@ std::optional<std::pair<int, std::vector<uint8_t>>>
                         response.assign(reqHeader.begin(), reqHeader.end());
                         response.at(1) = response.at(1) & makeResp;
                     }
-                    if (messageType == "SECURESPDM")
+                    if (messageType == "SECUREDMSG")
                     {
                         response.assign(reqHeader.begin(), reqHeader.end());
                     }

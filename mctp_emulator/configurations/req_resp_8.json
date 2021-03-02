@@ -1117,7 +1117,7 @@
             ]
         }
     ],
-    "SECURESPDM": [
+    "SECUREDMSG": [
         {
             "description": "GetVersion SPDM",
             "processing-delay": 20,
