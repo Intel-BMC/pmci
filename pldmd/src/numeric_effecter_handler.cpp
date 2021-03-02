@@ -399,9 +399,9 @@ void NumericEffecterHandler::registerSetEffecter()
     auto objServer = getObjServer();
     setEffecterInterface = std::make_shared<sdbusplus::asio::dbus_interface>(
         getSdBus(), _effecter->effecterInterface->get_object_path(),
-        "xyz.openbmc_project.Effecter.SetEffecter");
+        "xyz.openbmc_project.Effecter.SetNumericEffecter");
     setEffecterInterface->register_method(
-        "SetNumericEffecter",
+        "SetEffecter",
         [this](boost::asio::yield_context yield, double effecterValue) {
             if (!setEffecter(yield, effecterValue))
             {

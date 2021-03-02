@@ -53,7 +53,7 @@ void StateSensorHandler::setInitialProperties()
     // Composite sensors are not supported. Thus extract only first sensor
     // states
     sensorInterface->register_property_r(
-        "StateSetId", _pdr->possibleStates[0].stateSetID,
+        "StateSetID", _pdr->possibleStates[0].stateSetID,
         sdbusplus::vtable::property_::const_, [](const auto& r) { return r; });
     sensorInterface->register_property_r(
         "PossibleStates", _pdr->possibleStates[0].possibleStateSetValues,

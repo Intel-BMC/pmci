@@ -453,9 +453,9 @@ void StateEffecterHandler::registerSetEffecter()
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
     auto objServer = getObjServer();
     setEffecterInterface = objServer->add_unique_interface(
-        path, "xyz.openbmc_project.Effecter.SetEffecter");
+        path, "xyz.openbmc_project.Effecter.SetStateEffecter");
     setEffecterInterface->register_method(
-        "SetStateEffecter",
+        "SetEffecter",
         [this](boost::asio::yield_context yield, uint8_t effecterState) {
             if (!isEffecterStateSettable(effecterState))
             {
