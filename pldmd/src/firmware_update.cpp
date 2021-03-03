@@ -29,6 +29,29 @@ namespace pldm
 {
 namespace fwu
 {
+
+// Maximum timeout in milliseconds for fwu commad request
+constexpr uint16_t timeout = 100;
+
+// Timeout in milliseconds in between fwu command
+constexpr uint16_t fdCmdTimeout = 5000;
+
+// Maximum timeout in seconds for reserve band width
+constexpr uint16_t reserveEidTimeOut = 900;
+
+// Maximum retry count
+constexpr size_t retryCount = 3;
+
+// Maximum delay in milliseconds used in between fwu commands
+constexpr uint16_t delayBtw = 500;
+
+// Time delay in milliseconds before retrying request update
+constexpr uint16_t retryRequestForUpdateDelay = 5000;
+
+// Time in milliseconds for the update agent to wait for request firmware
+// data command
+const uint32_t requestFirmwareDataIdleTimeoutMs = 90000;
+
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 extern std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
 std::shared_ptr<boost::asio::steady_timer> expectedCommandTimer = nullptr;
@@ -651,9 +674,7 @@ int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
     {
         return retVal;
     }
-    fdState = FD_VERIFY;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to VERIFY");
+
     return PLDM_SUCCESS;
 }
 
@@ -741,9 +762,7 @@ int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
     {
         return retVal;
     }
-    fdState = FD_APPLY;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to APPLY");
+
     return PLDM_SUCCESS;
 }
 
@@ -837,9 +856,7 @@ int FWUpdate::processApplyComplete(
     {
         return retVal;
     }
-    fdState = FD_READY_XFER;
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "FD changed state to READY XFER");
+
     return PLDM_SUCCESS;
 }
 
@@ -910,7 +927,7 @@ int FWUpdate::processRequestFirmwareData(
 
     while (--maxNumReq)
     {
-        startTimer(yield, fdCmdTimeout);
+        startTimer(yield, requestFirmwareDataIdleTimeoutMs);
         if (!fdReqMatched)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1426,35 +1443,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         retVal = processRequestFirmwareData(yield, compSize, compOffset);
         startTimer(yield, fdCmdTimeout);
 
-        if (fdReqMatched)
-        {
-            retVal = processTransferComplete(fdReq, transferResult);
-            if (retVal != PLDM_SUCCESS)
-            {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: processTransferComplete failed. RETVAL: " +
-                     std::to_string(retVal) +
-                     ". COMPONENT: " + std::to_string(count))
-                        .c_str());
-                retVal = doCancelUpdateComponent(yield);
-                if (retVal != PLDM_SUCCESS)
-                {
-                    phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        ("runUpdate: Failed to run CancelUpdateComponent. "
-                         "RETVAL: " +
-                         std::to_string(retVal) +
-                         ". COMPONENT: " + std::to_string(count))
-                            .c_str());
-                }
-                compOffset += compSize;
-                continue;
-            }
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("TransferComplete command is success. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-        }
-        else
+        if (!fdReqMatched)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("Timeout waiting for Transfer complete. COMPONENT: " +
@@ -1464,40 +1453,41 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             compOffset += compSize;
             continue;
         }
+
+        retVal = processTransferComplete(fdReq, transferResult);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("runUpdate: processTransferComplete failed. RETVAL: " +
+                 std::to_string(retVal) +
+                 ". COMPONENT: " + std::to_string(count))
+                    .c_str());
+            retVal = doCancelUpdateComponent(yield);
+            if (retVal != PLDM_SUCCESS)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("runUpdate: Failed to run CancelUpdateComponent. "
+                     "RETVAL: " +
+                     std::to_string(retVal) +
+                     ". COMPONENT: " + std::to_string(count))
+                        .c_str());
+            }
+            compOffset += compSize;
+            continue;
+        }
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("TransferComplete command is success. COMPONENT: " +
+             std::to_string(count))
+                .c_str());
+        fdState = FD_VERIFY;
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "FD changed state to VERIFY");
+
         expectedCmd = PLDM_VERIFY_COMPLETE;
 
         startTimer(yield, fdCmdTimeout);
 
-        if (fdReqMatched)
-        {
-            retVal = processVerifyComplete(fdReq, verifyResult);
-            if (retVal != PLDM_SUCCESS)
-            {
-
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: processVerifyComplete failed for COMPONENT: " +
-                     std::to_string(count) +
-                     ".RETVAL: " + std::to_string(retVal))
-                        .c_str());
-                retVal = doCancelUpdateComponent(yield);
-                if (retVal != PLDM_SUCCESS)
-                {
-                    phosphor::logging::log<phosphor::logging::level::WARNING>(
-                        ("runUpdate: Failed to run CancelUpdateComponent. "
-                         "RETVAL: " +
-                         std::to_string(retVal) +
-                         ". COMPONENT: " + std::to_string(count))
-                            .c_str());
-                }
-                compOffset += compSize;
-                continue;
-            }
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("VerifyComplete command is success. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-        }
-        else
+        if (!fdReqMatched)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "Timeout waiting for Verify complete",
@@ -1505,32 +1495,41 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             compOffset += compSize;
             continue;
         }
+
+        retVal = processVerifyComplete(fdReq, verifyResult);
+        if (retVal != PLDM_SUCCESS)
+        {
+
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("runUpdate: processVerifyComplete failed for COMPONENT: " +
+                 std::to_string(count) + ".RETVAL: " + std::to_string(retVal))
+                    .c_str());
+            retVal = doCancelUpdateComponent(yield);
+            if (retVal != PLDM_SUCCESS)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("runUpdate: Failed to run CancelUpdateComponent. "
+                     "RETVAL: " +
+                     std::to_string(retVal) +
+                     ". COMPONENT: " + std::to_string(count))
+                        .c_str());
+            }
+            compOffset += compSize;
+            continue;
+        }
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("VerifyComplete command is success. COMPONENT: " +
+             std::to_string(count))
+                .c_str());
+        fdState = FD_APPLY;
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "FD changed state to APPLY");
+
         expectedCmd = PLDM_APPLY_COMPLETE;
 
         startTimer(yield, fdCmdTimeout);
 
-        if (fdReqMatched)
-        {
-            retVal = processApplyComplete(fdReq, applyResult,
-                                          compActivationMethodsModification);
-            if (retVal != PLDM_SUCCESS)
-            {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("runUpdate: processApplyComplete failed. RETVAL: " +
-                     std::to_string(retVal) +
-                     ". COMPONENT: " + std::to_string(count))
-                        .c_str());
-
-                compOffset += compSize;
-                continue;
-            }
-            isComponentAvailableForUpdate = true;
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("ApplyComplete command is success. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-        }
-        else
+        if (!fdReqMatched)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("Timeout waiting for Apply complete. COMPONENT: " +
@@ -1540,6 +1539,28 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             compOffset += compSize;
             continue;
         }
+        retVal = processApplyComplete(fdReq, applyResult,
+                                      compActivationMethodsModification);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("runUpdate: processApplyComplete failed. RETVAL: " +
+                 std::to_string(retVal) +
+                 ". COMPONENT: " + std::to_string(count))
+                    .c_str());
+
+            compOffset += compSize;
+            continue;
+        }
+        isComponentAvailableForUpdate = true;
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("ApplyComplete command is success. COMPONENT: " +
+             std::to_string(count))
+                .c_str());
+        fdState = FD_READY_XFER;
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "FD changed state to READY XFER");
+
         compOffset += compSize;
     }
     if (isReserveBandwidthActive)

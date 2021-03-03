@@ -26,6 +26,7 @@ namespace pldm
 {
 namespace fwu
 {
+
 class FWUpdate
 {
   public:
@@ -144,15 +145,6 @@ class FWUpdate
     bool isReserveBandwidthActive = false;
     bool isComponentAvailableForUpdate = false;
     uint8_t currentDeviceIDRecord;
-    const uint16_t timeout = 100;
-    const uint16_t fdCmdTimeout = 5000;
-    // Time in milliseconds for the update agent to wait for request firmware
-    // data command
-    const uint32_t requestFirmwareDataIdleTimeoutMs = 90000;
-    const uint16_t reserveEidTimeOut = 900;
-    const size_t retryCount = 3;
-    const uint16_t delayBtw = 500;
-    const uint16_t retryRequestForUpdateDelay = 5000;
     bool updateMode = false;
     uint8_t fdState = FD_IDLE;
     pldm_firmware_update_state state;
