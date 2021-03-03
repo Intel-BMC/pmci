@@ -18,7 +18,6 @@
 #include "fwu_utils.hpp"
 
 #include <boost/asio/steady_timer.hpp>
-#include <fstream>
 #include <sdbusplus/asio/object_server.hpp>
 
 #include "firmware_update.h"
@@ -27,45 +26,6 @@ namespace pldm
 {
 namespace fwu
 {
-constexpr size_t pkgHeaderIdentifierSize = 16;
-
-struct PLDMPkgHeaderInfo
-{
-    uint8_t packageHeaderIdentifier[pkgHeaderIdentifierSize];
-    uint8_t pkgHeaderFormatRevision;
-    uint16_t pkgHeaderSize;
-    uint8_t
-        pkgReleaseDateTime[13]; // size of PackageReleaseDateTime is 13 bytes.
-    uint16_t compBitmapBitLength;
-    uint8_t pkgVersionStringType;
-    uint8_t pkgVersionStringLen;
-} __attribute__((packed));
-
-// As per spec 1.0.1
-struct FWDevIdRecord
-{
-    uint16_t recordLength;
-    uint8_t descriptorCount;
-    uint32_t deviceUpdateOptionFlags;
-    uint8_t comImgSetVerStrType;
-    uint8_t comImgSetVerStrLen;
-    uint16_t fwDevPkgDataLen;
-} __attribute__((packed));
-
-// As per spec 1.0.1
-struct CompImgInfo
-{
-    uint16_t compClassification;
-    uint16_t compIdentifier;
-    uint32_t compComparisonStamp;
-    uint16_t compOptions;
-    uint16_t requestedCompActivationMethod;
-    uint32_t compLocationOffset;
-    uint32_t compSize;
-    uint8_t compVerStrType;
-    uint8_t compVerStrLen;
-} __attribute__((packed));
-
 class FWUpdate
 {
   public:
@@ -221,143 +181,6 @@ class FWUpdate
     FDProperties targetFDProperties;
     std::set<uint8_t> cancelUpdateComponentState = {FD_DOWNLOAD, FD_VERIFY,
                                                     FD_APPLY};
-};
-
-class PLDMImg
-{
-  public:
-    PLDMImg() = delete;
-    PLDMImg(const std::string& pldmImgPath);
-    ~PLDMImg();
-    /** @brief API that process PLDM firmware update package header
-     */
-    bool processPkgHdr();
-    constexpr uint16_t getHeaderLen()
-    {
-        return pkgHdrLen;
-    }
-    constexpr uint16_t getDevIDRecordCount()
-    {
-        return deviceIDRecordCount;
-    }
-    constexpr uint16_t getTotalCompCount()
-    {
-        return totalCompCount;
-    }
-
-    /** @brief API that gets PLDM firmware update package header property
-     */
-    template <typename T>
-    bool getPkgProperty(T& value, const std::string& name);
-
-    /** @brief API that gets PLDM firmware update component property
-     */
-    template <typename T>
-    bool getCompProperty(T& value, const std::string& name, uint16_t compCount);
-
-    /** @brief API that gets PLDM firmware update device record property
-     */
-    template <typename T>
-    bool getDevIdRcrdProperty(T& value, const std::string& name,
-                              uint8_t recordCount);
-
-    /** @brief API that is used to read raw bytes from pldm firmware update
-     * image
-     */
-    bool readData(const size_t startAddr, std::vector<uint8_t>& data,
-                  const size_t dataLen);
-
-    constexpr uint32_t getImagesize()
-    {
-        return static_cast<uint32_t>(pldmImgSize);
-    };
-    std::vector<std::pair<uint8_t, pldm_tid_t>> getMatchedTermini()
-    {
-        return matchedTermini;
-    }
-
-  private:
-    /** @brief API that gets descriptor identifiers data length
-     */
-    size_t getDescriptorDataLen(const FWDevIdRecord& data,
-                                const size_t applicableComponentsLen);
-
-    /** @brief API that gets pldm firmware update package header length
-     */
-    uint16_t getHdrLen();
-
-    /** @brief API that verifys package header checksum
-     */
-    bool verifyPkgHdrChecksum();
-
-    /** @brief API that validates package header data
-     */
-    inline bool validateHdrDataLen(const size_t bytesLeft,
-                                   const size_t nextDataSize);
-
-    /** @brief API that matches package header identifier
-     */
-    bool matchPkgHdrIdentifier(const uint8_t* packageHeaderIdentifier);
-
-    /** @brief API that advance package header iterator
-     */
-    bool advanceHdrItr(const size_t dataSize, const size_t nextDataSize);
-
-    /** @brief API that process a postion PLDM firmware update package header
-     */
-    bool processPkgHdrInfo();
-
-    /** @brief API that process device identification info in the pldm package
-     * header
-     */
-    bool processDevIdentificationInfo();
-
-    /** @brief API that finds the matched terminus
-     */
-    bool findMatchedTerminus(const uint8_t devIdRecord,
-                             const DescriptorsMap& pkgDescriptors);
-
-    /** @brief API that process component data from PLDM firmware update package
-     * header
-     */
-    bool processCompImgInfo();
-
-    /** @brief API that copies package header info to firmware update properties
-     * map.
-     */
-    void copyPkgHdrInfoToMap(const struct PLDMPkgHeaderInfo* headerInfo,
-                             const std::string& pkgVersionString);
-
-    /** @brief API that copies device identification info to firmware update
-     * properties map.
-     */
-    void copyDevIdentificationInfoToMap(
-        const uint8_t deviceIDRecord, const uint16_t initialDescriptorType,
-        const FWDevIdRecord* devIdentificationInfo,
-        const std::vector<uint8_t>& applicableComponents,
-        const std::string& compImgSetVerStr,
-        const std::vector<uint8_t>& fwDevPkgData,
-        DescriptorsMap& pkgDescriptorRecords);
-
-    /** @brief API that copies component data to firmware update properties map.
-     */
-    void copyCompImgInfoToMap(const uint16_t count, const CompImgInfo* compInfo,
-                              const std::string& compVerStr);
-
-    std::streamoff pldmImgSize;
-    std::ifstream pldmImg;
-    uint16_t pkgHdrLen = 0;
-    std::vector<uint8_t> hdrData;
-    std::vector<uint8_t>::iterator hdrItr;
-    uint8_t pkgVersionStringLen = 0;
-    uint16_t compBitmapBitLength = 0;
-    uint16_t fwDevPkgDataLen = 0;
-    uint8_t deviceIDRecordCount = 0;
-    uint16_t totalCompCount = 0;
-    FWUProperties pkgFWUProperties;
-    DevIDRecordsMap pkgDevIDRecords;
-    CompPropertiesMap pkgCompProperties;
-    std::vector<std::pair<uint8_t, pldm_tid_t>> matchedTermini;
 };
 } // namespace fwu
 } // namespace pldm
