@@ -373,6 +373,9 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         else
         {
             discoveredFlag = DiscoveryFlags::kUnDiscovered;
+            smbusRoutingInterval = conf.routingIntervalSec;
+            smbusRoutingTableTimer =
+                std::make_unique<boost::asio::steady_timer>(ioc);
         }
 
         registerProperty(smbusInterface, "DiscoveredFlag",
@@ -814,6 +817,16 @@ bool SMBusBinding::handleSetEndpointId(mctp_eid_t destEid, void* bindingPrivate,
     {
         updateDiscoveredFlag(DiscoveryFlags::kDiscovered);
         mctpInterface->set_property("Eid", ownEid);
+
+        mctp_smbus_pkt_private* smbusPrivate =
+            reinterpret_cast<mctp_smbus_pkt_private*>(bindingPrivate);
+        busOwnerSlaveAddr = smbusPrivate->slave_addr;
+        busOwnerFd = smbusPrivate->fd;
+
+        if (bindingModeType != mctp_server::BindingModeTypes::BusOwner)
+        {
+            updateRoutingTable();
+        }
     }
 
     return true;
@@ -990,4 +1003,168 @@ void SMBusBinding::addUnknownEIDToDeviceTable(const mctp_eid_t eid,
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("New EID added to device table. EID = " + std::to_string(eid))
             .c_str());
+}
+
+bool SMBusBinding::isBindingDataSame(const mctp_smbus_pkt_private& dataMain,
+                                     const mctp_smbus_pkt_private& dataTmp)
+{
+    if (std::tie(dataMain.fd, dataMain.slave_addr) ==
+        std::tie(dataTmp.fd, dataTmp.slave_addr))
+    {
+        return true;
+    }
+    return false;
+}
+
+bool SMBusBinding::isDeviceTableChanged(
+    const std::vector<DeviceTableEntry_t>& tableMain,
+    const std::vector<DeviceTableEntry_t>& tableTmp)
+{
+    if (tableMain.size() != tableTmp.size())
+    {
+        return true;
+    }
+    for (size_t i = 0; i < tableMain.size(); i++)
+    {
+        if ((std::get<0>(tableMain[i]) != std::get<0>(tableTmp[i])) ||
+            (!isBindingDataSame(std::get<1>(tableMain[i]),
+                                std::get<1>(tableTmp[i]))))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SMBusBinding::isDeviceEntryPresent(
+    const DeviceTableEntry_t& deviceEntry,
+    const std::vector<DeviceTableEntry_t>& deviceTable)
+{
+    for (size_t i = 0; i < deviceTable.size(); i++)
+    {
+        if (std::get<0>(deviceTable[i]) == std::get<0>(deviceEntry))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SMBusBinding::updateRoutingTable()
+{
+    if (discoveredFlag != DiscoveryFlags::kDiscovered)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "SMBus Get Routing Table failed, undiscovered");
+        return;
+    }
+
+    struct mctp_smbus_pkt_private pktPrv = {};
+    pktPrv.fd = busOwnerFd;
+    pktPrv.mux_hold_timeout = 0;
+    pktPrv.mux_flags = 0;
+    pktPrv.slave_addr = busOwnerSlaveAddr;
+    uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+    std::vector<uint8_t> prvData = std::vector<uint8_t>(
+        pktPrvPtr, pktPrvPtr + sizeof(mctp_smbus_pkt_private));
+
+    boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
+        std::vector<uint8_t> getRoutingTableEntryResp = {};
+        std::vector<DeviceTableEntry_t> smbusDeviceTableTmp;
+        uint8_t entryHandle = 0x00;
+        uint8_t entryHdlCounter = 0x00;
+        while ((entryHandle != 0xff) && (entryHdlCounter < 0xff))
+        {
+            if (!getRoutingTableCtrlCmd(yield, prvData, busOwnerEid,
+                                        entryHandle, getRoutingTableEntryResp))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Get Routing Table failed");
+                return;
+            }
+
+            auto routingTableHdr =
+                reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
+                    getRoutingTableEntryResp.data());
+            size_t phyAddrOffset = sizeof(mctp_ctrl_resp_get_routing_table);
+
+            for (uint8_t entryIndex = 0;
+                 entryIndex < routingTableHdr->number_of_entries; entryIndex++)
+            {
+                auto routingTableEntry =
+                    reinterpret_cast<get_routing_table_entry*>(
+                        getRoutingTableEntryResp.data() + phyAddrOffset);
+
+                phyAddrOffset += sizeof(get_routing_table_entry);
+
+                if ((routingTableEntry->phys_transport_binding_id ==
+                     MCTP_BINDING_SMBUS) &&
+                    (routingTableEntry->phys_address_size == 1))
+                {
+                    struct mctp_smbus_pkt_private smbusBindingPvt = {};
+                    smbusBindingPvt.fd = busOwnerFd;
+                    smbusBindingPvt.mux_hold_timeout = 0;
+                    smbusBindingPvt.mux_flags = 0;
+                    smbusBindingPvt.slave_addr = static_cast<uint8_t>(
+                        (getRoutingTableEntryResp[phyAddrOffset] << 1));
+
+                    for (uint8_t eidRange = 0;
+                         eidRange < routingTableEntry->eid_range_size;
+                         eidRange++)
+                    {
+                        smbusDeviceTableTmp.push_back(std::make_pair(
+                            routingTableEntry->starting_eid + eidRange,
+                            smbusBindingPvt));
+                    }
+                }
+                phyAddrOffset += routingTableEntry->phys_address_size;
+            }
+            entryHandle = routingTableHdr->next_entry_handle;
+        }
+
+        if (isDeviceTableChanged(smbusDeviceTable, smbusDeviceTableTmp))
+        {
+            processRoutingTableChanges(smbusDeviceTableTmp, yield, prvData);
+            smbusDeviceTable = smbusDeviceTableTmp;
+        }
+        entryHdlCounter++;
+    });
+
+    smbusRoutingTableTimer->expires_after(
+        std::chrono::seconds(smbusRoutingInterval));
+    smbusRoutingTableTimer->async_wait(
+        std::bind(&SMBusBinding::updateRoutingTable, this));
+}
+
+/* Function takes new routing table, detect changes and creates or removes
+ * device interfaces on dbus.
+ */
+void SMBusBinding::processRoutingTableChanges(
+    const std::vector<DeviceTableEntry_t>& newTable,
+    boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData)
+{
+    /* find removed endpoints, in case entry is not present
+     * in the newly read routing table remove dbus interface
+     * for this device
+     */
+    for (auto& deviceTableEntry : smbusDeviceTable)
+    {
+        if (!isDeviceEntryPresent(deviceTableEntry, newTable))
+        {
+            unregisterEndpoint(std::get<0>(deviceTableEntry));
+        }
+    }
+
+    /* find new endpoints, in case entry is in the newly read
+     * routing table but not present in the routing table stored as
+     * the class member, register new dbus device interface
+     */
+    for (auto& deviceTableEntry : newTable)
+    {
+        if (!isDeviceEntryPresent(deviceTableEntry, smbusDeviceTable))
+        {
+            registerEndpoint(yield, prvData, std::get<0>(deviceTableEntry),
+                             mctp_server::BindingModeTypes::Endpoint);
+        }
+    }
 }

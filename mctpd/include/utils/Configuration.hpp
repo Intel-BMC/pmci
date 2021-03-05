@@ -24,6 +24,7 @@ struct SMBusConfiguration : Configuration
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
     std::set<uint8_t> supportedEndpointSlaveAddress;
+    uint8_t routingIntervalSec;
 
     ~SMBusConfiguration() override;
 };
