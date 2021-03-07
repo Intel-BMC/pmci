@@ -276,43 +276,43 @@ bool FWUpdate::initTransferFlag(const uint16_t compCnt, uint8_t& flag)
 }
 
 bool FWUpdate::prepareUpdateComponentRequest(
-    struct update_component_req& component, const uint16_t compCnt)
+    struct update_component_req& component)
 {
     uint16_t tempShort = 0;
     uint32_t tempLong = 0;
 
     if (!pldmImg->getCompProperty<uint16_t>(tempShort, "CompClassification",
-                                            compCnt))
+                                            currentComp))
     {
         return false;
     }
     component.comp_classification = tempShort;
     if (!pldmImg->getCompProperty<uint16_t>(tempShort, "CompIdentifier",
-                                            compCnt))
+                                            currentComp))
     {
         return false;
     }
     component.comp_identifier = tempShort;
     component.comp_classification_index = 0;
     if (!pldmImg->getCompProperty<uint32_t>(tempLong, "CompComparisonStamp",
-                                            compCnt))
+                                            currentComp))
     {
         return false;
     }
     component.comp_comparison_stamp = tempLong;
-    if (!pldmImg->getCompProperty<uint32_t>(tempLong, "CompSize", compCnt))
+    if (!pldmImg->getCompProperty<uint32_t>(tempLong, "CompSize", currentComp))
     {
         return false;
     }
     component.comp_image_size = tempLong;
     component.update_option_flags = {};
     if (!pldmImg->getCompProperty<uint8_t>(component.comp_ver_str_type,
-                                           "CmpVerStrType", compCnt))
+                                           "CmpVerStrType", currentComp))
     {
         return false;
     }
     if (!pldmImg->getCompProperty<uint8_t>(component.comp_ver_str_len,
-                                           "CompVerStrLen", compCnt))
+                                           "CompVerStrLen", currentComp))
     {
         return false;
     }
@@ -487,6 +487,7 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context& yield)
         struct variable_field ComponentVersionString;
         uint8_t compResp;
         uint8_t compRespCode;
+        currentComp = count;
 
         if (!isComponentApplicable())
         {
@@ -569,12 +570,10 @@ int FWUpdate::passComponentTable(
 }
 
 int FWUpdate::processUpdateComponent(const boost::asio::yield_context& yield,
-                                     const uint16_t count,
                                      uint8_t& compCompatabilityResp,
                                      uint8_t& compCompatabilityRespCode,
                                      bitfield32_t& updateOptFlagsEnabled,
                                      uint16_t& estimatedTimeReqFd)
-
 {
     if (!updateMode)
     {
@@ -589,7 +588,8 @@ int FWUpdate::processUpdateComponent(const boost::asio::yield_context& yield,
     ComponentVersionString.ptr = reinterpret_cast<const uint8_t*>(
         componentImageSetVersionString.c_str());
     ComponentVersionString.length = componentImageSetVersionString.length();
-    if (!prepareUpdateComponentRequest(component, count))
+
+    if (!prepareUpdateComponentRequest(component))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "UpdateComponentRequest preparation failed");
@@ -1293,8 +1293,23 @@ int FWUpdate::cancelUpdate(const boost::asio::yield_context& yield,
 
 uint64_t FWUpdate::getApplicableComponents()
 {
-    // TODO implement actual code.
-    return 1;
+    std::vector<uint8_t> applicableComp;
+    uint64_t value = 0;
+    pldmImg->getDevIdRcrdProperty(applicableComp, "ApplicableComponents",
+                                  currentDeviceIDRecord);
+    int byteCount = 0;
+    for (auto byte : applicableComp)
+    {
+        value = value | (static_cast<uint64_t>(byte) << (8 * byteCount++));
+        if (byteCount > static_cast<int>(sizeof(uint64_t) - 1))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "ApplicableComponents exceeding 8 bytes");
+            break;
+        }
+    }
+
+    return value;
 }
 
 bool FWUpdate::isComponentApplicable()
@@ -1380,6 +1395,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         uint16_t estimatedTimeReqFd;
         uint32_t compSize;
         pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
+        currentComp = count;
         if (!isComponentApplicable())
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1389,7 +1405,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         }
 
         retVal = processUpdateComponent(
-            yield, count, compCompatabilityResp, compCompatabilityRespCode,
+            yield, compCompatabilityResp, compCompatabilityRespCode,
             updateOptFlagsEnabled, estimatedTimeReqFd);
         if (retVal != PLDM_SUCCESS)
         {

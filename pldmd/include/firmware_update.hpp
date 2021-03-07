@@ -72,7 +72,6 @@ class FWUpdate
         struct variable_field& compImgSetVerStr, uint8_t& compResp,
         uint8_t& compRespCode);
     int processUpdateComponent(const boost::asio::yield_context& yield,
-                               const uint16_t count,
                                uint8_t& compCompatabilityResp,
                                uint8_t& compCompatabilityRespCode,
                                bitfield32_t& updateOptFlagsEnabled,
@@ -133,8 +132,7 @@ class FWUpdate
         struct pass_component_table_req& componentTable,
         const uint16_t compCnt);
     bool initTransferFlag(const uint16_t compCnt, uint8_t& flag);
-    bool prepareUpdateComponentRequest(struct update_component_req& component,
-                                       const uint16_t compCnt);
+    bool prepareUpdateComponentRequest(struct update_component_req& component);
 
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
