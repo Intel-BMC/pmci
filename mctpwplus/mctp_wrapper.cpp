@@ -166,17 +166,13 @@ boost::system::error_code
         boost::system::errc::make_error_code(boost::system::errc::success);
 
     auto bus_vector = findBusByBindingType(yield);
-    if (!bus_vector)
+    if (bus_vector)
     {
-        return boost::system::errc::make_error_code(
-            boost::system::errc::not_supported);
-    }
-
-    endpointMap = buildMatchingEndpointMap(yield, bus_vector.value());
-
-    for (auto& [busId, serviceName] : bus_vector.value())
-    {
-        registerListeners(serviceName);
+        endpointMap = buildMatchingEndpointMap(yield, bus_vector.value());
+        for (auto& [busId, serviceName] : bus_vector.value())
+        {
+            registerListeners(serviceName);
+        }
     }
 
     listenForNewMctpServices();

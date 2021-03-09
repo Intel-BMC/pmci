@@ -50,21 +50,7 @@ void NewServiceCallback::operator()(sdbusplus::message::message& msg)
         return;
     }
 
-    boost::asio::spawn([serviceName = std::string(msg.get_sender()),
-                        this](boost::asio::yield_context yield) {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            (std::string("New service ") + serviceName).c_str());
-        std::vector<std::pair<unsigned, std::string>> buses;
-        int busId = parent.getBusId(serviceName);
-        buses.emplace_back(std::make_pair(busId, serviceName));
-        auto epMap = parent.buildMatchingEndpointMap(yield, buses);
-        for (const auto& [eid, service] : epMap)
-        {
-            phosphor::logging::log<phosphor::logging::level::INFO>(
-                (std::string("Adding new device ") + std::to_string(eid))
-                    .c_str());
-            parent.endpointMap.insert_or_assign(eid, service);
-        }
-        parent.registerListeners(serviceName);
-    });
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        (std::string("New service ") + msg.get_sender()).c_str());
+    parent.registerListeners(msg.get_sender());
 }
