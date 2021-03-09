@@ -498,9 +498,8 @@ MctpBinding::MctpBinding(
         "mctp-emulator: MctpBinding constructor call...");
     eid = 8;
 
-    // TODO:Probably read these from mctp_config.json ?
-    uint8_t bindingType = 2;
-    uint8_t bindingMedium = 3;
+    uint8_t bindingType = 0xFF; // OEM Binding
+    uint8_t bindingMedium = 0XFF;
     bool staticEidSupport = false;
     std::string bindingMode("xyz.openbmc_project.MCTP.BusOwner");
     delayTimer =
@@ -576,7 +575,6 @@ MctpBinding::MctpBinding(
 
     mctpInterface->register_property("Eid", eid);
 
-    // TODO:Use the enum from D-Bus interface
     mctpInterface->register_property("BindingID", bindingType);
 
     mctpInterface->register_property("BindingMediumID", bindingMedium);

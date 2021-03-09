@@ -1,4 +1,4 @@
-#include "SMBusBinding.hpp"
+#include "OemBinding.hpp"
 
 #include <CLI/CLI.hpp>
 #include <boost/asio/io_service.hpp>
@@ -14,9 +14,6 @@
 #include <xyz/openbmc_project/MCTP/Base/server.hpp>
 #include <xyz/openbmc_project/MCTP/Endpoint/server.hpp>
 #include <xyz/openbmc_project/MCTP/SupportedMessageTypes/server.hpp>
-
-std::map<std::string, binding> mctpBindingsMap = {{"smbus", binding::smbus},
-                                                  {"pcie", binding::pcie}};
 
 std::shared_ptr<sdbusplus::asio::connection> bus;
 std::string uuidIntf = "xyz.openbmc_project.Common.UUID";
@@ -162,9 +159,6 @@ void initEndPointDevices(
 
 int main()
 {
-    // TODO: Read the binding configuration from a json file
-    std::string binding("smbus");
-
     std::string mctpBaseObj = "/xyz/openbmc_project/mctp";
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
@@ -180,22 +174,10 @@ int main()
     auto objManager = std::make_shared<sdbusplus::server::manager::manager>(
         *bus, mctpBaseObj.c_str());
 
-    // TODO: Initialise binding based on configurations exposed by Entity
-    // Manager
-    switch (mctpBindingsMap[binding])
-    {
-        case binding::smbus: {
-            SMBusBinding SMBus(objectServer, mctpBaseObj);
-            break;
-        }
-        case binding::pcie: {
-            break;
-        }
-        default: {
-            break;
-        }
-    }
+    // Create a virtual binding
+    OemBinding oemInstance(objectServer, mctpBaseObj);
     initEndPointDevices(objectServer);
+
     ioc.run();
 
     return 0;

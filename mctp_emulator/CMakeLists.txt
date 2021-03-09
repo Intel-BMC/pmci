@@ -41,10 +41,10 @@ set (CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 #Add header and sources here
 set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/main.cpp ${PROJECT_SOURCE_DIR}/src/MCTPBinding.cpp
-     ${PROJECT_SOURCE_DIR}/src/SMBusBinding.cpp)
+     ${PROJECT_SOURCE_DIR}/src/OemBinding.cpp)
 
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/MCTPBinding.hpp
-     ${PROJECT_SOURCE_DIR}/include/SMBusBinding.hpp)
+     ${PROJECT_SOURCE_DIR}/include/OemBinding.hpp)
 
 include_directories (${PROJECT_SOURCE_DIR}/include)
 
