@@ -387,8 +387,24 @@ void SMBusBinding::SMBusInit()
     {
         throwRunTimeError("Error in opening smbus rootport");
     }
-    std::string inputDevice =
-        "/sys/bus/i2c/devices/" + rootPort + "-1008/slave-mqueue";
+
+    std::stringstream addrStream;
+    addrStream.str("");
+
+    int addr7bit = (bmcSlaveAddr >> 1);
+
+    // want the format as 0x0Y
+    addrStream << std::setfill('0') << std::setw(2) << std::hex << addr7bit;
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Slave Address " + addrStream.str()).c_str());
+
+    // MSB fixed to 10 so hex is 0x10XX ~ 0x1005
+    std::string hexSlaveAddr("10");
+    hexSlaveAddr.append(addrStream.str());
+
+    std::string inputDevice = "/sys/bus/i2c/devices/" + rootPort + "-" +
+                              hexSlaveAddr + "/slave-mqueue";
 
     inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 
@@ -397,7 +413,9 @@ void SMBusBinding::SMBusInit()
     {
         std::string newInputDevice =
             "/sys/bus/i2c/devices/i2c-" + rootPort + "/new_device";
-        std::string para("slave-mqueue 0x1008");
+        std::string para("slave-mqueue 0x");
+        para.append(hexSlaveAddr);
+
         std::fstream deviceFile;
         deviceFile.open(newInputDevice, std::ios::out);
         deviceFile << para;
