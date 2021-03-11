@@ -199,9 +199,9 @@ static bool check_comp_resp_valid(const uint8_t comp_resp)
 	}
 }
 
-/** @brief Check validity of VerifyResult in VerifyComplete request
+/** @brief Check validity of verify result in VerifyComplete request
  *
- *	@param[in] verify_result - VerifyResult
+ *	@param[in] verify_result - Indicate the result of the Verify stage
  *	@return validity
  */
 static bool validate_verify_result(const uint8_t verify_result)

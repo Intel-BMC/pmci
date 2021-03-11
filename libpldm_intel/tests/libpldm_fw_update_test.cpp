@@ -495,11 +495,14 @@ TEST(CancelUpdate, testBadDecodeResponse)
 TEST(VerifyComplete, testGoodEncodeResponse)
 {
     uint8_t instanceId = 0x01;
-    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t completionCode = PLDM_ERROR;
+
     std::array<uint8_t, (hdrSize + 1)> responseMsg{};
     auto responsePtr = reinterpret_cast<pldm_msg*>(responseMsg.data());
+
     auto rc =
         encode_verify_complete_resp(instanceId, completionCode, responsePtr);
+
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
@@ -511,7 +514,8 @@ TEST(VerifyComplete, testGoodEncodeResponse)
 TEST(VerifyComplete, testBadEncodeResponse)
 {
     uint8_t instanceId = 0x01;
-    uint8_t completionCode = PLDM_SUCCESS;
+    uint8_t completionCode = PLDM_ERROR;
+
     auto rc = encode_verify_complete_resp(instanceId, completionCode, NULL);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
@@ -519,25 +523,69 @@ TEST(VerifyComplete, testBadEncodeResponse)
 TEST(VerifyComplete, testGoodDecodeRequest)
 {
     std::array<uint8_t, (hdrSize + 1)> request;
-    uint8_t verifyResult = 0;
+    uint8_t verifyResult = PLDM_FWU_VERIFY_SUCCESS;
+
     auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+
     requestPtr->payload[0] = PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR;
     auto rc = decode_verify_complete_req(requestPtr, &verifyResult);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(verifyResult, PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR);
+
+    requestPtr->payload[0] = 0x01;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(verifyResult, PLDM_FWU_VERIFY_COMPLETED_WITH_FAILURE);
+
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(verifyResult, PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN);
+
+    requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_SUCCESS);
+    EXPECT_EQ(verifyResult, PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX);
 }
 
 TEST(VerifyComplete, testBadDecodeRequest)
 {
     std::array<uint8_t, (hdrSize + 1)> request;
-    uint8_t verifyResult = 0;
+    uint8_t verifyResult = PLDM_FWU_VERIFY_SUCCESS;
+
     auto requestPtr = reinterpret_cast<pldm_msg*>(request.data());
+
     requestPtr->payload[0] = PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR;
     auto rc = decode_verify_complete_req(NULL, &verifyResult);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    rc = decode_verify_complete_req(requestPtr, NULL);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    requestPtr->payload[0] = PLDM_FWU_VERIFY_SUCCESS - 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    requestPtr->payload[0] = PLDM_FWU_VERIFY_COMPLETED_WITH_ERROR + 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    requestPtr->payload[0] = PLDM_FWU_TIME_OUT - 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    requestPtr->payload[0] = PLDM_FWU_GENERIC_ERROR + 1;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    requestPtr->payload[0] = 0xFF;
+    rc = decode_verify_complete_req(requestPtr, &verifyResult);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
     requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MIN - 1;
     rc = decode_verify_complete_req(requestPtr, &verifyResult);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
     requestPtr->payload[0] = PLDM_FWU_VENDOR_SPEC_STATUS_RANGE_MAX + 1;
     rc = decode_verify_complete_req(requestPtr, &verifyResult);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
@@ -1876,9 +1924,9 @@ TEST(ActivateFirmware, testBadEncodeRequest)
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
     rc = encode_activate_firmware_req(0, msg, 0, selfContainedActivationReq);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 
-    rc = encode_activate_firmware_req(0, msg,
+    rc = encode_activate_firmware_req(0, 0,
                                       sizeof(struct activate_firmware_req), 0);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 

@@ -168,7 +168,7 @@ enum pldm_fwu_common_error_code {
 	PLDM_FWU_GENERIC_ERROR = 0x0A
 };
 
-/**@brief PLDM FWU result of the Verify stage
+/**@brief PLDM FWU codes for verify result
  */
 enum pldm_fwu_verify_result {
 	PLDM_FWU_VERIFY_SUCCESS = 0x00,
@@ -832,17 +832,17 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 /** @brief Create a PLDM response message for VerifyComplete
  *
  *  @param[in] instance_id - Message's instance id
- *  @param[in] completion_code - completion code
+ *  @param[in] completion_code - Pointer to response msg's PLDM completion code
  *  @param[in,out] msg - Message will be written to this
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_verify_complete_resp(const uint8_t instance_id,
 				const uint8_t completion_code,
 				struct pldm_msg *msg);
 
-/** @brief Decode a VerifyComplete request message
+/** @brief Decode VerifyComplete request message
  *
  *  Note:
  *  * If the return value is not PLDM_SUCCESS, it represents a
@@ -851,7 +851,7 @@ int encode_verify_complete_resp(const uint8_t instance_id,
  * protocol layer error and all the out-parameters are invalid.
  *
  *  @param[in] msg - Response message
- *  @param[in] verify_result - pointer to VerifyResult from FD
+ *  @param[in] verify_result - pointer to verify result from FD
  *  @return pldm_completion_codes
  */
 int decode_verify_complete_req(const struct pldm_msg *msg,
@@ -894,7 +894,7 @@ int decode_transfer_complete_req(const struct pldm_msg *msg,
  *  @param[in] portion_of_meta_data - pointer to package data
  *  @return pldm_completion_codes
  *  @note  Caller is responsible for memory alloc and dealloc of param
- *         'msg.payload'
+ * 'msg.payload'
  */
 int encode_get_package_data_resp(const uint8_t instance_id,
 				 const size_t payload_length,
