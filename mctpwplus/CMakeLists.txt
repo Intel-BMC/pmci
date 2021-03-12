@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
-project(mctpwplus CXX)
+project(mctpwplus LANGUAGES CXX VERSION 1.0.0 DESCRIPTION "MCTPWrapper library")
 
 option(YOCTO_DEPENDENCIES "Use YOCTO depedencies system" OFF)
 option(BUILD_EXAMPLES "Build example applications inside examples directory"
@@ -101,3 +101,10 @@ set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
 set_target_properties(mctpwplus PROPERTIES PUBLIC_HEADER mctp_wrapper.hpp)
 
 install(TARGETS ${PROJECT_NAME} mctpwplus)
+
+configure_file(
+    ${PROJECT_SOURCE_DIR}/mctpwplus.pc.in
+    ${PROJECT_BINARY_DIR}/mctpwplus.pc
+)
+INSTALL(FILES ${CMAKE_BINARY_DIR}/mctpwplus.pc
+        DESTINATION lib/pkgconfig)
