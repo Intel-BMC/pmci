@@ -406,6 +406,10 @@ void SMBusBinding::SMBusInit()
     std::string inputDevice = "/sys/bus/i2c/devices/" + rootPort + "-" +
                               hexSlaveAddr + "/slave-mqueue";
 
+    // Source slave address is in 8 bit format and should always be an odd
+    // number
+    mctp_smbus_set_src_slave_addr(smbus, bmcSlaveAddr | 0x01);
+
     inFd = open(inputDevice.c_str(), O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 
     // Doesn't exist, try to create one
