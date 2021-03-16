@@ -57,20 +57,12 @@ class FWUpdate
     int processRequestUpdate(const boost::asio::yield_context yield);
     int requestUpdate(const boost::asio::yield_context yield,
                       struct variable_field& compImgSetVerStrn);
-    int sendPackageData(const boost::asio::yield_context yield);
-    int doGetDeviceMetaData(const boost::asio::yield_context yield,
-                            const uint32_t dataTransferHandle,
-                            const uint8_t transferOperationFlag,
-                            uint32_t& nextDataTransferHandle,
-                            uint8_t& transferFlag,
-                            std::vector<uint8_t>& portionOfMetaData);
+    int processGetDeviceMetaData(const boost::asio::yield_context yield);
     int getDeviceMetaData(const boost::asio::yield_context yield,
                           const uint32_t dataTransferHandle,
                           const uint8_t transferOperationFlag,
                           uint32_t& nextDataTransferHandle,
-                          uint8_t& transferFlag,
-                          std::vector<uint8_t>& portionOfMetaData);
-
+                          uint8_t& transferFlag);
     int processSendPackageData(const boost::asio::yield_context yield);
     int sendPackageData(uint32_t& offset, uint32_t& length);
     uint8_t setTransferFlag(const uint32_t offset, const uint32_t length,
@@ -179,6 +171,7 @@ class FWUpdate
                                                     FD_APPLY};
     uint8_t transferHandle = 0;
     std::vector<uint8_t> packageData;
+    std::vector<uint8_t> fwDeviceMetaData;
 };
 } // namespace fwu
 } // namespace pldm

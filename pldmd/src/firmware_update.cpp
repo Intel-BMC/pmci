@@ -56,6 +56,9 @@ constexpr uint16_t retryRequestForUpdateDelay = 5000;
 // data command
 const uint32_t requestFirmwareDataIdleTimeoutMs = 90000;
 
+// Maximum GetDeviceMetaData response count
+constexpr size_t deviceMetaDataResponseCount = 100;
+
 using FWUBase = sdbusplus::xyz::openbmc_project::PLDM::FWU::server::FWUBase;
 extern std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
 std::shared_ptr<boost::asio::steady_timer> expectedCommandTimer = nullptr;
@@ -405,12 +408,7 @@ int FWUpdate::requestUpdate(const boost::asio::yield_context yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context yield,
-                                  const uint32_t dataTransferHandle,
-                                  const uint8_t transferOperationFlag,
-                                  uint32_t& nextDataTransferHandle,
-                                  uint8_t& transferFlag,
-                                  std::vector<uint8_t>& portionOfMetaData)
+int FWUpdate::processGetDeviceMetaData(const boost::asio::yield_context yield)
 {
     if (!updateMode)
     {
@@ -420,13 +418,53 @@ int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context yield,
     {
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal = getDeviceMetaData(
-        yield, dataTransferHandle, transferOperationFlag,
-        nextDataTransferHandle, transferFlag, portionOfMetaData);
-    if (retVal != PLDM_SUCCESS)
+    if (!fwDeviceMetaDataLen)
     {
-        return retVal;
+        return PLDM_SUCCESS;
     }
+
+    // GetDeviceMetaData
+    uint32_t dataTransferHandle = 0;
+    uint32_t nextDataTransferHandle = 0;
+
+    uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
+    uint8_t nextTransferFlag = PLDM_START;
+
+    // Count responses received
+    uint8_t responseCount = 0;
+
+    while ((nextTransferFlag != PLDM_START_AND_END) &&
+           (nextTransferFlag != PLDM_END))
+    {
+        int retVal =
+            getDeviceMetaData(yield, dataTransferHandle, transferOperationFlag,
+                              nextDataTransferHandle, nextTransferFlag);
+
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("GetDeviceMetaData failed with retVal " +
+                 std::to_string(retVal))
+                    .c_str());
+            return retVal;
+        }
+        dataTransferHandle = nextDataTransferHandle;
+        transferOperationFlag = PLDM_GET_NEXTPART;
+
+        // Limiting number of times while loop executes
+        if (responseCount++ >= deviceMetaDataResponseCount)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetDeviceMetaData responses exceed limit");
+
+            fwDeviceMetaData.clear();
+            return PLDM_ERROR;
+        }
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        (std::string("GetDeviceMetaData successful. Received bytes ") +
+         std::to_string(fwDeviceMetaData.size()))
+            .c_str());
     return PLDM_SUCCESS;
 }
 
@@ -434,8 +472,7 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
                                 const uint32_t dataTransferHandle,
                                 const uint8_t transferOperationFlag,
                                 uint32_t& nextDataTransferHandle,
-                                uint8_t& transferFlag,
-                                std::vector<uint8_t>& portionOfMetaData)
+                                uint8_t& transferFlag)
 {
 
     uint8_t instanceID = createInstanceId(currentTid);
@@ -450,6 +487,8 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
     {
         return retVal;
     }
+
+    // Send GetDeviceMetaData Command
     std::vector<uint8_t> pldmResp;
     if (!sendReceivePldmMessage(yield, currentTid, timeout, retryCount, pldmReq,
                                 pldmResp))
@@ -461,6 +500,8 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
     }
     struct variable_field metaData = {};
     auto msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+
+    // Decode received response
     retVal = decode_get_device_meta_data_resp(
         msgResp, pldmResp.size() - hdrSize, &completionCode,
         &nextDataTransferHandle, &transferFlag, &metaData);
@@ -469,7 +510,11 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
     {
         return retVal;
     }
-    portionOfMetaData.assign(metaData.ptr, metaData.ptr + metaData.length);
+
+    // Save metadata
+    std::copy(metaData.ptr, metaData.ptr + metaData.length,
+              back_inserter(fwDeviceMetaData));
+
     return PLDM_SUCCESS;
 }
 
@@ -1594,10 +1639,16 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         return retVal;
     }
 
-    if (fwDeviceMetaDataLen)
+    // GetDeviceMetaData
+    retVal = processGetDeviceMetaData(yield);
+    if (retVal != PLDM_SUCCESS)
     {
-        // TODO: GetDeviceMetaData command
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("GetDeviceMetaData failed with retVal " + std::to_string(retVal))
+                .c_str());
+        return retVal;
     }
+
     applicableComponentsVal = getApplicableComponents();
 
     retVal = processPassComponentTable(yield);
