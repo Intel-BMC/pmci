@@ -411,6 +411,18 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             "SendMctpMessagePayload",
             [this](uint8_t dstEid, uint8_t msgTag, bool tagOwner,
                    std::vector<uint8_t> payload) {
+                if (payload.size() > 0)
+                {
+                    uint8_t msgType = payload[0]; // Always the first byte
+                    if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
+                    {
+                        phosphor::logging::log<
+                            phosphor::logging::level::WARNING>(
+                            "Cannot transmit control messages");
+                        return static_cast<int>(mctpErrorOperationNotAllowed);
+                    }
+                }
+
                 if (rsvBWActive && dstEid != reservedEID)
                 {
                     phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -485,13 +497,17 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                     throw std::system_error(
                         std::make_error_code(std::errc::invalid_argument));
                 }
-                uint8_t msgType = payload[0]; // Always the first byte
-                if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
+
+                if (payload.size() > 0)
                 {
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
-                        "Cannot transmit control messages");
-                    throw std::system_error(
-                        std::make_error_code(std::errc::invalid_argument));
+                    uint8_t msgType = payload[0]; // Always the first byte
+                    if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            "Cannot transmit control messages");
+                        throw std::system_error(
+                            std::make_error_code(std::errc::invalid_argument));
+                    }
                 }
 
                 std::optional<std::vector<uint8_t>> pvtData =

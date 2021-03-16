@@ -14,6 +14,7 @@ class PCIeBinding;
 
 enum MctpStatus
 {
+    mctpErrorOperationNotAllowed = -5,
     mctpErrorReleaseBWFailed = -4,
     mctpErrorRsvBWIsNotActive = -3,
     mctpErrorRsvBWFailed = -2,
