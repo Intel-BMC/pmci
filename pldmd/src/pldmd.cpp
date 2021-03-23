@@ -26,16 +26,6 @@ static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
 static constexpr const char* pldmPath = "/xyz/openbmc_project/pldm";
 bool debug = false;
 
-// TODO. Expose these functions from header files
-namespace pldm::fru
-{
-bool deleteFRUDevice(const pldm_tid_t tid);
-}
-namespace pldm::fwu
-{
-bool deleteFWDevice(const pldm_tid_t tid);
-}
-
 namespace pldm
 {
 
