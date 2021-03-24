@@ -267,7 +267,7 @@ std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
                                 getUIDResponse, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Send receive error during GetTerminusUUID request");
+            "Send or receive error during GetTerminusUUID request");
         return std::nullopt;
     }
 

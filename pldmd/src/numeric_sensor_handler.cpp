@@ -84,7 +84,7 @@ bool NumericSensorHandler::setNumericSensorEnable(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetNumericSensorEnable request",
+            "Failed to send or receive  SetNumericSensorEnable request",
             phosphor::logging::entry("TID=%d", _tid),
             phosphor::logging::entry("SENSOR_ID=%d", _sensorID));
         return false;
@@ -337,7 +337,7 @@ bool NumericSensorHandler::getSensorReading(boost::asio::yield_context& yield)
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send GetSensorReading request",
+            "Failed to send or receive GetSensorReading request",
             phosphor::logging::entry("TID=%d", _tid),
             phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID));
         return false;

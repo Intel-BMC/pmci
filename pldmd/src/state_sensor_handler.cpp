@@ -349,7 +349,7 @@ bool StateSensorHandler::setStateSensorEnables(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetStateSensorEnables request",
+            "Failed to send or receive SetStateSensorEnables request",
             phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;
@@ -396,7 +396,7 @@ bool StateSensorHandler::getStateSensorReadings(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send GetStateSensorReadings request",
+            "Failed to send or receive GetStateSensorReadings request",
             phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;

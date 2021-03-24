@@ -125,7 +125,7 @@ std::optional<pldm_pdr_repository_info>
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send GetPDRRepositoryInfo request",
+            "Failed to send or receive GetPDRRepositoryInfo request",
             phosphor::logging::entry("TID=%d", _tid));
         return std::nullopt;
     }
@@ -246,7 +246,7 @@ bool PDRManager::getDevicePDRRecord(boost::asio::yield_context& yield,
                                     commandRetryCount, req, resp))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Failed to send GetPDR request",
+                "Failed to send or receive GetPDR request",
                 phosphor::logging::entry("TID=%d", _tid));
             break;
         }

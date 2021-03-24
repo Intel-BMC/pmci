@@ -242,7 +242,7 @@ bool StateEffecterHandler::enableStateEffecter(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetStateEffecterEnable request",
+            "Failed to send or receive SetStateEffecterEnable request",
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;
@@ -334,7 +334,7 @@ bool StateEffecterHandler::getStateEffecterStates(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send GetStateEffecterStates request",
+            "Failed to send or receive GetStateEffecterStates request",
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;
@@ -423,7 +423,7 @@ bool StateEffecterHandler::setEffecter(boost::asio::yield_context& yield,
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetStateEffecterStates request",
+            "Failed to send or receive SetStateEffecterStates request",
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;

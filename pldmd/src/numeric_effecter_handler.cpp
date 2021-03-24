@@ -90,7 +90,7 @@ bool NumericEffecterHandler::enableNumericEffecter(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetNumericEffecterEnable request",
+            "Failed to send or receive SetNumericEffecterEnable request",
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;
@@ -255,7 +255,7 @@ bool NumericEffecterHandler::getEffecterReading(
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send GetNumericEffecterValue request",
+            "Failed to send or receive GetNumericEffecterValue request",
             phosphor::logging::entry("TID=%d", _tid),
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID));
         return false;
@@ -370,7 +370,7 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
                                 req, resp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to send SetNumericEffecterValue request",
+            "Failed to send or receive SetNumericEffecterValue request",
             phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
             phosphor::logging::entry("TID=%d", _tid));
         return false;

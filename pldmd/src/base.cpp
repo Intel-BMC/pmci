@@ -125,7 +125,7 @@ bool getSupportedPLDMTypes(boost::asio::yield_context yield,
                                 getSupportedPLDMTypesResponse, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Send receive error while getting supported PLDM Types",
+            "Send or receive error while getting supported PLDM Types",
             phosphor::logging::entry("EID=%d", eid));
         return false;
     }
@@ -181,7 +181,7 @@ bool getPLDMVersions(boost::asio::yield_context yield, const mctpw_eid_t eid,
                                     getPLDMVersionsResponse, eid))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Send receive error while getting supported PLDM Versions",
+                "Send or receive error while getting supported PLDM Versions",
                 phosphor::logging::entry("EID=0x%X", eid));
             return false;
         }
@@ -272,7 +272,7 @@ std::optional<SupportedCommands>
                                 getCommandsRequest, getCommandsResponse, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Send receive error during GetPLDMCommands request",
+            "Send or receive error during GetPLDMCommands request",
             phosphor::logging::entry("EID=0x%X", eid));
         return std::nullopt;
     }
@@ -307,7 +307,7 @@ std::optional<pldm_tid_t> getTID(boost::asio::yield_context yield,
                                 getTIDRequest, getTIDResponse, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Send receive error during GetTID request");
+            "Send or receive error during GetTID request");
         return std::nullopt;
     }
 
@@ -364,7 +364,7 @@ bool setTID(boost::asio::yield_context yield, const mctpw_eid_t eid,
                                 setTIDRequest, setTIDResponse, eid))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Send receive error during SetTID request");
+            "Send or receive error during SetTID request");
         return false;
     }
 
