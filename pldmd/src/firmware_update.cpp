@@ -520,8 +520,182 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
+int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
+{
 
+    if (fdState == FD_LEARN_COMPONENTS || fdState == FD_IDLE)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    if ((fwDeviceMetaDataLen == 0) || (fwDeviceMetaData.size() == 0))
+    {
+        return PLDM_SUCCESS;
+    }
+    transferHandle = 0; // Resetting transferHandle
+    expectedCmd = PLDM_GET_META_DATA;
+
+    uint32_t offset = 0;
+    int retVal = 0;
+
+    uint32_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
+
+    // Calculate based on size of payload and maximum transfer size
+    uint32_t maxNumReq = calcMaxNumReq(fwDeviceMetaData.size());
+
+    if (maxNumReq == 0)
+    {
+        return PLDM_ERROR;
+    }
+
+    while (maxNumReq--)
+    {
+        startTimer(yield, fdCmdTimeout);
+        if (!fdReqMatched)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "TimeoutWaiting for processsendMetaData packet");
+
+            retVal = PLDM_ERROR;
+            break;
+        }
+
+        retVal = sendMetaData(yield, offset, length);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("processSendMetaData: Failed to run "
+                 "sendMetaData"
+                 "command, retVal=" +
+                 std::to_string(retVal))
+                    .c_str());
+
+            break;
+        }
+        fdReq.clear();
+        fdReqMatched = false;
+        expectedCmd = PLDM_GET_META_DATA;
+    }
+
+    if (retVal == PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "sendMetaData successful");
+    }
+    // Clear expected command.
+    expectedCmd = 0;
+    fdReq.clear();
+    return retVal;
+}
+
+int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
+                           uint32_t& offset, uint32_t& length)
+{
+
+    const struct pldm_msg* msgReq =
+        reinterpret_cast<const pldm_msg*>(fdReq.data());
+
+    uint32_t dataTransferHandle = 1;
+    uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
+
+    uint32_t dataSize = 0;
+
+    int retVal =
+        decode_get_meta_data_req(msgReq, sizeof(struct get_fd_data_req),
+                                 &dataTransferHandle, &transferOperationFlag);
+    if (retVal != PLDM_SUCCESS)
+    {
+
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("sendMetaData: decode request failed"
+             "RETVAL=" +
+             std::to_string(retVal))
+                .c_str());
+
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_GET_META_DATA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "sendMetaData: Failed to send PLDM message");
+        }
+        return retVal;
+    }
+
+    dataSize = fwDeviceMetaData.size();
+
+    // If dataSize is not multiple of max tranfer unit, last packet will have
+    // payload which is less that max transfer unit
+
+    if (offset + length > dataSize)
+    {
+        if (offset < dataSize)
+        {
+            length = dataSize -
+                     offset; // To calculate actual length depending on the what
+                             // data size  left and what offset position
+        }
+        else
+        {
+            if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
+                                         PLDM_ERROR, PLDM_GET_META_DATA))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "sendMetaData: Failed to send PLDM message");
+            }
+            return PLDM_ERROR;
+        }
+    }
+
+    struct get_fd_data_resp dataHeader;
+    dataHeader.completion_code = PLDM_SUCCESS;
+    // Add a member variable and increment
+    dataHeader.next_data_transfer_handle = ++transferHandle;
+
+    // Setting the Transfer flag that indiates what part of the transfer this
+    // response represents
+
+    dataHeader.transfer_flag = setTransferFlag(offset, length, dataSize);
+
+    struct variable_field portionOfData = {};
+
+    portionOfData.length = length;
+    portionOfData.ptr = fwDeviceMetaData.data() + offset;
+
+    // Set the Portion of Metadata using offset and length
+
+    offset += length;
+
+    /* header plus requested data length */
+    size_t respLen = sizeof(struct PLDMEmptyRequest) +
+                     sizeof(struct get_fd_data_resp) + length;
+
+    std::vector<uint8_t> pldmResp(respLen);
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = encode_get_meta_data_resp(msgReq->hdr.instance_id, respLen,
+                                       msgResp, &dataHeader, &portionOfData);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("sendMetaData: encode request failed"
+             "RETVAL=" +
+             std::to_string(retVal))
+                .c_str());
+        return retVal;
+    }
+
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
+                         pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "sendMetaData: Failed to send PLDM message");
+        return PLDM_ERROR;
+    }
+
+    return PLDM_SUCCESS;
+}
+
+int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
 {
     if (!updateMode)
     {
@@ -1140,6 +1314,10 @@ int FWUpdate::requestFirmwareData(const boost::asio::yield_context yield,
 
 uint32_t FWUpdate::calcMaxNumReq(const uint32_t dataSize)
 {
+    if (!dataSize)
+    {
+        return 0;
+    }
 
     uint32_t maxNumReq = dataSize / PLDM_FWU_BASELINE_TRANSFER_SIZE;
 
@@ -1653,7 +1831,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
-
     retVal = processSendPackageData(yield);
     if (retVal != PLDM_SUCCESS)
     {
@@ -1883,6 +2060,23 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 
         compOffset += compSize;
     }
+    // TODO: The FD can send this command when it is in any state, except the
+    // IDLE and LEARN COMPONENTS state. we need to note a limitation that FD
+    // cannot send this command when UA(BMC) is acting as requester and if FD
+    // present behind the MUX. In this patch we support send matadata command
+    // only after apply complete command.
+
+    if (fwDeviceMetaDataLen != 0)
+    {
+        retVal = processSendMetaData(yield);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "processSendMetaData failed");
+            return retVal;
+        }
+    }
+
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
