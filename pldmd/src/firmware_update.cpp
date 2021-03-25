@@ -20,6 +20,7 @@
 #include "pldm.hpp"
 #include "pldm_fwu_image.hpp"
 
+#include <filesystem>
 #include <phosphor-logging/log.hpp>
 #include <xyz/openbmc_project/PLDM/FWU/FWUBase/server.hpp>
 
@@ -1629,6 +1630,32 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
+template <typename propertyType>
+void FWUpdate::updateFWUProperty(const boost::asio::yield_context& yield,
+                                 const std::string& interfaceName,
+                                 const std::string& propertyName,
+                                 const propertyType& propertyValue)
+{
+    auto bus = getSdBus();
+    boost::system::error_code ec;
+    // pldm image filename from image path
+    std::string pldm_image =
+        std::filesystem::path(pldmImg->getImagePath()).parent_path().filename();
+    std::string objPath = "/xyz/openbmc_project/software/" + pldm_image;
+
+    bus->yield_method_call<>(
+        yield, ec, "xyz.openbmc_project.Software.BMC.Updater", objPath,
+        "org.freedesktop.DBus.Properties", "Set", interfaceName, propertyName,
+        std::variant<std::decay_t<decltype(propertyValue)>>(propertyValue));
+    if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("Firmware update property updation failed. PROPERTY: " +
+             propertyName)
+                .c_str());
+    }
+}
+
 void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
                               const bool tagOwner,
                               std::vector<uint8_t>& message)
@@ -1680,6 +1707,7 @@ static int initUpdate(const boost::asio::yield_context& yield)
             "already in progress");
         return PLDM_ERROR;
     }
+    bool fwUpdateStatus = true;
     auto matchedTermini = pldmImg->getMatchedTermini();
     for (const auto& it : matchedTermini)
     {
@@ -1703,11 +1731,24 @@ static int initUpdate(const boost::asio::yield_context& yield)
                 ("runUpdate failed for TID: " + std::to_string(matchedTid) +
                  ". RETVAL:" + std::to_string(retVal))
                     .c_str());
-
+            fwUpdateStatus = false;
             fwUpdate->terminateFwUpdate(yield);
         }
         pldm::platform::resumeSensorPolling();
         updateMode = false;
+    }
+
+    if (!fwUpdateStatus)
+    {
+        fwUpdate->updateFWUProperty(
+            yield, "xyz.openbmc_project.Software.Activation", "Activation",
+            "xyz.openbmc_project.Software.Activation.Activations.Failed");
+    }
+    else
+    {
+        fwUpdate->updateFWUProperty(
+            yield, "xyz.openbmc_project.Software.Activation", "Activation",
+            "xyz.openbmc_project.Software.Activation.Activations.Active");
     }
     return PLDM_SUCCESS;
 }

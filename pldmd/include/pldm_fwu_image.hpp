@@ -162,6 +162,12 @@ class PLDMImg
     {
         return matchedTermini;
     }
+    /** @brief API that gets image path
+     */
+    std::string getImagePath()
+    {
+        return imagePath;
+    }
 
   private:
     /** @brief API that gets descriptor identifiers data length
@@ -247,6 +253,7 @@ class PLDMImg
     DevIDRecordsMap pkgDevIDRecords;
     CompPropertiesMap pkgCompProperties;
     std::vector<std::pair<uint8_t, pldm_tid_t>> matchedTermini;
+    std::string imagePath;
 };
 } // namespace fwu
 } // namespace pldm

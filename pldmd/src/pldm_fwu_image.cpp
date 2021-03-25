@@ -41,6 +41,7 @@ PLDMImg::PLDMImg(const std::string& pldmImgPath)
     pldmImg.seekg(0, pldmImg.end);
     pldmImgSize = pldmImg.tellg();
     pldmImg.seekg(0, pldmImg.beg);
+    imagePath = pldmImgPath;
 }
 
 bool PLDMImg::readData(const size_t startAddr, std::vector<uint8_t>& data,

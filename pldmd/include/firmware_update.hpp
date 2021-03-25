@@ -38,6 +38,12 @@ class FWUpdate
     bool setMatchedFDDescriptors();
     void terminateFwUpdate(const boost::asio::yield_context& yield);
 
+    template <typename propertyType>
+    void updateFWUProperty(const boost::asio::yield_context& yield,
+                           const std::string& interfaceName,
+                           const std::string& propertyName,
+                           const propertyType& propertyValue);
+
   private:
     bool isComponentApplicable();
     boost::system::error_code
