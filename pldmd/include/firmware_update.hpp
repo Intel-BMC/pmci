@@ -139,7 +139,7 @@ class FWUpdate
         const uint16_t compCnt);
     bool initTransferFlag(const uint16_t compCnt, uint8_t& flag);
     bool prepareUpdateComponentRequest(struct update_component_req& component);
-
+    void compUpdateProgress(const boost::asio::yield_context yield);
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
     uint8_t msgTag;

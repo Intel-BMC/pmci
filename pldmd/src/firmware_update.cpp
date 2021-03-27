@@ -25,7 +25,6 @@
 #include <xyz/openbmc_project/PLDM/FWU/FWUBase/server.hpp>
 
 #include "utils.h"
-
 namespace pldm
 {
 namespace fwu
@@ -1475,6 +1474,9 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
             continue;
         }
 
+        // Add Activation progress percentage of update to D-Bus interface
+        compUpdateProgress(yield);
+
         retVal = processTransferComplete(fdReq, transferResult);
         if (retVal != PLDM_SUCCESS)
         {
@@ -1658,6 +1660,15 @@ void FWUpdate::updateFWUProperty(const boost::asio::yield_context& yield,
              propertyName)
                 .c_str());
     }
+}
+
+void FWUpdate::compUpdateProgress(const boost::asio::yield_context yield)
+{
+    uint8_t compUpdateProgress =
+        static_cast<uint8_t>(((currentComp + 1) * 100) / (compCount));
+    fwUpdate->updateFWUProperty(
+        yield, "xyz.openbmc_project.Software.ActivationProgress", "Progress",
+        compUpdateProgress);
 }
 
 void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
