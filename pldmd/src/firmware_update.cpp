@@ -1478,13 +1478,13 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                  std::to_string(retVal) +
                  ". COMPONENT: " + std::to_string(count))
                     .c_str());
-            retVal = doCancelUpdateComponent(yield);
-            if (retVal != PLDM_SUCCESS)
+            int ret = doCancelUpdateComponent(yield);
+            if (ret != PLDM_SUCCESS)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("runUpdate: Failed to run CancelUpdateComponent. "
                      "RETVAL: " +
-                     std::to_string(retVal) +
+                     std::to_string(ret) +
                      ". COMPONENT: " + std::to_string(count))
                         .c_str());
             }
@@ -1520,13 +1520,13 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
                 ("runUpdate: processVerifyComplete failed for COMPONENT: " +
                  std::to_string(count) + ".RETVAL: " + std::to_string(retVal))
                     .c_str());
-            retVal = doCancelUpdateComponent(yield);
-            if (retVal != PLDM_SUCCESS)
+            int ret = doCancelUpdateComponent(yield);
+            if (ret != PLDM_SUCCESS)
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("runUpdate: Failed to run CancelUpdateComponent. "
                      "RETVAL: " +
-                     std::to_string(retVal) +
+                     std::to_string(ret) +
                      ". COMPONENT: " + std::to_string(count))
                         .c_str());
             }
