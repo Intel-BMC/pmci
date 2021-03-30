@@ -636,6 +636,15 @@ bool MctpBinding::manageVersionInfo(uint8_t typeNo,
 
 MctpBinding::~MctpBinding()
 {
+    for (auto [eid, assigned] : eidPoolMap)
+    {
+        if (assigned)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "Unregistering EID", phosphor::logging::entry("EID=%d", eid));
+            unregisterEndpoint(eid);
+        }
+    }
     objectServer->remove_interface(mctpInterface);
     if (mctp)
     {
