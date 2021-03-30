@@ -24,6 +24,7 @@
 #include <sdbusplus/asio/connection.hpp>
 #include <sdbusplus/bus/match.hpp>
 
+using mctpw::internal::DeleteServiceCallback;
 using mctpw::internal::NewServiceCallback;
 
 template <typename T1, typename T2>
@@ -53,4 +54,17 @@ void NewServiceCallback::operator()(sdbusplus::message::message& msg)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         (std::string("New service ") + msg.get_sender()).c_str());
     parent.registerListeners(msg.get_sender());
+}
+
+DeleteServiceCallback::DeleteServiceCallback(MCTPWrapper& mctpWrapper) :
+    parent(mctpWrapper)
+{
+}
+
+void DeleteServiceCallback::operator()(sdbusplus::message::message& msg)
+{
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        (std::string("Deleting device ") + msg.get_sender()).c_str());
+
+    parent.unRegisterListeners(msg.get_sender());
 }

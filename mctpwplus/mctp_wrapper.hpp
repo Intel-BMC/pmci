@@ -158,6 +158,7 @@ using ReceiveMessageCallback =
 namespace internal
 {
 struct NewServiceCallback;
+struct DeleteServiceCallback;
 } // namespace internal
 
 /**
@@ -336,7 +337,13 @@ class MCTPWrapper
                               {BindingType::vendorDefined, ""}};
 
   private:
-    std::vector<std::unique_ptr<sdbusplus::bus::match::match>> matchers;
+    std::unordered_map<
+        std::string, std::vector<std::unique_ptr<sdbusplus::bus::match::match>>>
+        matchers;
+    std::unordered_map<std::string,
+                       std::unique_ptr<sdbusplus::bus::match::match>>
+        monitorServiceMatchers;
+
     EndpointMap endpointMap;
     std::shared_ptr<sdbusplus::asio::connection> connection;
 
@@ -351,8 +358,11 @@ class MCTPWrapper
     // /dev/i2c-2
     int getBusId(const std::string& serviceName);
     void registerListeners(const std::string& serviceName);
+    void unRegisterListeners(const std::string& serviceName);
     void listenForNewMctpServices();
+    void listenForRemovedMctpServices();
     friend struct internal::NewServiceCallback;
+    friend struct internal::DeleteServiceCallback;
 };
 
 } // namespace mctpw

@@ -132,31 +132,54 @@ void MCTPWrapper::detectMctpEndpointsAsync(StatusCallback&& registerCB)
                        });
 }
 
+void MCTPWrapper::unRegisterListeners(const std::string& serviceName)
+{
+    auto itr = matchers.find(serviceName);
+    if (itr != matchers.end())
+    {
+        matchers.erase(itr);
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            (std::string("unRegisterListeners: ") + serviceName).c_str());
+    }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            (std::string("unRegisterListeners: ") + serviceName +
+             " not present")
+                .c_str());
+    }
+}
+
 void MCTPWrapper::registerListeners(const std::string& serviceName)
 {
+    std::vector<std::unique_ptr<sdbusplus::bus::match::match>> signalMatchers;
+
     if (networkChangeCallback)
     {
-        matchers.push_back(registerSignalHandler(
+        signalMatchers.push_back(registerSignalHandler(
             static_cast<sdbusplus::bus::bus&>(*connection), onPropertiesChanged,
             static_cast<void*>(this), "org.freedesktop.DBus.Properties",
             "PropertiesChanged", serviceName, ""));
-        matchers.push_back(registerSignalHandler(
+        signalMatchers.push_back(registerSignalHandler(
             static_cast<sdbusplus::bus::bus&>(*connection), onInterfacesAdded,
             static_cast<void*>(this), "org.freedesktop.DBus.ObjectManager",
             "InterfacesAdded", serviceName, ""));
-        matchers.push_back(registerSignalHandler(
+        signalMatchers.push_back(registerSignalHandler(
             static_cast<sdbusplus::bus::bus&>(*connection), onInterfacesRemoved,
             static_cast<void*>(this), "org.freedesktop.DBus.ObjectManager",
             "InterfacesRemoved", serviceName, ""));
     }
     if (receiveCallback)
     {
-        matchers.push_back(registerSignalHandler(
+        signalMatchers.push_back(registerSignalHandler(
             static_cast<sdbusplus::bus::bus&>(*connection),
             mctpw::onMessageReceivedSignal, static_cast<void*>(this),
             "xyz.openbmc_project.MCTP.Base", "MessageReceivedSignal",
             serviceName, ""));
     }
+
+    // Saving all matchers using key as servicename
+    matchers.emplace(serviceName, std::move(signalMatchers));
 }
 
 boost::system::error_code
@@ -176,6 +199,7 @@ boost::system::error_code
     }
 
     listenForNewMctpServices();
+    listenForRemovedMctpServices();
 
     return ec;
 }
@@ -529,10 +553,25 @@ void MCTPWrapper::listenForNewMctpServices()
         "type='signal',member='InterfacesAdded',interface='org.freedesktop."
         "DBus.ObjectManager',path='/xyz/openbmc_project/"
         "mctp'";
-    this->matchers.push_back(std::make_unique<sdbusplus::bus::match::match>(
-        *connection, matchRule, internal::NewServiceCallback(*this)));
+    this->monitorServiceMatchers.emplace(
+        "InterfacesAdded",
+        std::make_unique<sdbusplus::bus::match::match>(
+            *connection, matchRule, internal::NewServiceCallback(*this)));
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Wrapper: Listening for new MCTP services");
+}
 
-    // TODO. Listen for mctp services going down and cleanup match rules
+void MCTPWrapper::listenForRemovedMctpServices()
+{
+    static const std::string rule =
+        "type='signal',member='InterfacesRemoved',interface='org.freedesktop."
+        "DBus.ObjectManager',path='/xyz/openbmc_project/"
+        "mctp'";
+    this->monitorServiceMatchers.emplace(
+        "InterfacesRemoved",
+        std::make_unique<sdbusplus::bus::match::match>(
+            *connection, rule, internal::DeleteServiceCallback(*this)));
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Wrapper: Listening for Removed MCTP services");
 }

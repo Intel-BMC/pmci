@@ -30,4 +30,10 @@ struct NewServiceCallback
     void operator()(sdbusplus::message::message& msg);
     mctpw::MCTPWrapper& parent;
 };
+struct DeleteServiceCallback
+{
+    explicit DeleteServiceCallback(mctpw::MCTPWrapper& mctpWrapper);
+    void operator()(sdbusplus::message::message& msg);
+    mctpw::MCTPWrapper& parent;
+};
 } // namespace mctpw::internal
