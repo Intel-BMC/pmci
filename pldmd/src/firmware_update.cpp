@@ -1073,6 +1073,237 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
+uint32_t FWUpdate::calcMaxNumReq(const uint32_t dataSize)
+{
+
+    uint32_t maxNumReq = dataSize / PLDM_FWU_BASELINE_TRANSFER_SIZE;
+
+    if (dataSize % PLDM_FWU_BASELINE_TRANSFER_SIZE > 0)
+    {
+        maxNumReq = maxNumReq + 1;
+    }
+
+    return maxNumReq;
+}
+
+int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
+{
+    if (fdState != FD_LEARN_COMPONENTS || !updateMode)
+    {
+        return COMMAND_NOT_EXPECTED;
+    }
+    /* fdWillSendGetPkgDataCmd will be set to 0x01 if there is package data
+     * that the FD should obtain
+     */
+    if (fdWillSendGetPkgDataCmd != 0x01)
+    {
+        return PLDM_SUCCESS;
+    }
+
+    // get package data from pldmImg
+    pldmImg->getPkgProperty<std::vector<uint8_t>>(packageData,
+                                                  "FirmwareDevicePackageData");
+
+    if (packageData.size() == 0)
+    {
+        return PLDM_SUCCESS;
+    }
+    expectedCmd = PLDM_GET_PACKAGE_DATA;
+
+    uint32_t offset = 0;
+    int retVal = 0;
+    uint32_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
+    const uint32_t dataSize = packageData.size();
+
+    // Calculate based on size of payload and maximum transfer size
+    uint32_t maxNumReq = calcMaxNumReq(dataSize);
+
+    while (maxNumReq--)
+    {
+        startTimer(yield, fdCmdTimeout);
+        if (!fdReqMatched)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "TimeoutWaiting for packageData packet");
+            retVal = PLDM_ERROR;
+            break;
+        }
+
+        retVal = sendPackageData(offset, length);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("processSendPackageData: Failed to run "
+                 "sendPackageData"
+                 "command, retVal=" +
+                 std::to_string(retVal))
+                    .c_str());
+            fdReq.clear();
+            break;
+        }
+        fdReq.clear();
+        fdReqMatched = false;
+        expectedCmd = PLDM_GET_PACKAGE_DATA;
+    }
+    if (retVal == PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "sendPackageData successful");
+    }
+    expectedCmd = 0; // clear expected command
+    return retVal;
+}
+
+int FWUpdate::sendPackageData(uint32_t& offset, uint32_t& length)
+{
+    uint32_t dataTransferHandle = 1;
+    uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
+    uint32_t dataSize = 0;
+
+    const struct pldm_msg* msgReq =
+        reinterpret_cast<const pldm_msg*>(fdReq.data());
+
+    int retVal = decode_get_pacakge_data_req(
+        msgReq, sizeof(struct get_fd_data_req), &dataTransferHandle,
+        &transferOperationFlag);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("sendPackageData: decode request failed"
+             "RETVAL=" +
+             std::to_string(retVal))
+                .c_str());
+
+        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+                                     static_cast<uint8_t>(retVal),
+                                     PLDM_GET_PACKAGE_DATA))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "sendPackageData: Failed to send PLDM message");
+        }
+        return retVal;
+    }
+    // GetFirstPart can be received in 2 cases
+    // 1. first request to start the data transfer
+    // 2. If the FD sends GetFirstPart in any upcoming request of the same
+    // command
+    //   then we are supposed to start the transfer starting from
+    //   start of the package data again.
+    // In both the cases transfer should start from start of the package data.
+    if (transferOperationFlag == PLDM_GET_FIRSTPART)
+    {
+        offset = 0;
+        length = PLDM_FWU_BASELINE_TRANSFER_SIZE;
+    }
+    else
+    {
+        // The value of DataTransferHandle should be equal to
+        // NextDataTransferHandle
+        if (transferHandle != dataTransferHandle)
+        {
+            return PLDM_ERROR;
+        }
+    }
+
+    dataSize = packageData.size();
+
+    // If dataSize is not multiple of max transfer unit, last packet will have
+    // payload which is less that max transfer unit
+    if (offset + length > dataSize)
+    {
+        if (offset < dataSize)
+        {
+            length = dataSize - offset; // To calculate actual length depending
+                                        // on the data size and offset
+        }
+        else
+        {
+            if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
+                                         PLDM_GET_PACKAGE_DATA))
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("sendPackageData: Failed to send PLDM message"));
+            }
+            return PLDM_ERROR;
+        }
+    }
+
+    struct get_fd_data_resp dataHeader;
+    dataHeader.completion_code = PLDM_SUCCESS;
+    dataHeader.next_data_transfer_handle = ++transferHandle;
+
+    // Setting the Transfer flag that indiates what part of the transfer this
+    // response represents
+    dataHeader.transfer_flag = setTransferFlag(offset, length, dataSize);
+
+    struct variable_field portionOfData = {};
+    portionOfData.length = length;
+    portionOfData.ptr = packageData.data() + offset;
+
+    // Set the Portion of Metadata using offset and length
+    offset = offset + length;
+
+    // header plus requested data length
+    size_t respLen = sizeof(struct PLDMEmptyRequest) +
+                     sizeof(struct get_fd_data_resp) + length;
+
+    std::vector<uint8_t> pldmResp(respLen);
+    struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
+    retVal = encode_get_package_data_resp(msgReq->hdr.instance_id, respLen,
+                                          msgResp, &dataHeader, &portionOfData);
+
+    if (retVal != PLDM_SUCCESS)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("sendPackageData: encode request failed"
+             "RETVAL=" +
+             std::to_string(retVal))
+                .c_str());
+        return retVal;
+    }
+
+    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("sendPackageData: Failed to send PLDM message"));
+        return PLDM_ERROR;
+    }
+
+    return PLDM_SUCCESS;
+}
+
+uint8_t FWUpdate::setTransferFlag(const uint32_t offset, const uint32_t length,
+                                  const uint32_t dataSize)
+{
+    uint8_t transferFlag;
+
+    if (offset + length < dataSize)
+    {
+        if (offset == 0)
+        {
+            transferFlag = PLDM_START;
+        }
+        else
+        {
+            transferFlag = PLDM_MIDDLE;
+        }
+    }
+    else if (offset + length >= dataSize)
+    {
+        if (offset == 0)
+        {
+            transferFlag = PLDM_START_AND_END;
+        }
+        else
+        {
+            transferFlag = PLDM_END;
+        }
+    }
+
+    return transferFlag;
+}
+
 int FWUpdate::processActivateFirmware(
     const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
@@ -1355,20 +1586,12 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
 
-    // fdWillSendGetPkgDataCmd will be set to 0x01 if there was package data
-    // that the FD should obtain
-    if (fdWillSendGetPkgDataCmd == 0x01)
+    retVal = processSendPackageData(yield);
+    if (retVal != PLDM_SUCCESS)
     {
-        pldmImg->getPkgProperty<uint16_t>(packageDataLength, "FWDevPkgDataLen");
-        if (packageDataLength)
-        {
-            expectedCmd = PLDM_GET_PACKAGE_DATA;
-            startTimer(yield, fdCmdTimeout);
-            if (fdReqMatched)
-            {
-                // TODO: need to add getPackageData command call
-            }
-        }
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "processSendPackageData failed");
+        return retVal;
     }
 
     if (fwDeviceMetaDataLen)

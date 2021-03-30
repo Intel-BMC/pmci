@@ -71,6 +71,12 @@ class FWUpdate
                           uint32_t& nextDataTransferHandle,
                           uint8_t& transferFlag,
                           std::vector<uint8_t>& portionOfMetaData);
+
+    int processSendPackageData(const boost::asio::yield_context yield);
+    int sendPackageData(uint32_t& offset, uint32_t& length);
+    uint8_t setTransferFlag(const uint32_t offset, const uint32_t length,
+                            const uint32_t dataSize);
+    uint32_t calcMaxNumReq(const uint32_t dataSize);
     int processPassComponentTable(const boost::asio::yield_context& yield);
     int passComponentTable(
         const boost::asio::yield_context& yield,
@@ -172,6 +178,8 @@ class FWUpdate
     FDProperties targetFDProperties;
     std::set<uint8_t> cancelUpdateComponentState = {FD_DOWNLOAD, FD_VERIFY,
                                                     FD_APPLY};
+    uint8_t transferHandle = 0;
+    std::vector<uint8_t> packageData;
 };
 } // namespace fwu
 } // namespace pldm
