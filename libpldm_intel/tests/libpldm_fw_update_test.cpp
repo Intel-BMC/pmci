@@ -1443,13 +1443,13 @@ TEST(GetDeviceMetaData, testBadEncodeRequest)
     rc = encode_get_device_meta_data_req(
         0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle,
         transferOperationFlag);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, PLDM_INVALID_TRANSFER_OPERATION_FLAG);
 
     transferOperationFlag = PLDM_GET_NEXTPART - 1;
     rc = encode_get_device_meta_data_req(
         0, msg, sizeof(struct get_device_meta_data_req), dataTransferHandle,
         transferOperationFlag);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, PLDM_INVALID_TRANSFER_OPERATION_FLAG);
 }
 
 TEST(GetDeviceMetaData, testGoodDecodeResponse)
