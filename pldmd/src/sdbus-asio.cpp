@@ -58,3 +58,10 @@ std::shared_ptr<sdbusplus::asio::object_server> getObjServer()
 {
     return objServer;
 }
+
+std::unique_ptr<sdbusplus::asio::dbus_interface>
+    addUniqueInterface(const std::string& path, const std::string& name)
+{
+    return std::make_unique<sdbusplus::asio::dbus_interface>(sdbusp, path,
+                                                             name);
+}

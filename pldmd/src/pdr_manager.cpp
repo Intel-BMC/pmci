@@ -40,22 +40,22 @@ PDRManager::PDRManager(const pldm_tid_t tid) : _tid(tid)
 PDRManager::~PDRManager()
 {
     auto objectServer = getObjServer();
-    for (const auto& iter : _systemHierarchyIntf)
+    for (auto& iter : _systemHierarchyIntf)
     {
         objectServer->remove_interface(iter.second.first);
     }
 
-    for (const auto& iter : _sensorIntf)
+    for (auto& iter : _sensorIntf)
     {
         objectServer->remove_interface(iter.second.first);
     }
 
-    for (const auto& iter : _effecterIntf)
+    for (auto& iter : _effecterIntf)
     {
         objectServer->remove_interface(iter.second.first);
     }
 
-    for (const auto& iter : _fruRecordSetIntf)
+    for (auto& iter : _fruRecordSetIntf)
     {
         objectServer->remove_interface(iter.second.first);
     }

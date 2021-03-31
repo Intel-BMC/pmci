@@ -47,22 +47,19 @@ void StateSensorHandler::setInitialProperties()
     std::string path =
         pldmPath + std::to_string(_tid) + "/state_sensor/" + _name;
 
-    auto objectServer = getObjServer();
-    sensorInterface = objectServer->add_unique_interface(
-        path, "xyz.openbmc_project.Sensor.State");
+    sensorInterface =
+        addUniqueInterface(path, "xyz.openbmc_project.Sensor.State");
     // Composite sensors are not supported. Thus extract only first sensor
     // states
-    sensorInterface->register_property_r(
-        "StateSetID", _pdr->possibleStates[0].stateSetID,
-        sdbusplus::vtable::property_::const_, [](const auto& r) { return r; });
-    sensorInterface->register_property_r(
-        "PossibleStates", _pdr->possibleStates[0].possibleStateSetValues,
-        sdbusplus::vtable::property_::const_, [](const auto& r) { return r; });
+    sensorInterface->register_property("StateSetID",
+                                       _pdr->possibleStates[0].stateSetID);
+    sensorInterface->register_property(
+        "PossibleStates", _pdr->possibleStates[0].possibleStateSetValues);
 
-    availableInterface = objectServer->add_unique_interface(
+    availableInterface = addUniqueInterface(
         path, "xyz.openbmc_project.State.Decorator.Availability");
 
-    operationalInterface = objectServer->add_unique_interface(
+    operationalInterface = addUniqueInterface(
         path, "xyz.openbmc_project.State.Decorator.OperationalStatus");
 }
 

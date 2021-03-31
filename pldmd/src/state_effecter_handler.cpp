@@ -46,22 +46,19 @@ void StateEffecterHandler::setInitialProperties()
     const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
 
-    auto objectServer = getObjServer();
-    effecterInterface = objectServer->add_unique_interface(
-        path, "xyz.openbmc_project.Effecter.State");
+    effecterInterface =
+        addUniqueInterface(path, "xyz.openbmc_project.Effecter.State");
     // Composite effecters are not supported. Thus extract only first effecter
     // state
-    effecterInterface->register_property_r(
-        "StateSetID", _pdr->possibleStates[0].stateSetID,
-        sdbusplus::vtable::property_::const_, [](const auto& r) { return r; });
-    effecterInterface->register_property_r(
-        "PossibleStates", _pdr->possibleStates[0].possibleStateSetValues,
-        sdbusplus::vtable::property_::const_, [](const auto& r) { return r; });
+    effecterInterface->register_property("StateSetID",
+                                         _pdr->possibleStates[0].stateSetID);
+    effecterInterface->register_property(
+        "PossibleStates", _pdr->possibleStates[0].possibleStateSetValues);
 
-    availableInterface = objectServer->add_unique_interface(
+    availableInterface = addUniqueInterface(
         path, "xyz.openbmc_project.State.Decorator.Availability");
 
-    operationalInterface = objectServer->add_unique_interface(
+    operationalInterface = addUniqueInterface(
         path, "xyz.openbmc_project.State.Decorator.OperationalStatus");
 }
 
@@ -451,8 +448,7 @@ void StateEffecterHandler::registerSetEffecter()
 {
     const std::string path =
         pldmPath + std::to_string(_tid) + "/state_effecter/" + _name;
-    auto objServer = getObjServer();
-    setEffecterInterface = objServer->add_unique_interface(
+    setEffecterInterface = addUniqueInterface(
         path, "xyz.openbmc_project.Effecter.SetStateEffecter");
     setEffecterInterface->register_method(
         "SetEffecter",

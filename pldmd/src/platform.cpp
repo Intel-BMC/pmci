@@ -316,9 +316,8 @@ void initializeSensorPollIntf()
     }
 
     const char* objPath = "/xyz/openbmc_project/sensors";
-    auto objServer = getObjServer();
-    pausePollInterface = objServer->add_unique_interface(
-        objPath, "xyz.openbmc_project.PLDM.SensorPoll");
+    pausePollInterface =
+        addUniqueInterface(objPath, "xyz.openbmc_project.PLDM.SensorPoll");
     pausePollInterface->register_method("PauseSensorPoll",
                                         [](const bool pause) {
                                             if (pause)

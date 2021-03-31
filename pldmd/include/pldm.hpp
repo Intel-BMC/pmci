@@ -32,6 +32,8 @@
 std::shared_ptr<boost::asio::io_context> getIoContext();
 std::shared_ptr<sdbusplus::asio::connection> getSdBus();
 std::shared_ptr<sdbusplus::asio::object_server> getObjServer();
+std::unique_ptr<sdbusplus::asio::dbus_interface>
+    addUniqueInterface(const std::string& path, const std::string& name);
 
 /** @brief flag to enable debugging*/
 extern bool debug;
