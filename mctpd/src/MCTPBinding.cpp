@@ -237,6 +237,13 @@ void MctpBinding::handleCtrlResp(void* msg, const size_t len)
             mctp_ctrl_msg_hdr* reqHeader =
                 reinterpret_cast<mctp_ctrl_msg_hdr*>(req.data());
 
+            if (!reqHeader)
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    "MCTP Control Request Header is null");
+                return false;
+            }
+
             // TODO: Check Message terminus with Instance ID
             // (EID, TO, Msg Tag) + Instance ID
             if (getInstanceId(reqHeader->rq_dgram_inst) ==
@@ -873,6 +880,13 @@ void MctpBinding::handleCtrlReq(uint8_t destEid, void* bindingPrivate,
     std::vector<uint8_t> request(reqPtr, reqPtr + len);
     mctp_ctrl_msg_hdr* reqHeader =
         reinterpret_cast<mctp_ctrl_msg_hdr*>(request.data());
+
+    if (!reqHeader)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "MCTP Control Request Header is null");
+        return;
+    }
 
     switch (reqHeader->command_code)
     {
