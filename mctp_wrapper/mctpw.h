@@ -27,7 +27,9 @@
 #define MCTPW_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -85,12 +87,12 @@ typedef void (*mctpw_reconfiguration_callback_t)(void* client_context);
 
 typedef void (*mctpw_receive_message_callback_t)(
     void* client_context, mctpw_eid_t src_eid, bool tag_owner, uint8_t tag,
-    uint8_t* payload, unsigned payload_length, int error);
+    uint8_t* payload, size_t payload_length, int error);
 
 typedef void (*async_operation_status_cb)(int ec, const void* user_ctx);
 typedef void (*send_receive_atomic_cb)(int ec, const void* user_ctx,
                                        uint8_t* response,
-                                       unsigned response_length);
+                                       size_t response_length);
 
 /**
  * @brief Helper function to locate MCTP bus for given binding.
@@ -194,7 +196,7 @@ int mctpw_get_endpoint_properties(void* client_context, mctpw_eid_t eid,
  */
 int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
                        bool tag_owner, uint8_t tag, uint8_t* payload,
-                       unsigned payload_length);
+                       size_t payload_length);
 
 /**
  * @brief Send mctp payload to specyfic endpoint on the bus.
@@ -219,7 +221,7 @@ int mctpw_send_message(void* client_context, mctpw_eid_t dst_eid,
  */
 int mctpw_async_send_message(void* client_context, mctpw_eid_t dst_eid,
                              bool tag_owner, uint8_t tag, uint8_t* payload,
-                             unsigned payload_length, const void* user_ctx,
+                             size_t payload_length, const void* user_ctx,
                              async_operation_status_cb cb);
 
 /**
@@ -243,7 +245,7 @@ int mctpw_send_receive_atomic_message(void* client_context, mctpw_eid_t dst_eid,
                                       uint8_t* request_payload,
                                       unsigned request_payload_length,
                                       uint8_t* response_payload,
-                                      unsigned* response_payload_length,
+                                      size_t* response_payload_length,
                                       unsigned timeout);
 
 /**
@@ -285,7 +287,7 @@ void mctpw_process(void* client_context);
  * handler doesn't mean that one client async operation was completed) client,
  * @see mctpw_unregister_client()
  */
-int mctpw_process_one(void* client_context);
+ssize_t mctpw_process_one(void* client_context);
 
 #ifdef __cplusplus
 }

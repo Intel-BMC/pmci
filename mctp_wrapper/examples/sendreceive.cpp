@@ -66,7 +66,7 @@ void async_send_status_cb2(int ec, const void* user_ctx)
 }
 
 void async_send_receive_atomic_cb(int ec, const void* user_ctx,
-                                  uint8_t* response, unsigned response_length)
+                                  uint8_t* response, size_t response_length)
 {
     const char* str = static_cast<const char*>(user_ctx);
     if (ec == 0)
@@ -88,8 +88,7 @@ void async_send_receive_atomic_cb(int ec, const void* user_ctx,
 }
 
 void rx_callback(void* client_context, mctpw_eid_t src_eid, bool tag_owner,
-                 uint8_t tag, uint8_t* payload, unsigned payload_length,
-                 int err)
+                 uint8_t tag, uint8_t* payload, size_t payload_length, int err)
 {
     UNUSED(client_context);
     std::cout << "[Rx callback]Response:" << std::endl;
@@ -199,7 +198,7 @@ int main(void)
 
     /* Atomic send-receive, wait for response */
     uint8_t response_buffer[256];
-    unsigned response_buffer_length = sizeof(response_buffer);
+    size_t response_buffer_length = sizeof(response_buffer);
 
     std::cout << "Blocking atomic send-receive request " << std::endl;
     if ((ret = mctpw_send_receive_atomic_message(
