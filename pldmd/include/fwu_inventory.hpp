@@ -53,8 +53,8 @@ class FWInventoryInfo
 
     /** @brief API that unpacks get firmware parameters component data.
      */
-    void unpackCompData(const uint16_t count,
-                        const std::vector<uint8_t>& compData);
+    int unpackCompData(const uint16_t count,
+                       const std::vector<uint8_t>& compData);
 
     /** @brief API that copies get firmware parameters component image set data
      * to fwuProperties map.

@@ -147,8 +147,8 @@ void FWInventoryInfo::copyCompData(
     compPropertiesMap[count] = compProperties;
 }
 
-void FWInventoryInfo::unpackCompData(const uint16_t count,
-                                     const std::vector<uint8_t>& compData)
+int FWInventoryInfo::unpackCompData(const uint16_t count,
+                                    const std::vector<uint8_t>& compData)
 {
     struct component_parameter_table compDataObj;
     struct variable_field activeCompVerStr;
@@ -176,10 +176,10 @@ void FWInventoryInfo::unpackCompData(const uint16_t count,
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                "GetFirmwareParameters: decode response of component data "
-                "failed",
-                phosphor::logging::entry("TID=%d", tid),
-                phosphor::logging::entry("RETVAL=%d", retVal));
+                ("GetFirmwareParameters: decode response of component data "
+                 "failed, TID: " +
+                 std::to_string(tid) + " RETVAL: " + std::to_string(retVal))
+                    .c_str());
             break;
         }
 
@@ -202,10 +202,14 @@ void FWInventoryInfo::unpackCompData(const uint16_t count,
     if (found != count)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Component count not matched",
-            phosphor::logging::entry("ACTUAL_COMP_COUNT=%d", found),
-            phosphor::logging::entry("EXPECTED_COMP_COUNT=%d", count));
+            ("Component count not matched,actual component count: " +
+             std::to_string(found) +
+             " expected component count: " + std::to_string(count))
+                .c_str());
+        return PLDM_ERROR;
     }
+
+    return PLDM_SUCCESS;
 }
 
 int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
@@ -275,9 +279,8 @@ int FWInventoryInfo::runGetFirmwareParameters(boost::asio::yield_context yield)
 
     std::vector<uint8_t> compData(pldmResp.begin() + compDataOffset,
                                   pldmResp.end());
-    unpackCompData(resp.comp_count, compData);
 
-    return PLDM_SUCCESS;
+    return unpackCompData(resp.comp_count, compData);
 }
 
 void FWInventoryInfo::addPCIDescriptorsToDBus(const std::string& objPath)
