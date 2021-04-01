@@ -66,7 +66,8 @@ class StateEffecterHandler
     bool enableStateEffecter(boost::asio::yield_context& yield);
 
     /** @brief Handle effecter reading*/
-    bool handleStateEffecterState(get_effecter_state_field& stateReading);
+    bool handleStateEffecterState(boost::asio::yield_context yield,
+                                  get_effecter_state_field& stateReading);
 
     /** @brief fetch the effecter value*/
     bool getStateEffecterStates(boost::asio::yield_context& yield);
@@ -122,6 +123,8 @@ class StateEffecterHandler
 
     /** @brief Timer to wait for trasition interval after setStateEffecter*/
     std::unique_ptr<boost::asio::steady_timer> transitionIntervalTimer;
+
+    uint8_t stateCmdRetryCount{};
 };
 
 } // namespace platform

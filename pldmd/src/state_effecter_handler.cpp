@@ -26,6 +26,7 @@ namespace platform
 {
 static const char* pldmPath = "/xyz/openbmc_project/pldm/";
 constexpr const size_t errorThreshold = 5;
+constexpr const uint8_t transitionIntervalSec = 3;
 
 StateEffecterHandler::StateEffecterHandler(
     const pldm_tid_t tid, const EffecterID effecterID, const std::string& name,
@@ -37,7 +38,6 @@ StateEffecterHandler::StateEffecterHandler(
     {
         throw std::runtime_error("State effecter PDR data invalid");
     }
-
     setInitialProperties();
 }
 
@@ -264,12 +264,45 @@ bool StateEffecterHandler::enableStateEffecter(
 }
 
 bool StateEffecterHandler::handleStateEffecterState(
-    get_effecter_state_field& stateReading)
+    boost::asio::yield_context yield, get_effecter_state_field& stateReading)
 {
     switch (stateReading.effecter_op_state)
     {
-        case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING:
-        // TODO: Read again after transition interval before setting value
+        case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING: {
+
+            transitionIntervalTimer->expires_after(
+                boost::asio::chrono::milliseconds(transitionIntervalSec));
+            boost::system::error_code ec;
+            transitionIntervalTimer->async_wait(yield[ec]);
+
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "populateStateEffecterValue call invoke aborted");
+                return false;
+            }
+            else if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "populateStateEffecterValue call invoke failed");
+                return false;
+            }
+
+            stateCmdRetryCount++;
+
+            if (stateCmdRetryCount > commandRetryCount)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("EFFECTER_STATE_UPDATEPENDING max retry count reached" +
+                     std::to_string(stateCmdRetryCount))
+                        .c_str());
+                stateCmdRetryCount = 0;
+                return false;
+            }
+
+            populateEffecterValue(yield);
+            break;
+        }
         case EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING: {
             updateState(stateReading.present_state, stateReading.pending_state);
 
@@ -307,6 +340,12 @@ bool StateEffecterHandler::handleStateEffecterState(
                 phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
                 phosphor::logging::entry("TID=%d", _tid));
             return false;
+    }
+
+    if (stateReading.effecter_op_state !=
+        EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING)
+    {
+        stateCmdRetryCount = 0;
     }
     return true;
 }
@@ -364,7 +403,7 @@ bool StateEffecterHandler::getStateEffecterStates(
     }
     // Handle only first value.
     // TODO: Composite effecter support.
-    return handleStateEffecterState(stateField[0]);
+    return handleStateEffecterState(yield, stateField[0]);
 }
 
 bool StateEffecterHandler::populateEffecterValue(
@@ -477,10 +516,13 @@ void StateEffecterHandler::registerSetEffecter()
 
             auto refreshEffecterInterfaces = [this]() {
                 boost::system::error_code ec;
-                uint8_t transitionIntervalSec = 3;
-                transitionIntervalTimer =
-                    std::make_unique<boost::asio::steady_timer>(
-                        *getIoContext());
+                if (stateCmdRetryCount != 0)
+                {
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        "state effecter UpdatePending Retry In Progress");
+                    return;
+                }
+
                 transitionIntervalTimer->expires_after(
                     boost::asio::chrono::seconds(transitionIntervalSec));
                 transitionIntervalTimer->async_wait(
@@ -517,6 +559,9 @@ void StateEffecterHandler::registerSetEffecter()
 bool StateEffecterHandler::effecterHandlerInit(
     boost::asio::yield_context& yield)
 {
+    transitionIntervalTimer =
+        std::make_unique<boost::asio::steady_timer>(*getIoContext());
+
     if (!enableStateEffecter(yield))
     {
         return false;
