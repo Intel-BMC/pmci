@@ -25,6 +25,7 @@ namespace pldm
 {
 namespace platform
 {
+constexpr const uint8_t transitionIntervalSec = 3;
 
 NumericEffecterHandler::NumericEffecterHandler(
     const pldm_tid_t tid, const EffecterID effecterID, const std::string& name,
@@ -162,13 +163,46 @@ bool NumericEffecterHandler::initEffecter()
 }
 
 bool NumericEffecterHandler::handleEffecterReading(
-    uint8_t effecterOperationalState, uint8_t effecterDataSize,
-    union_effecter_data_size& presentReading)
+    boost::asio::yield_context yield, uint8_t effecterOperationalState,
+    uint8_t effecterDataSize, union_effecter_data_size& presentReading)
 {
     switch (effecterOperationalState)
     {
-        case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING:
-        // TODO: Read again after transition interval before setting value
+        case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING: {
+
+            transitionIntervalTimer->expires_after(
+                boost::asio::chrono::milliseconds(transitionIntervalSec));
+            boost::system::error_code ec;
+            transitionIntervalTimer->async_wait(yield[ec]);
+
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "populateEffecterValue call invoke aborted");
+                return false;
+            }
+            else if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "populateEffecterValue call invoke failed");
+                return false;
+            }
+
+            cmdRetryCount++;
+
+            if (cmdRetryCount > commandRetryCount)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("NUMERIC EFFECTER_UPDATEPENDING max retry count reached" +
+                     std::to_string(cmdRetryCount))
+                        .c_str());
+                cmdRetryCount = 0;
+                return false;
+            }
+
+            populateEffecterValue(yield);
+            break;
+        }
         case EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING: {
             if (_pdr->effecter_data_size != effecterDataSize)
             {
@@ -232,6 +266,12 @@ bool NumericEffecterHandler::handleEffecterReading(
                 phosphor::logging::entry("TID=%d", _tid));
             return false;
     }
+
+    if (effecterOperationalState != EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING)
+    {
+        cmdRetryCount = 0;
+    }
+
     return true;
 }
 
@@ -279,8 +319,8 @@ bool NumericEffecterHandler::getEffecterReading(
         return false;
     }
 
-    return handleEffecterReading(effecterOperationalState, effecterDataSize,
-                                 presentValue);
+    return handleEffecterReading(yield, effecterOperationalState,
+                                 effecterDataSize, presentValue);
 }
 
 bool NumericEffecterHandler::populateEffecterValue(
@@ -416,9 +456,14 @@ void NumericEffecterHandler::registerSetEffecter()
 
             auto refreshEffecterInterfaces = [this]() {
                 boost::system::error_code ec;
-                transitionIntervalTimer =
-                    std::make_unique<boost::asio::steady_timer>(
-                        *getIoContext());
+
+                if (cmdRetryCount != 0)
+                {
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                        "Numeric UpdatePending Retry In Progress");
+                    return;
+                }
+
                 uint64_t transitionIntervalMilliSec = 0;
                 if (!std::isnan(_pdr->transition_interval) &&
                     _pdr->transition_interval > 0)
@@ -473,6 +518,9 @@ bool NumericEffecterHandler::effecterHandlerInit(
     {
         return false;
     }
+
+    transitionIntervalTimer =
+        std::make_unique<boost::asio::steady_timer>(*getIoContext());
 
     // Read and populate the effecter initial value
     if (!populateEffecterValue(yield))

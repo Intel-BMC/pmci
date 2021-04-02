@@ -57,7 +57,8 @@ class NumericEffecterHandler
     bool getEffecterReading(boost::asio::yield_context& yield);
 
     /** @brief Decode effecter value and update D-Bus interfaces*/
-    bool handleEffecterReading(uint8_t effecterOperationalState,
+    bool handleEffecterReading(boost::asio::yield_context yield,
+                               uint8_t effecterOperationalState,
                                uint8_t effecterDataSize,
                                union_effecter_data_size& presentReading);
 
@@ -97,6 +98,8 @@ class NumericEffecterHandler
 
     /** @brief Minimum settable Effecter value*/
     double minSettable;
+
+    uint8_t cmdRetryCount{};
 };
 
 } // namespace platform
