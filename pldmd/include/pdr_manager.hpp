@@ -42,9 +42,22 @@ struct EntityComparator
                     const pldm_entity& rhsEntity) const
     {
         return std::tie(lhsEntity.entity_type, lhsEntity.entity_instance_num,
-                        lhsEntity.entity_container_id) <
+                        lhsEntity.entity_container_id) ==
                std::tie(rhsEntity.entity_type, rhsEntity.entity_instance_num,
                         rhsEntity.entity_container_id);
+    }
+};
+
+struct EntityHash
+{
+    std::size_t operator()(const pldm_entity& key) const
+    {
+        std::hash<uint16_t> hash_function;
+        std::size_t returnValue = hash_function(key.entity_type) +
+                                  hash_function(key.entity_instance_num) +
+                                  hash_function(key.entity_container_id);
+
+        return returnValue;
     }
 };
 
@@ -222,7 +235,8 @@ class PDRManager
     PDRRepo _pdrRepo;
 
     /** @brief Holds Entity Auxiliary Names*/
-    std::map<pldm_entity, std::string, EntityComparator> _entityAuxNames;
+    std::unordered_map<pldm_entity, std::string, EntityHash, EntityComparator>
+        _entityAuxNames;
 
     /** @brief Container ID of the parent entity represented by TID*/
     ContainerID _containerID;
@@ -233,8 +247,8 @@ class PDRManager
     /** @brief Temporary storage for Entity Association paths*/
     std::vector<EntityAssociationPath> _entityObjectPaths;
 
-    std::map<pldm_entity, std::pair<DBusInterfacePtr, DBusObjectPath>,
-             EntityComparator>
+    std::unordered_map<pldm_entity, std::pair<DBusInterfacePtr, DBusObjectPath>,
+                       EntityHash, EntityComparator>
         _systemHierarchyIntf;
 
     /** @brief Holds Sensor Auxiliary Names.
