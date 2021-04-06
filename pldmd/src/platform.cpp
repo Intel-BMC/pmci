@@ -27,7 +27,7 @@ namespace platform
 // Holds platform monitoring and control resources for each termini
 static std::map<pldm_tid_t, PlatformTerminus> platforms{};
 // TODO: Optimize poll interval
-static constexpr const int pollIntervalMillisec = 10;
+static constexpr const int pollIntervalMillisec = 500;
 std::unique_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
 static bool isSensorPollRunning = false;
 
