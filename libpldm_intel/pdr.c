@@ -767,10 +767,6 @@ static bool numeric_sensor_pdr_sensor_data_size_parse(
 		*iter += sizeof(sensor_pdr_out->min_readable.value_s8);
 		break;
 	case PLDM_SENSOR_DATA_SIZE_UINT16:
-		*min_pdr_size += 3;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->hysteresis.value_u16, *iter,
 		       sizeof(sensor_pdr_out->hysteresis.value_u16));
 		LE16TOH(sensor_pdr_out->hysteresis.value_u16);
@@ -790,10 +786,6 @@ static bool numeric_sensor_pdr_sensor_data_size_parse(
 		*iter += sizeof(sensor_pdr_out->min_readable.value_u16);
 		break;
 	case PLDM_SENSOR_DATA_SIZE_SINT16:
-		*min_pdr_size += 3;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->hysteresis.value_s16, *iter,
 		       sizeof(sensor_pdr_out->hysteresis.value_s16));
 		LE16TOH(sensor_pdr_out->hysteresis.value_s16);
@@ -813,10 +805,6 @@ static bool numeric_sensor_pdr_sensor_data_size_parse(
 		*iter += sizeof(sensor_pdr_out->min_readable.value_s16);
 		break;
 	case PLDM_SENSOR_DATA_SIZE_UINT32:
-		*min_pdr_size += 9;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->hysteresis.value_u32, *iter,
 		       sizeof(sensor_pdr_out->hysteresis.value_u32));
 		LE32TOH(sensor_pdr_out->hysteresis.value_u32);
@@ -836,10 +824,6 @@ static bool numeric_sensor_pdr_sensor_data_size_parse(
 		*iter += sizeof(sensor_pdr_out->min_readable.value_u32);
 		break;
 	case PLDM_SENSOR_DATA_SIZE_SINT32:
-		*min_pdr_size += 9;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->hysteresis.value_s32, *iter,
 		       sizeof(sensor_pdr_out->hysteresis.value_s32));
 		LE32TOH(sensor_pdr_out->hysteresis.value_s32);
@@ -930,10 +914,6 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 		       sizeof(sensor_pdr_out->fatal_low.value_s8));
 		break;
 	case PLDM_RANGE_FIELD_FORMAT_UINT16:
-		*min_pdr_size += 9;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->nominal_value.value_u16, *iter,
 		       sizeof(sensor_pdr_out->nominal_value.value_u16));
 		LE16TOH(sensor_pdr_out->nominal_value.value_u16);
@@ -971,10 +951,6 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 		LE16TOH(sensor_pdr_out->fatal_low.value_u16);
 		break;
 	case PLDM_RANGE_FIELD_FORMAT_SINT16:
-		*min_pdr_size += 9;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->nominal_value.value_s16, *iter,
 		       sizeof(sensor_pdr_out->nominal_value.value_s16));
 		LE16TOH(sensor_pdr_out->nominal_value.value_s16);
@@ -1012,10 +988,6 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 		LE16TOH(sensor_pdr_out->fatal_low.value_s16);
 		break;
 	case PLDM_RANGE_FIELD_FORMAT_UINT32:
-		*min_pdr_size += 27;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->nominal_value.value_u32, *iter,
 		       sizeof(sensor_pdr_out->nominal_value.value_u32));
 		LE32TOH(sensor_pdr_out->nominal_value.value_u32);
@@ -1053,10 +1025,6 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 		LE32TOH(sensor_pdr_out->fatal_low.value_u32);
 		break;
 	case PLDM_RANGE_FIELD_FORMAT_SINT32:
-		*min_pdr_size += 27;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->nominal_value.value_s32, *iter,
 		       sizeof(sensor_pdr_out->nominal_value.value_s32));
 		LE32TOH(sensor_pdr_out->nominal_value.value_s32);
@@ -1094,10 +1062,6 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 		LE32TOH(sensor_pdr_out->fatal_low.value_s32);
 		break;
 	case PLDM_RANGE_FIELD_FORMAT_REAL32:
-		*min_pdr_size += 27;
-		if (pdr_len < *min_pdr_size) {
-			return false;
-		}
 		memcpy(&sensor_pdr_out->nominal_value.value_f32, *iter,
 		       sizeof(sensor_pdr_out->nominal_value.value_f32));
 		LE32TOH(sensor_pdr_out->nominal_value.value_f32);
@@ -1140,6 +1104,64 @@ static bool numeric_sensor_pdr_range_field_format_parse(
 	return true;
 }
 
+static bool validate_numeric_sensor_pdr_len(
+    const uint16_t pdr_len,
+    const struct pldm_numeric_sensor_value_pdr *sensor_pdr_in)
+{
+
+	assert(sensor_pdr_in != NULL);
+	size_t min_pdr_size = PLDM_NUMERIC_SENSOR_PDR_MIN_LENGTH;
+	// first possible location will be 13 bytes after hysteresis.value
+	const uint8_t *range_field_format_pos =
+	    (const uint8_t *)(&sensor_pdr_in->hysteresis.value_u8 + 13);
+
+	switch (sensor_pdr_in->sensor_data_size) {
+	case PLDM_SENSOR_DATA_SIZE_UINT8:
+	case PLDM_SENSOR_DATA_SIZE_SINT8:
+		break;
+	case PLDM_SENSOR_DATA_SIZE_UINT16:
+	case PLDM_SENSOR_DATA_SIZE_SINT16:
+		// Increase length by 3 for the extra byte in 3 fields
+		min_pdr_size += 3;
+		range_field_format_pos += 3;
+		break;
+	case PLDM_SENSOR_DATA_SIZE_UINT32:
+	case PLDM_SENSOR_DATA_SIZE_SINT32:
+		// Increase length by 9 for the extra 3 byte in 3 fields
+		min_pdr_size += 9;
+		range_field_format_pos += 9;
+		break;
+	default:
+		return false;
+	}
+	if (pdr_len < min_pdr_size) {
+		return false;
+	}
+
+	switch (*range_field_format_pos) {
+	case PLDM_RANGE_FIELD_FORMAT_UINT8:
+	case PLDM_RANGE_FIELD_FORMAT_SINT8:
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT16:
+	case PLDM_RANGE_FIELD_FORMAT_SINT16:
+		// Increase length by 9 for the extra byte in 9 fields
+		min_pdr_size += 9;
+		break;
+	case PLDM_RANGE_FIELD_FORMAT_UINT32:
+	case PLDM_RANGE_FIELD_FORMAT_SINT32:
+	case PLDM_RANGE_FIELD_FORMAT_REAL32:
+		// Increase length by 27 for the extra 3 bytes in 9 fields
+		min_pdr_size += 27;
+		break;
+	default:
+		return false;
+	}
+	if (pdr_len < min_pdr_size) {
+		return false;
+	}
+	return true;
+}
+
 bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
 				   uint8_t *numeric_sensor_pdr)
 {
@@ -1153,6 +1175,10 @@ bool pldm_numeric_sensor_pdr_parse(const uint8_t *pdr, const uint16_t pdr_len,
 
 	const struct pldm_numeric_sensor_value_pdr *sensor_pdr_in =
 	    (const struct pldm_numeric_sensor_value_pdr *)pdr;
+
+	if (!validate_numeric_sensor_pdr_len(pdr_len, sensor_pdr_in)) {
+		return false;
+	}
 	struct pldm_numeric_sensor_value_pdr *sensor_pdr_out =
 	    (struct pldm_numeric_sensor_value_pdr *)numeric_sensor_pdr;
 	memcpy(sensor_pdr_out, sensor_pdr_in,
