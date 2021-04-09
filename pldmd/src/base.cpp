@@ -528,6 +528,13 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             uuidMapping.emplace(uuid.value(), tid);
         }
     }
+    else
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Device already registered");
+        return false;
+    }
+
     if (isSupported(cmdSupportTable, PLDM_BASE, PLDM_SET_TID) &&
         !setTID(yield, eid, tid))
     {
