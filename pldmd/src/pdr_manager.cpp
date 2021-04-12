@@ -958,6 +958,10 @@ std::string PDRManager::createSensorName(const SensorID sensorID)
     std::string sensorName =
         "Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
     _sensorAuxNames[sensorID] = sensorName;
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("createSensorName " + sensorName).c_str());
+
     return sensorName;
 }
 
@@ -1157,8 +1161,14 @@ std::optional<std::string>
 
 std::string PDRManager::createEffecterName(const EffecterID effecterID)
 {
-    std::string effecterName = "Effecter_" + std::to_string(effecterID);
+    std::string effecterName =
+        "Effecter_" + std::to_string(effecterID) + "_" + std::to_string(_tid);
+
     _effecterAuxNames[effecterID] = effecterName;
+
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("createEffecterName " + effecterName).c_str());
+
     return effecterName;
 }
 
@@ -1186,6 +1196,7 @@ std::optional<DBusObjectPath>
     {
         effecterName = getEffecterAuxNames(effecterID);
     }
+
     if (!effecterName)
     {
         // Dummy name if no effecter Name found
