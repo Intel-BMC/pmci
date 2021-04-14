@@ -31,7 +31,7 @@ struct SMBusConfiguration : Configuration
 struct PcieConfiguration : Configuration
 {
     uint16_t bdf;
-    uint8_t getRoutingInterval;
+    uint8_t getRoutingInterval = 0;
 
     ~PcieConfiguration() override;
 };
