@@ -455,9 +455,9 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                         "SendMctpMessagePayload: Invalid destination EID");
                     return static_cast<int>(mctpInternalError);
                 }
-                if (!mctp_message_tx(mctp, dstEid, payload.data(),
-                                     payload.size(), tagOwner, msgTag,
-                                     pvtData->data()))
+                if (mctp_message_tx(mctp, dstEid, payload.data(),
+                                    payload.size(), tagOwner, msgTag,
+                                    pvtData->data()) < 0)
                 {
                     return static_cast<int>(mctpInternalError);
                 }
