@@ -352,8 +352,9 @@ bool PDRManager::addDevicePDRToRepo(
                 _containerID = tLocatorPDR->container_id;
             }
         }
-        pldm_pdr_add(_pdrRepo.get(), pdrRecord.second.data(),
-                     pdrRecord.second.size(), pdrRecord.first, true);
+        uint32_t pdrRecordSize = utils::to_uint32(pdrRecord.second.size());
+        pldm_pdr_add(_pdrRepo.get(), pdrRecord.second.data(), pdrRecordSize,
+                     pdrRecord.first, true);
     }
     if (!terminusLPDRFound)
     {

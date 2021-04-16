@@ -29,4 +29,32 @@ namespace utils
  */
 void printVect(const std::string& msg, const std::vector<uint8_t>& vec);
 
+/** @brief Helper to convert a number to uint32
+ *
+ * Helper to convert a number to uint32 type
+ * This particular override is used in arm32 architectures.
+ *
+ * @param num[in] - Number to convert to uint32
+ * @return - Result of the conversion to uint32
+ *
+ */
+inline uint32_t to_uint32(uint32_t num)
+{
+    return num;
+}
+
+/** @brief Helper to convert a number to uint32
+ *
+ * Helper to convert a number to uint32 type
+ * This particular override is used in x86_64 architecture.
+ *
+ * @param num[in] - Number to convert to uint32
+ * @return - Result of the conversion to uint32
+ *
+ */
+inline uint32_t to_uint32(uint64_t num)
+{
+    return static_cast<uint32_t>(num);
+}
+
 } // namespace utils
