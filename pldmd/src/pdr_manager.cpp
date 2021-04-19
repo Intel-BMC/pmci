@@ -516,7 +516,6 @@ void PDRManager::parseEntityAuxNamesPDR(std::vector<uint8_t>& pdrData)
         LE16TOH(namePDR->entity.entity_instance_num);
         LE16TOH(namePDR->entity.entity_container_id);
 
-        // TODO: Handle sharedNameCount
         size_t auxNamesLen = pdrData.size() - minEntityAuxNamesPDRLen;
         if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
                                    namePDR->entity_auxiliary_names))
@@ -710,6 +709,24 @@ void PDRManager::createEntityAssociationTree(
         "Successfully created Entity Associaton Tree");
 }
 
+static bool mergeContainedEntities(EntityNode::NodePtr& node,
+                                   EntityNode::NodePtr& entityAssociation)
+{
+    if (node->containerEntity.entity_container_id ==
+        entityAssociation->containerEntity.entity_container_id)
+    {
+        std::move(entityAssociation->containedEntities.begin(),
+                  entityAssociation->containedEntities.end(),
+                  std::back_inserter(node->containedEntities));
+
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "Successfully moved Entity Association");
+        return true;
+    }
+
+    return false;
+}
+
 void PDRManager::parseEntityAssociationPDR(std::vector<uint8_t>& pdrData)
 {
     size_t numEntities{};
@@ -722,10 +739,13 @@ void PDRManager::parseEntityAssociationPDR(std::vector<uint8_t>& pdrData)
     EntityNode::NodePtr entityAssociation = nullptr;
     if (getEntityAssociation(entities, numEntities, entityAssociation))
     {
+        for (auto& iter : entityAssociationNodes)
+        {
+            if (mergeContainedEntities(iter, entityAssociation))
+                break;
+        }
         entityAssociationNodes.emplace_back(std::move(entityAssociation));
     }
-
-    // TODO: Merge the Entity Association PDRs having same containerID
 }
 
 void PDRManager::getEntityAssociationPaths(EntityNode::NodePtr& node,
