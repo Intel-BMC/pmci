@@ -300,6 +300,15 @@ enum pldm_terminus_locator_type {
 	PLDM_TERMINUS_LOCATOR_TYPE_SYS_SW
 };
 
+/** @brief PLDM sensor initialization schemes
+ */
+enum pldm_sensor_init {
+	PLDM_SENSOR_NO_INIT,
+	PLDM_SENSOR_USE_INIT_PDR,
+	PLDM_SENSOR_ENABLE,
+	PLDM_SENSOR_DISABLE
+};
+
 /** @struct pldm_pdr_hdr
  *
  *  Structure representing PLDM common PDR header
