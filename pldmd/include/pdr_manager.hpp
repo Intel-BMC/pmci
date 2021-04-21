@@ -154,14 +154,14 @@ class PDRManager
     bool constructPDRRepo(boost::asio::yield_context& yield);
 
     /** @brief Parse the Auxiliary Names PDR */
-    void parseEntityAuxNamesPDR();
+    void parseEntityAuxNamesPDR(std::vector<uint8_t>& pdrData);
 
     /**@brief Create Entity Association Tree from PDRs*/
     void createEntityAssociationTree(
         std::vector<EntityNode::NodePtr>& entityAssociations);
 
     /**@brief Parse Entity Association PDRs*/
-    void parseEntityAssociationPDR();
+    void parseEntityAssociationPDR(std::vector<uint8_t>& pdrData);
 
     /** @brief Get all entity association paths from entity association tree
      * through recursion*/
@@ -292,6 +292,11 @@ class PDRManager
 
     /** @brief Terminus ID*/
     pldm_tid_t _tid;
+
+    /** @brief Temporarily holds entity association nodes, used to create entity
+     * association tree
+     */
+    std::vector<EntityNode::NodePtr> entityAssociationNodes;
 };
 
 } // namespace platform

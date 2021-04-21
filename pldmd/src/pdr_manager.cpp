@@ -500,53 +500,34 @@ static std::optional<std::string> getAuxName(const uint8_t nameStrCount,
     return std::nullopt;
 }
 
-void PDRManager::parseEntityAuxNamesPDR()
+void PDRManager::parseEntityAuxNamesPDR(std::vector<uint8_t>& pdrData)
 {
-    uint8_t* pdrData = nullptr;
-    uint32_t pdrSize{};
-    auto record = pldm_pdr_find_record_by_type(_pdrRepo.get(),
-                                               PLDM_ENTITY_AUXILIARY_NAMES_PDR,
-                                               NULL, &pdrData, &pdrSize);
-    while (record)
+    constexpr size_t sharedNameCountSize = 1;
+    constexpr size_t nameStringCountSize = 1;
+    constexpr size_t minEntityAuxNamesPDRLen =
+        sizeof(pldm_pdr_hdr) + sizeof(pldm_entity) + sharedNameCountSize +
+        nameStringCountSize;
+
+    if (pdrData.size() >= minEntityAuxNamesPDRLen)
     {
-        constexpr size_t sharedNameCountSize = 1;
-        constexpr size_t nameStringCountSize = 1;
-        constexpr size_t minEntityAuxNamesPDRLen =
-            sizeof(pldm_pdr_hdr) + sizeof(pldm_entity) + sharedNameCountSize +
-            nameStringCountSize;
+        pldm_pdr_entity_auxiliary_names* namePDR =
+            reinterpret_cast<pldm_pdr_entity_auxiliary_names*>(pdrData.data());
+        LE16TOH(namePDR->entity.entity_type);
+        LE16TOH(namePDR->entity.entity_instance_num);
+        LE16TOH(namePDR->entity.entity_container_id);
 
-        if (pdrSize >= minEntityAuxNamesPDRLen)
+        // TODO: Handle sharedNameCount
+        size_t auxNamesLen = pdrData.size() - minEntityAuxNamesPDRLen;
+        if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
+                                   namePDR->entity_auxiliary_names))
         {
-            std::vector<uint8_t> namePDRVec(pdrData, pdrData + pdrSize);
-            pldm_pdr_entity_auxiliary_names* namePDR =
-                reinterpret_cast<pldm_pdr_entity_auxiliary_names*>(
-                    namePDRVec.data());
-            LE16TOH(namePDR->entity.entity_type);
-            LE16TOH(namePDR->entity.entity_instance_num);
-            LE16TOH(namePDR->entity.entity_container_id);
+            // Cache the Entity Auxiliary Names
+            _entityAuxNames[namePDR->entity] = *name;
 
-            // TODO: Handle sharedNameCount
-            size_t auxNamesLen = pdrSize - minEntityAuxNamesPDRLen;
-            if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
-                                       namePDR->entity_auxiliary_names))
-            {
-                // Cache the Entity Auxiliary Names
-                _entityAuxNames[namePDR->entity] = *name;
-
-                phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                    ("Entity Auxiliary Name: " + *name).c_str());
-            }
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Entity Auxiliary Name: " + *name).c_str());
         }
-        pdrData = nullptr;
-        pdrSize = 0;
-        record = pldm_pdr_find_record_by_type(_pdrRepo.get(),
-                                              PLDM_ENTITY_AUXILIARY_NAMES_PDR,
-                                              record, &pdrData, &pdrSize);
     }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Number of Entity Auxiliary Names PDR parsed: " +
-         std::to_string(_entityAuxNames.size()))
-            .c_str());
 }
 
 // Create Entity Association node from parsed Entity Association PDR
@@ -729,49 +710,22 @@ void PDRManager::createEntityAssociationTree(
         "Successfully created Entity Associaton Tree");
 }
 
-void PDRManager::parseEntityAssociationPDR()
+void PDRManager::parseEntityAssociationPDR(std::vector<uint8_t>& pdrData)
 {
-    uint8_t* pdrData = nullptr;
-    uint32_t pdrSize{};
-    std::vector<EntityNode::NodePtr> entityAssociations;
+    size_t numEntities{};
+    pldm_entity* entitiesPtr = nullptr;
+    pldm_entity_association_pdr_extract(pdrData.data(),
+                                        static_cast<uint16_t>(pdrData.size()),
+                                        &numEntities, &entitiesPtr);
+    std::shared_ptr<pldm_entity[]> entities(entitiesPtr, free);
 
-    const pldm_pdr_record* record = pldm_pdr_find_record_by_type(
-        _pdrRepo.get(), PLDM_PDR_ENTITY_ASSOCIATION, NULL, &pdrData, &pdrSize);
-
-    while (record)
+    EntityNode::NodePtr entityAssociation = nullptr;
+    if (getEntityAssociation(entities, numEntities, entityAssociation))
     {
-        size_t numEntities{};
-        pldm_entity* entitiesPtr = nullptr;
-        pldm_entity_association_pdr_extract(pdrData,
-                                            static_cast<uint16_t>(pdrSize),
-                                            &numEntities, &entitiesPtr);
-        std::shared_ptr<pldm_entity[]> entities(entitiesPtr, free);
-
-        EntityNode::NodePtr entityAssociation = nullptr;
-        if (getEntityAssociation(entities, numEntities, entityAssociation))
-        {
-            entityAssociations.emplace_back(std::move(entityAssociation));
-        }
-
-        // TODO: Merge the Entity Association PDRs having same containerID
-
-        pdrData = nullptr;
-        pdrSize = 0;
-        record = pldm_pdr_find_record_by_type(_pdrRepo.get(),
-                                              PLDM_PDR_ENTITY_ASSOCIATION,
-                                              record, &pdrData, &pdrSize);
+        entityAssociationNodes.emplace_back(std::move(entityAssociation));
     }
-    // createEntityAssociationTree erases the entityAssociation vector. Thus
-    // cache the number of entity associations
-    size_t entityAssociationsCount = entityAssociations.size();
-    if (entityAssociationsCount)
-    {
-        createEntityAssociationTree(entityAssociations);
-    }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Number of Entity Association PDR parsed: " +
-         std::to_string(entityAssociationsCount))
-            .c_str());
+
+    // TODO: Merge the Entity Association PDRs having same containerID
 }
 
 void PDRManager::getEntityAssociationPaths(EntityNode::NodePtr& node,
@@ -1457,6 +1411,14 @@ void PDRManager::parsePDR()
         {
             parseFRURecordSetPDR(pdrVec);
         }
+        else if constexpr (pdrType == PLDM_ENTITY_AUXILIARY_NAMES_PDR)
+        {
+            parseEntityAuxNamesPDR(pdrVec);
+        }
+        else if constexpr (pdrType == PLDM_PDR_ENTITY_ASSOCIATION)
+        {
+            parseEntityAssociationPDR(pdrVec);
+        }
         else
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1469,6 +1431,14 @@ void PDRManager::parsePDR()
         pdrSize = 0;
         record = pldm_pdr_find_record_by_type(_pdrRepo.get(), pdrType, record,
                                               &pdrData, &pdrSize);
+    }
+
+    if constexpr (pdrType == PLDM_PDR_ENTITY_ASSOCIATION)
+    {
+        if (entityAssociationNodes.size())
+        {
+            createEntityAssociationTree(entityAssociationNodes);
+        }
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ("Number of type " + std::to_string(pdrType) +
@@ -1538,10 +1508,11 @@ bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
     {
         return false;
     }
+
     initializePDRDumpIntf();
 
-    parseEntityAuxNamesPDR();
-    parseEntityAssociationPDR();
+    parsePDR<PLDM_ENTITY_AUXILIARY_NAMES_PDR>();
+    parsePDR<PLDM_PDR_ENTITY_ASSOCIATION>();
     getEntityAssociationPaths(_entityAssociationTree, {});
     populateSystemHierarchy();
     parsePDR<PLDM_SENSOR_AUXILIARY_NAMES_PDR>();
