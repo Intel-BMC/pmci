@@ -40,19 +40,19 @@ bool NumericSensorHandler::setNumericSensorEnable(
     uint8_t sensorOpState;
     switch (_pdr.sensor_init)
     {
-        case PLDM_NO_INIT:
+        case PLDM_SENSOR_NO_INIT:
             sensorOpState = PLDM_SENSOR_ENABLED;
             break;
-        case PLDM_USE_INIT_PDR:
+        case PLDM_SENSOR_USE_INIT_PDR:
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "Numeric Sensor Initialization PDR not supported",
                 phosphor::logging::entry("TID=%d", _tid),
                 phosphor::logging::entry("SENSOR_ID=%d", _sensorID));
             return false;
-        case PLDM_ENABLE_SENSOR:
+        case PLDM_SENSOR_ENABLE:
             sensorOpState = PLDM_SENSOR_ENABLED;
             break;
-        case PLDM_DISABLE_SENSOR:
+        case PLDM_SENSOR_DISABLE:
             sensorOpState = PLDM_SENSOR_DISABLED;
             break;
         default:
@@ -217,7 +217,7 @@ bool NumericSensorHandler::initSensor()
     std::vector<thresholds::Threshold> thresholdData;
     getSupportedThresholds(thresholdData);
 
-    if (_pdr.sensor_init == PLDM_DISABLE_SENSOR)
+    if (_pdr.sensor_init == PLDM_SENSOR_DISABLE)
     {
         sensorDisabled = true;
     }
@@ -371,7 +371,7 @@ bool NumericSensorHandler::populateSensorValue(
     boost::asio::yield_context& yield)
 {
     // No need to read the sensor if it is disabled
-    if (_pdr.sensor_init == PLDM_DISABLE_SENSOR)
+    if (_pdr.sensor_init == PLDM_SENSOR_DISABLE)
     {
         return false;
     }

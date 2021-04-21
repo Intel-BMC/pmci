@@ -295,20 +295,20 @@ bool StateSensorHandler::setStateSensorEnables(
     uint8_t sensorOpState;
     switch (_pdr->stateSensorData.sensor_init)
     {
-        case PLDM_NO_INIT:
+        case PLDM_SENSOR_NO_INIT:
             sensorOpState = PLDM_SENSOR_ENABLED;
             break;
-        case PLDM_USE_INIT_PDR:
+        case PLDM_SENSOR_USE_INIT_PDR:
             // TODO: State Sensor Initialization PDR support
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "State Sensor Initialization PDR not supported",
                 phosphor::logging::entry("TID=%d", _tid),
                 phosphor::logging::entry("SENSOR_ID=%d", _sensorID));
             return false;
-        case PLDM_ENABLE_SENSOR:
+        case PLDM_SENSOR_ENABLE:
             sensorOpState = PLDM_SENSOR_ENABLED;
             break;
-        case PLDM_DISABLE_SENSOR:
+        case PLDM_SENSOR_DISABLE:
             sensorOpState = PLDM_SENSOR_DISABLED;
             /** @brief Sensor disabled flag*/
             sensorDisabled = true;
@@ -423,7 +423,7 @@ bool StateSensorHandler::getStateSensorReadings(
 bool StateSensorHandler::populateSensorValue(boost::asio::yield_context& yield)
 {
     // No need to read the sensor if it is disabled
-    if (_pdr->stateSensorData.sensor_init == PLDM_DISABLE_SENSOR)
+    if (_pdr->stateSensorData.sensor_init == PLDM_SENSOR_DISABLE)
     {
         return false;
     }

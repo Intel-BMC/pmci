@@ -28,18 +28,6 @@ namespace pldm
 namespace platform
 {
 
-// TODO:Move pldm_sensor_init to libpldm. Keeping here temporarily to unblock
-// further development activity
-/** @brief PLDM sensor initialization schemes
- */
-enum pldm_sensor_init
-{
-    PLDM_NO_INIT,
-    PLDM_USE_INIT_PDR,
-    PLDM_ENABLE_SENSOR,
-    PLDM_DISABLE_SENSOR
-};
-
 class NumericSensorHandler
 {
   public:
