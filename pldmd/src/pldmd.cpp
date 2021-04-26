@@ -460,7 +460,7 @@ auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
             {
                 switch (*pldmMsgType)
                 {
-                    case PLDM_FWU:
+                    case PLDM_FWUP:
                         pldm::fwu::pldmMsgRecvFwUpdCallback(*tid, msgTag,
                                                             tagOwner, payload);
                         break;
@@ -521,7 +521,7 @@ void initDevice(const mctpw_eid_t eid, boost::asio::yield_context& yield)
             "PLDM fru init failed",
             phosphor::logging::entry("TID=%d", assignedTID));
     }
-    if (isSupported(PLDM_FWU) && !pldm::fwu::fwuInit(yield, assignedTID))
+    if (isSupported(PLDM_FWUP) && !pldm::fwu::fwuInit(yield, assignedTID))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "PLDM firmware update init failed",
@@ -536,7 +536,7 @@ void deleteDevice(const pldm_tid_t tid)
 
     // Delete the resources in reverse order of init to avoid errors due to
     // dependency if any
-    if (pldm::base::isSupported(tid, PLDM_FWU))
+    if (pldm::base::isSupported(tid, PLDM_FWUP))
     {
         pldm::fwu::deleteFWDevice(tid);
     }

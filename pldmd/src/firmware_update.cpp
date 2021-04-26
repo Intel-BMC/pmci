@@ -128,8 +128,8 @@ bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
 
     std::vector<uint8_t> pldmResp(PLDMCCOnlyResponse);
     struct pldm_msg* msgResp = reinterpret_cast<pldm_msg*>(pldmResp.data());
-    int retVal = encode_cc_only_resp(fdInstanceId, PLDM_FWU, command, complCode,
-                                     msgResp);
+    int retVal = encode_cc_only_resp(fdInstanceId, PLDM_FWUP, command,
+                                     complCode, msgResp);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -163,7 +163,7 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context& yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
-        if (!releaseBandwidth(yield, currentTid, PLDM_FWU))
+        if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "terminateFwUpdate: releaseBandwidth failed");
@@ -1440,7 +1440,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
              std::to_string(count))
                 .c_str());
 
-        if (!reserveBandwidth(yield, currentTid, PLDM_FWU, reserveEidTimeOut))
+        if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: reserveBandwidth failed. TID: " +
@@ -1583,7 +1583,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
-        if (!releaseBandwidth(yield, currentTid, PLDM_FWU))
+        if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "runUpdate: releaseBandwidth failed");
