@@ -333,7 +333,7 @@ int encode_get_firmware_parameters_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	if (payload_length != PLDM_GET_FIRMWARE_PARAMENTERS_REQ_BYTES) {
+	if (payload_length != PLDM_GET_FIRMWARE_PARAMETERS_REQ_BYTES) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
@@ -341,7 +341,7 @@ int encode_get_firmware_parameters_req(const uint8_t instance_id,
 	header.msg_type = PLDM_REQUEST;
 	header.instance = instance_id;
 	header.pldm_type = PLDM_FWU;
-	header.command = PLDM_GET_FIRMWARE_PARAMENTERS;
+	header.command = PLDM_GET_FIRMWARE_PARAMETERS;
 	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
 		return rc;

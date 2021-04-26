@@ -1034,12 +1034,12 @@ TEST(GetFirmwareParameters, testGoodEncodeRequest)
     uint8_t instanceId = 0x01;
 
     auto rc = encode_get_firmware_parameters_req(
-        instanceId, requestPtr, PLDM_GET_FIRMWARE_PARAMENTERS_REQ_BYTES);
+        instanceId, requestPtr, PLDM_GET_FIRMWARE_PARAMETERS_REQ_BYTES);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
     EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
-    EXPECT_EQ(requestPtr->hdr.command, PLDM_GET_FIRMWARE_PARAMENTERS);
+    EXPECT_EQ(requestPtr->hdr.command, PLDM_GET_FIRMWARE_PARAMETERS);
 }
 
 TEST(GetFWParams, testGoodDecodeCompImgSetResponse)
