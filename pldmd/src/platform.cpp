@@ -332,6 +332,30 @@ void initializeSensorPollIntf()
     pausePollInterface->initialize();
 }
 
+void initializePlatformIntf()
+{
+    static std::unique_ptr<sdbusplus::asio::dbus_interface> platformInterface =
+        nullptr;
+    if (platformInterface != nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "platformInterface already initialized");
+        return;
+    }
+
+    const char* objPath = "/xyz/openbmc_project/system";
+    platformInterface =
+        addUniqueInterface(objPath, "xyz.openbmc_project.PLDM.Platform");
+    platformInterface->register_method(
+        "RefreshPDR",
+        [](boost::asio::yield_context yield, const pldm_tid_t tid) {
+            pauseSensorPolling();
+            platformInit(yield, tid, {});
+            resumeSensorPolling();
+        });
+    platformInterface->initialize();
+}
+
 bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
                   const pldm::base::CommandSupportTable& /*commandTable*/)
 {
@@ -354,6 +378,7 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     if (debug)
     {
         initializeSensorPollIntf();
+        initializePlatformIntf();
     }
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
