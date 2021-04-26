@@ -80,7 +80,7 @@ int encode_request_firmware_data_resp(
 	}
 
 	int rc =
-	    encode_pldm_header(instance_id, PLDM_FWU,
+	    encode_pldm_header(instance_id, PLDM_FWUP,
 			       PLDM_REQUEST_FIRMWARE_DATA, PLDM_RESPONSE, msg);
 	if (PLDM_SUCCESS != rc) {
 		return rc;
@@ -263,7 +263,7 @@ int encode_query_device_identifiers_req(const uint8_t instance_id,
 	struct pldm_header_info header = {0};
 	header.msg_type = PLDM_REQUEST;
 	header.instance = instance_id;
-	header.pldm_type = PLDM_FWU;
+	header.pldm_type = PLDM_FWUP;
 	header.command = PLDM_QUERY_DEVICE_IDENTIFIERS;
 	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
@@ -340,7 +340,7 @@ int encode_get_firmware_parameters_req(const uint8_t instance_id,
 	struct pldm_header_info header = {0};
 	header.msg_type = PLDM_REQUEST;
 	header.instance = instance_id;
-	header.pldm_type = PLDM_FWU;
+	header.pldm_type = PLDM_FWUP;
 	header.command = PLDM_GET_FIRMWARE_PARAMETERS;
 	int rc = pack_pldm_header(&header, &(msg->hdr));
 	if (PLDM_SUCCESS != rc) {
@@ -511,7 +511,7 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	int rc = encode_pldm_header(instance_id, PLDM_FWU, PLDM_REQUEST_UPDATE,
+	int rc = encode_pldm_header(instance_id, PLDM_FWUP, PLDM_REQUEST_UPDATE,
 				    PLDM_REQUEST, msg);
 
 	if (PLDM_SUCCESS != rc) {
@@ -611,8 +611,8 @@ int encode_get_device_meta_data_req(const uint8_t instance_id,
 	}
 
 	int rc =
-	    encode_pldm_header(instance_id, PLDM_FWU, PLDM_GET_DEVICE_META_DATA,
-			       PLDM_REQUEST, msg);
+	    encode_pldm_header(instance_id, PLDM_FWUP,
+			       PLDM_GET_DEVICE_META_DATA, PLDM_REQUEST, msg);
 
 	if (PLDM_SUCCESS != rc) {
 		return rc;
@@ -715,7 +715,7 @@ int encode_activate_firmware_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	int rc = encode_pldm_header(instance_id, PLDM_FWU,
+	int rc = encode_pldm_header(instance_id, PLDM_FWUP,
 				    PLDM_ACTIVATE_FIRMWARE, PLDM_REQUEST, msg);
 
 	if (PLDM_SUCCESS != rc) {
@@ -787,8 +787,8 @@ int encode_pass_component_table_req(const uint8_t instance_id,
 	}
 
 	int rc =
-	    encode_pldm_header(instance_id, PLDM_FWU, PLDM_PASS_COMPONENT_TABLE,
-			       PLDM_REQUEST, msg);
+	    encode_pldm_header(instance_id, PLDM_FWUP,
+			       PLDM_PASS_COMPONENT_TABLE, PLDM_REQUEST, msg);
 
 	if (PLDM_SUCCESS != rc) {
 		return rc;
@@ -945,7 +945,7 @@ int encode_update_component_req(const uint8_t instance_id, struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	int rc = encode_pldm_header(instance_id, PLDM_FWU,
+	int rc = encode_pldm_header(instance_id, PLDM_FWUP,
 				    PLDM_UPDATE_COMPONENT, PLDM_REQUEST, msg);
 
 	if (PLDM_SUCCESS != rc) {
@@ -1056,7 +1056,7 @@ int encode_cancel_update_component_req(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	return (encode_header_only_request(instance_id, PLDM_FWU,
+	return (encode_header_only_request(instance_id, PLDM_FWUP,
 					   PLDM_CANCEL_UPDATE_COMPONENT, msg));
 }
 
@@ -1093,7 +1093,7 @@ int encode_cancel_update_req(const uint8_t instance_id, struct pldm_msg *msg)
 	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
-	return (encode_header_only_request(instance_id, PLDM_FWU,
+	return (encode_header_only_request(instance_id, PLDM_FWUP,
 					   PLDM_CANCEL_UPDATE, msg));
 }
 
@@ -1146,8 +1146,9 @@ int encode_verify_complete_resp(const uint8_t instance_id,
 	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
-	return (encode_cc_only_resp(instance_id, PLDM_FWU, PLDM_VERIFY_COMPLETE,
-				    completion_code, msg));
+	return (encode_cc_only_resp(instance_id, PLDM_FWUP,
+				    PLDM_VERIFY_COMPLETE, completion_code,
+				    msg));
 }
 
 int decode_verify_complete_req(const struct pldm_msg *msg,
@@ -1170,7 +1171,7 @@ int encode_transfer_complete_resp(const uint8_t instance_id,
 	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
-	return (encode_cc_only_resp(instance_id, PLDM_FWU,
+	return (encode_cc_only_resp(instance_id, PLDM_FWUP,
 				    PLDM_TRANSFER_COMPLETE, completion_code,
 				    msg));
 }
@@ -1207,7 +1208,7 @@ static int encode_firmware_device_data_resp(
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	int rc = encode_pldm_header(instance_id, PLDM_FWU, command_code,
+	int rc = encode_pldm_header(instance_id, PLDM_FWUP, command_code,
 				    PLDM_RESPONSE, msg);
 
 	if (PLDM_SUCCESS != rc) {
@@ -1450,7 +1451,7 @@ int encode_get_status_req(const uint8_t instance_id, struct pldm_msg *msg)
 	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
-	return (encode_header_only_request(instance_id, PLDM_FWU,
+	return (encode_header_only_request(instance_id, PLDM_FWUP,
 					   PLDM_GET_STATUS, msg));
 }
 
@@ -1553,7 +1554,7 @@ int encode_apply_complete_resp(const uint8_t instance_id,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	return (encode_cc_only_resp(instance_id, PLDM_FWU, PLDM_APPLY_COMPLETE,
+	return (encode_cc_only_resp(instance_id, PLDM_FWUP, PLDM_APPLY_COMPLETE,
 				    completion_code, msg));
 }
 

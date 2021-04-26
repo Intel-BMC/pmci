@@ -45,7 +45,7 @@ TEST(RequestFirmwareData, testGoodEncodeResponse)
                                                 completionCode, &img);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.instance_id, instanceID);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_REQUEST_FIRMWARE_DATA);
     EXPECT_EQ(msg->payload[0], completionCode);
     EXPECT_EQ(0, memcmp(img.ptr, msg->payload + 1, img.length));
@@ -123,7 +123,7 @@ TEST(GetStatus, testGoodEncodeRequest)
     auto rc = encode_get_status_req(instanceId, &msg);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg.hdr.instance_id, instanceId);
-    EXPECT_EQ(msg.hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg.hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg.hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg.hdr.command, PLDM_GET_STATUS);
 }
@@ -164,7 +164,7 @@ TEST(GetStatus, testGoodDecodeResponse)
     response->hdr.command = PLDM_GET_STATUS;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
-    response->hdr.type = PLDM_FWU;
+    response->hdr.type = PLDM_FWUP;
     response->payload[0] = PLDM_SUCCESS;
 
     auto rc = decode_get_status_resp(
@@ -213,7 +213,7 @@ TEST(GetStatus, testBadDecodeResponse)
     response->hdr.command = PLDM_GET_STATUS;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
-    response->hdr.type = PLDM_FWU;
+    response->hdr.type = PLDM_FWUP;
     response->payload[0] = PLDM_ERROR_INVALID_DATA;
 
     auto rc = decode_get_status_resp(
@@ -359,7 +359,7 @@ TEST(CancelUpdate, testGoodEncodeRequest)
     auto rc = encode_cancel_update_req(instanceId, &msg);
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg.hdr.instance_id, instanceId);
-    EXPECT_EQ(msg.hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg.hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg.hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg.hdr.command, PLDM_CANCEL_UPDATE);
 }
@@ -393,7 +393,7 @@ TEST(CancelUpdate, testGoodDecodeResponse)
     response->hdr.command = PLDM_CANCEL_UPDATE;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
-    response->hdr.type = PLDM_FWU;
+    response->hdr.type = PLDM_FWUP;
     response->payload[0] = PLDM_SUCCESS;
 
     auto rc = decode_cancel_update_resp(
@@ -438,7 +438,7 @@ TEST(CancelUpdate, testBadDecodeResponse)
     response->hdr.command = PLDM_CANCEL_UPDATE;
     response->hdr.request = 0b0;
     response->hdr.datagram = 0b0;
-    response->hdr.type = PLDM_FWU;
+    response->hdr.type = PLDM_FWUP;
     response->payload[0] = PLDM_SUCCESS;
 
     auto rc = decode_cancel_update_resp(response, 0, &completionCode,
@@ -506,7 +506,7 @@ TEST(VerifyComplete, testGoodEncodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(responsePtr->hdr.command, PLDM_VERIFY_COMPLETE);
     EXPECT_EQ(responsePtr->payload[0], completionCode);
 }
@@ -605,7 +605,7 @@ TEST(TransferComplete, testGoodEncodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(responsePtr->hdr.command, PLDM_TRANSFER_COMPLETE);
     EXPECT_EQ(responsePtr->payload[0], completionCode);
 }
@@ -720,7 +720,7 @@ TEST(GetMetaData_GetPackageData, testGoodEncodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(responsePtr->hdr.command, PLDM_GET_META_DATA);
 
     auto resp = reinterpret_cast<get_fd_data_resp*>(responsePtr->payload);
@@ -740,7 +740,7 @@ TEST(GetMetaData_GetPackageData, testGoodEncodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(responsePtr->hdr.command, PLDM_GET_PACKAGE_DATA);
 
     resp = reinterpret_cast<get_fd_data_resp*>(responsePtr->payload);
@@ -979,7 +979,7 @@ TEST(QueryDeviceIdentifiers, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(requestPtr->hdr.command, PLDM_QUERY_DEVICE_IDENTIFIERS);
 }
 
@@ -1038,7 +1038,7 @@ TEST(GetFirmwareParameters, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(requestPtr->hdr.command, PLDM_GET_FIRMWARE_PARAMETERS);
 }
 
@@ -1237,7 +1237,7 @@ TEST(RequestUpdate, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg->hdr.instance_id, instanceId);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_REQUEST_UPDATE);
     EXPECT_EQ(le32toh(request->max_transfer_size), inReq.max_transfer_size);
     EXPECT_EQ(le16toh(request->no_of_comp), inReq.no_of_comp);
@@ -1405,7 +1405,7 @@ TEST(GetDeviceMetaData, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg->hdr.instance_id, 0u);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_GET_DEVICE_META_DATA);
     EXPECT_EQ(dataTransferHandle, le32toh(request->data_transfer_handle));
     EXPECT_EQ(transferOperationFlag, request->transfer_operation_flag);
@@ -1621,7 +1621,7 @@ TEST(UpdateComponent, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg->hdr.instance_id, instanceId);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_UPDATE_COMPONENT);
     EXPECT_EQ(le16toh(request->comp_classification), inReq.comp_classification);
     EXPECT_EQ(le16toh(request->comp_identifier), inReq.comp_identifier);
@@ -1903,7 +1903,7 @@ TEST(ActivateFirmware, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg->hdr.instance_id, 0u);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_ACTIVATE_FIRMWARE);
     EXPECT_EQ(selfContainedActivationReq,
               request->self_contained_activation_req);
@@ -2046,7 +2046,7 @@ TEST(PassComponentTable, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(msg->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(msg->hdr.instance_id, instanceId);
-    EXPECT_EQ(msg->hdr.type, PLDM_FWU);
+    EXPECT_EQ(msg->hdr.type, PLDM_FWUP);
     EXPECT_EQ(msg->hdr.command, PLDM_PASS_COMPONENT_TABLE);
     EXPECT_EQ(request->transfer_flag, inReq.transfer_flag);
     EXPECT_EQ(le16toh(request->comp_classification), inReq.comp_classification);
@@ -2298,7 +2298,7 @@ TEST(CancelUpdateComponent, testGoodEncodeRequest)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(requestPtr->hdr.request, PLDM_REQUEST);
     EXPECT_EQ(requestPtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(requestPtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(requestPtr->hdr.command, PLDM_CANCEL_UPDATE_COMPONENT);
 }
 
@@ -2359,7 +2359,7 @@ TEST(ApplyComplete, testGoodEncodeResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(responsePtr->hdr.request, PLDM_RESPONSE);
     EXPECT_EQ(responsePtr->hdr.instance_id, instanceId);
-    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWU);
+    EXPECT_EQ(responsePtr->hdr.type, PLDM_FWUP);
     EXPECT_EQ(responsePtr->hdr.command, PLDM_APPLY_COMPLETE);
     EXPECT_EQ(responsePtr->payload[0], completionCode);
 }
