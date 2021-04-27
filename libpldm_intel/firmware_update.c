@@ -389,8 +389,8 @@ int decode_get_firmware_parameters_comp_img_set_resp(
 	}
 
 	resp_data->capabilities_during_update =
-	    htole32(response->capabilities_during_update);
-	resp_data->comp_count = htole16(response->comp_count);
+	    le32toh(response->capabilities_during_update);
+	resp_data->comp_count = le16toh(response->comp_count);
 
 	if (resp_data->comp_count == 0) {
 		return PLDM_ERROR;
