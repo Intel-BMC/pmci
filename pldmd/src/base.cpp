@@ -499,9 +499,10 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
     bool prevTIDExists = false;
     std::optional<pldm::platform::UUID> uuid;
+    tid = 0x00;
     if (isSupported(cmdSupportTable, PLDM_PLATFORM, PLDM_GET_TERMINUS_UID))
     {
-        uuid = pldm::platform::getTerminusUID(yield, eid);
+        uuid = pldm::platform::getTerminusUID(yield, tid, eid);
         if (uuid)
         {
             auto itTID = uuidMapping.find(uuid.value());

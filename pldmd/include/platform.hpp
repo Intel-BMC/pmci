@@ -34,8 +34,9 @@ constexpr size_t commandRetryCount = 3;
 
 using UUID = std::array<uint8_t, 16>;
 
-std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
-                                   const mctpw_eid_t eid);
+std::optional<UUID>
+    getTerminusUID(boost::asio::yield_context yield, const pldm_tid_t tid,
+                   std::optional<mctpw_eid_t> eid = std::nullopt);
 
 struct PlatformTerminus
 {
