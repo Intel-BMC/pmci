@@ -1955,13 +1955,22 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     // Keep Network ID as zero and update it later if a change happend.
     epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+    getVendorDefinedMessageTypes(yield, bindingPrivate, destEid, epProperties);
 
-    // vendor ID message support...
-    // if its true get VDPCIMT capabilities
-    std::vector<uint16_t> vendorSetIdList = {};
-    std::string vendorFormat;
+    populateEndpointProperties(epProperties);
+
+    return destEid;
+}
+
+void MctpBinding::getVendorDefinedMessageTypes(
+    boost::asio::yield_context yield,
+    const std::vector<uint8_t>& bindingPrivate, mctp_eid_t destEid,
+    EndpointProperties& epProperties)
+{
     if (epProperties.endpointMsgTypes.vdpci)
     {
+        std::vector<uint16_t> vendorSetIdList = {};
+        std::string vendorFormat;
         if (!getPCIVDMessageSupportCtrlCmd(yield, bindingPrivate, destEid,
                                            vendorSetIdList, vendorFormat))
         {
@@ -1978,10 +1987,6 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         epProperties.vendorIdFormat = "0x";
         epProperties.vendorIdFormat.append(vendorFormat);
     }
-
-    populateEndpointProperties(epProperties);
-
-    return destEid;
 }
 
 /* This api provides option to register an endpoint using the binding
@@ -2030,6 +2035,9 @@ std::optional<mctp_eid_t>
     // TODO:get Network ID, now set it to 0
     epProperties.networkId = 0x00;
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
+
+    getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
+
     populateEndpointProperties(epProperties);
     return eid;
 }

@@ -316,6 +316,11 @@ class MctpBinding
     void registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
                           const MsgTypes& messageType);
     void populateEndpointProperties(const EndpointProperties& epProperties);
+    void
+        getVendorDefinedMessageTypes(boost::asio::yield_context yield,
+                                     const std::vector<uint8_t>& bindingPrivate,
+                                     mctp_eid_t destEid,
+                                     EndpointProperties& epProperties);
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
     std::vector<uint8_t> getBindingMsgTypes();
