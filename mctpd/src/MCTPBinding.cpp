@@ -1579,6 +1579,9 @@ bool MctpBinding::getPCIVDMessageSupportCtrlCmd(
         op_str << std::hex << venid;
         venFormatData = op_str.str();
 
+        vendorSetIdList.push_back(
+            htobe16(pciVendIdMsgSupportResp.vendorIdSetCmdType));
+
         if (pciVendIdMsgSupportResp.vendorIdSet == noMoreSet)
         {
             // break the loop once 0xFF is found in set.
@@ -1595,8 +1598,6 @@ bool MctpBinding::getPCIVDMessageSupportCtrlCmd(
                 "Invalid vendor ID set iteration");
             return false;
         }
-        vendorSetIdList.push_back(
-            htobe16(pciVendIdMsgSupportResp.vendorIdSetCmdType));
     }
     return true;
 }
