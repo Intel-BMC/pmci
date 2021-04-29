@@ -517,14 +517,45 @@ void PDRManager::parseEntityAuxNamesPDR(std::vector<uint8_t>& pdrData)
         LE16TOH(namePDR->entity.entity_container_id);
 
         size_t auxNamesLen = pdrData.size() - minEntityAuxNamesPDRLen;
-        if (auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
-                                   namePDR->entity_auxiliary_names))
+
+        auto name = getAuxName(namePDR->name_string_count, auxNamesLen,
+                               namePDR->entity_auxiliary_names);
+
+        if (!name)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Entity Auxiliary Name Invalid");
+            return;
+        }
+
+        if (namePDR->shared_name_count <= 0)
         {
             // Cache the Entity Auxiliary Names
-            _entityAuxNames[namePDR->entity] = *name;
+            _entityAuxNames.emplace(namePDR->entity, *name);
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 ("Entity Auxiliary Name: " + *name).c_str());
+            return;
+        }
+
+        // entity_instance_num gives starting value of the range
+        uint16_t instanceNumber = namePDR->entity.entity_instance_num;
+        uint16_t count = 0;
+        // e.g. sharedNameCount = 2 & entity_instance_num = 100, actually means
+        // entity_instance range {100,101,102}
+        while (instanceNumber <= (namePDR->entity.entity_instance_num +
+                                  namePDR->shared_name_count))
+        {
+
+            std::string auxName = *name;
+            auxName.append("_").append(std::to_string(count));
+
+            _entityAuxNames.emplace(namePDR->entity, auxName);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                ("Entity Auxiliary Name: " + *name).c_str());
+            ++count;
+            ++instanceNumber;
         }
     }
 }
