@@ -170,6 +170,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t bmcReceiverAddress = 0;
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
+    std::vector<uint64_t> supportedEndpointSlaveAddress;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -220,6 +221,18 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         return std::nullopt;
     }
 
+    if (!getField(map, "SupportedEndpointSlaveAddress",
+                  supportedEndpointSlaveAddress))
+    {
+        constexpr uint8_t startAddr = 0x03;
+        constexpr uint8_t endAddr = 0x77;
+        supportedEndpointSlaveAddress.reserve(endAddr - startAddr);
+        for (uint8_t it = startAddr; it < endAddr; it++)
+        {
+            supportedEndpointSlaveAddress.push_back(it);
+        }
+    }
+
     SMBusConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
@@ -228,6 +241,9 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     {
         config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
     }
+    config.supportedEndpointSlaveAddress =
+        std::set<uint8_t>(supportedEndpointSlaveAddress.begin(),
+                          supportedEndpointSlaveAddress.end());
     config.bus = bus;
     config.arpMasterSupport = arpOwnerSupport;
     config.bmcSlaveAddr = static_cast<uint8_t>(bmcReceiverAddress);

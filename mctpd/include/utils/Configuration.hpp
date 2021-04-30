@@ -24,6 +24,7 @@ struct SMBusConfiguration : Configuration
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
     int pcieMuxDevAddr = 0;
+    std::set<uint8_t> supportedEndpointSlaveAddress;
 
     ~SMBusConfiguration() override;
 };

@@ -33,9 +33,6 @@ static void throwRunTimeError(const std::string& err)
 
 void SMBusBinding::scanPort(const int scanFd)
 {
-    constexpr uint8_t startAddr = 0x03;
-    constexpr uint8_t endAddr = 0x77;
-
     if (scanFd < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -43,7 +40,7 @@ void SMBusBinding::scanPort(const int scanFd)
         return;
     }
 
-    for (uint8_t it = startAddr; it < endAddr; it++)
+    for (uint8_t it : supportedEndpointSlaveAddress)
     {
         if (ioctl(scanFd, I2C_SLAVE, it) < 0)
         {
@@ -317,6 +314,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         bus = conf.bus;
         bmcSlaveAddr = conf.bmcSlaveAddr;
         pcieMuxDevAddr = conf.pcieMuxDevAddr;
+        supportedEndpointSlaveAddress = conf.supportedEndpointSlaveAddress;
 
         // TODO: If we are not top most busowner, wait for top mostbus owner to
         // issue EID Pool

@@ -34,6 +34,7 @@ class SMBusBinding : public MctpBinding
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
     int pcieMuxDevAddr;
+    std::set<uint8_t> supportedEndpointSlaveAddress;
     struct mctp_binding_smbus* smbus = nullptr;
     int inFd{-1};  // in_fd for the smbus binding
     int outFd{-1}; // out_fd for the root bus
