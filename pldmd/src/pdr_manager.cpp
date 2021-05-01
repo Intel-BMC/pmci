@@ -278,6 +278,9 @@ bool PDRManager::getDevicePDRRecord(boost::asio::yield_context& yield,
                 "Max PDR record size limit reached",
                 phosphor::logging::entry("TID=%d", _tid),
                 phosphor::logging::entry("RECORD_HANDLE=%lu", recordHandle));
+            // Clear transferComplete to make sure the record is not getting
+            // added to the PDR repository
+            transferComplete = false;
             break;
         }
     } while (!transferComplete);
