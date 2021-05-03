@@ -1927,6 +1927,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get UUID failed");
+        // In case EP doesn't support Get UUID set to all 0
+        getUuidResp.resize(sizeof(mctp_ctrl_resp_get_uuid), 0);
     }
 
     // TODO: Check the obtained UUID from the route table and verify whether
