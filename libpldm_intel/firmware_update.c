@@ -112,7 +112,7 @@ int encode_request_firmware_data_resp(
 /** @brief Check whether Component Version String Type or Component Image Set
  * Version String Type is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_comp_ver_str_type_valid(const uint8_t comp_type)
 {
@@ -132,7 +132,7 @@ static bool check_comp_ver_str_type_valid(const uint8_t comp_type)
 
 /** @brief Check whether Component Classification is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_comp_classification_valid(const uint16_t comp_classification)
 {
@@ -160,7 +160,7 @@ static bool check_comp_classification_valid(const uint16_t comp_classification)
 
 /** @brief Check whether Component Response Code is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_resp_code_valid(const uint8_t comp_resp_code)
 {
@@ -189,7 +189,7 @@ static bool check_resp_code_valid(const uint8_t comp_resp_code)
 
 /** @brief Check whether Component Response is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_comp_resp_valid(const uint8_t comp_resp)
 {
@@ -691,7 +691,7 @@ int decode_get_device_meta_data_resp(
 
 /** @brief Check whether Self Contained Activation Request is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_self_contained_activation_req_valid(
     const bool8_t self_contained_activation_req)
@@ -787,6 +787,10 @@ int encode_pass_component_table_req(const uint8_t instance_id,
 	}
 
 	if (payload_length < sizeof(struct pass_component_table_req)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
+	if (comp_ver_str->length != data->comp_ver_str_len) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
@@ -888,7 +892,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 
 /** @brief Check whether component compatibility response code is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool
 check_compatability_resp_code_valid(const uint8_t comp_compatability_resp_code)
@@ -921,7 +925,7 @@ check_compatability_resp_code_valid(const uint8_t comp_compatability_resp_code)
 
 /** @brief Check whether component compatibility response is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool
 check_compatability_resp_valid(const uint8_t comp_compatability_resp)
@@ -1077,7 +1081,7 @@ int decode_cancel_update_component_resp(const struct pldm_msg *msg,
 
 /** @brief Check whether non functioning component indication is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool check_non_functioning_component_indication_valid(
     const bool8_t non_functioning_component_indication)
@@ -1530,7 +1534,7 @@ static bool validate_apply_result(const uint8_t apply_result)
 
 /** @brief Check whether Component Activation Methods Modification is valid
  *
- *  @return true if is from below mentioned values, false if not
+ *  @return true if it is from below mentioned values, false if not
  */
 static bool validate_comp_activation_methods_modification(
     const uint16_t comp_activation_methods_modification)

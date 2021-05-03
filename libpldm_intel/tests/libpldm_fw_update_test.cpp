@@ -2143,6 +2143,16 @@ TEST(PassComponentTable, testBadEncodeRequest)
         &inCompVerStr);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
+    inReq.transfer_flag = PLDM_START;
+    inCompVerStr.ptr = NULL;
+    inCompVerStr.length = 4;
+
+    rc = encode_pass_component_table_req(
+        instanceId, msg,
+        sizeof(struct pass_component_table_req) + inCompVerStr.length, &inReq,
+        &inCompVerStr);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+
     inReq.transfer_flag = PLDM_START_AND_END;
     inReq.comp_classification = COMP_SOFTWARE_BUNDLE + 1;
     inReq.comp_identifier = 0x00;
