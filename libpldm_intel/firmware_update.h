@@ -311,11 +311,11 @@ struct request_update_req {
 	uint8_t comp_image_set_ver_str_len;
 } __attribute__((packed));
 
-/* @struct request_update_resp
+/* @struct pldm_request_update_resp
  *
  *  Structure representing Request Update response
  */
-struct request_update_resp {
+struct pldm_request_update_resp {
 	uint8_t completion_code;
 	uint16_t fd_meta_data_len;
 	uint8_t fd_pkg_data;

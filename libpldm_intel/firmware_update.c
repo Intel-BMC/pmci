@@ -578,12 +578,12 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 		return *completion_code;
 	}
 
-	if (payload_length != sizeof(struct request_update_resp)) {
+	if (payload_length != sizeof(struct pldm_request_update_resp)) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
-	struct request_update_resp *response =
-	    (struct request_update_resp *)msg->payload;
+	struct pldm_request_update_resp *response =
+	    (struct pldm_request_update_resp *)msg->payload;
 
 	if (response == NULL) {
 		return PLDM_ERROR_INVALID_DATA;

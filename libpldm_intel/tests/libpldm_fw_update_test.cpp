@@ -1325,11 +1325,11 @@ TEST(RequestUpdate, testGoodDecodeResponse)
     uint16_t fdMetaDataLen = 0;
     uint8_t fdPkgData = 0;
 
-    std::array<uint8_t, hdrSize + sizeof(struct request_update_resp)>
+    std::array<uint8_t, hdrSize + sizeof(struct pldm_request_update_resp)>
         responseMsg{};
-    struct request_update_resp* inResp =
-        reinterpret_cast<struct request_update_resp*>(responseMsg.data() +
-                                                      hdrSize);
+    struct pldm_request_update_resp* inResp =
+        reinterpret_cast<struct pldm_request_update_resp*>(responseMsg.data() +
+                                                           hdrSize);
     inResp->completion_code = PLDM_SUCCESS;
     inResp->fd_meta_data_len = 0x0F;
     inResp->fd_pkg_data = 0x0F;
@@ -1352,11 +1352,11 @@ TEST(RequestUpdate, testBadDecodeResponse)
     uint16_t fdMetaDataLen = 0;
     uint8_t fdPkgData = 0;
 
-    std::array<uint8_t, hdrSize + sizeof(struct request_update_resp)>
+    std::array<uint8_t, hdrSize + sizeof(struct pldm_request_update_resp)>
         responseMsg{};
-    struct request_update_resp* inResp =
-        reinterpret_cast<struct request_update_resp*>(responseMsg.data() +
-                                                      hdrSize);
+    struct pldm_request_update_resp* inResp =
+        reinterpret_cast<struct pldm_request_update_resp*>(responseMsg.data() +
+                                                           hdrSize);
     inResp->completion_code = PLDM_SUCCESS;
     inResp->fd_meta_data_len = 0x0F;
     inResp->fd_pkg_data = 0x0F;
