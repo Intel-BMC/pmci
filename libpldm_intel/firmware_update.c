@@ -190,8 +190,8 @@ static bool check_resp_code_valid(const uint8_t comp_resp_code)
 static bool check_comp_resp_valid(const uint8_t comp_resp)
 {
 	switch (comp_resp) {
-	case COMP_CAN_BE_UPDATEABLE:
-	case COMP_MAY_BE_UPDATEABLE:
+	case PLDM_COMP_CAN_BE_UPDATEABLE:
+	case PLDM_COMP_MAY_BE_UPDATEABLE:
 		return true;
 
 	default:

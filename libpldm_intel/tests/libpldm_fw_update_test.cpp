@@ -2176,7 +2176,7 @@ TEST(PassComponentTable, testBadEncodeRequest)
 TEST(PassComponentTable, testGoodDecodeResponse)
 {
     uint8_t completionCode = PLDM_ERROR;
-    uint8_t compResp = COMP_CAN_BE_UPDATEABLE;
+    uint8_t compResp = PLDM_COMP_CAN_BE_UPDATEABLE;
     uint8_t compRespCode = COMP_COMPARISON_STAMP_IDENTICAL;
 
     std::array<uint8_t, hdrSize + sizeof(struct pass_component_table_resp)>
@@ -2203,7 +2203,7 @@ TEST(PassComponentTable, testGoodDecodeResponse)
 TEST(PassComponentTable, testBadDecodeResponse)
 {
     uint8_t completionCode = PLDM_ERROR;
-    uint8_t compResp = COMP_MAY_BE_UPDATEABLE;
+    uint8_t compResp = PLDM_COMP_MAY_BE_UPDATEABLE;
     uint8_t compRespCode = INVALID_COMP_COMPARISON_STAMP;
 
     std::array<uint8_t, hdrSize + sizeof(struct pass_component_table_resp)>
@@ -2240,13 +2240,13 @@ TEST(PassComponentTable, testBadDecodeResponse)
                                          &completionCode, &compResp, NULL);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
-    inResp->comp_resp = COMP_CAN_BE_UPDATEABLE - 1;
+    inResp->comp_resp = PLDM_COMP_CAN_BE_UPDATEABLE - 1;
     rc = decode_pass_component_table_resp(
         response, responseMsg.size() - hdrSize, &completionCode, &compResp,
         &compRespCode);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
-    inResp->comp_resp = COMP_MAY_BE_UPDATEABLE + 1;
+    inResp->comp_resp = PLDM_COMP_MAY_BE_UPDATEABLE + 1;
     rc = decode_pass_component_table_resp(
         response, responseMsg.size() - hdrSize, &completionCode, &compResp,
         &compRespCode);

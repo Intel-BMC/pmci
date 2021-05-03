@@ -235,7 +235,10 @@ enum comp_compatability_resp_code {
 
 /** @brief PLDM FWU codes for Component Response
  */
-enum comp_resp { COMP_CAN_BE_UPDATEABLE = 0, COMP_MAY_BE_UPDATEABLE = 1 };
+enum comp_resp {
+	PLDM_COMP_CAN_BE_UPDATEABLE = 0,
+	PLDM_COMP_MAY_BE_UPDATEABLE = 1
+};
 
 /** @brief PLDM FWU codes for Self Contained Activation Request
  */
