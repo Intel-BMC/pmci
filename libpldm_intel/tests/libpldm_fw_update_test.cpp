@@ -245,7 +245,7 @@ TEST(GetStatus, testBadDecodeResponse)
         response, responseMsg.size() - hdrSize, &completionCode, &currentState,
         &previousState, &auxState, &auxStateStatus, &progressPercent,
         &reasonCode, &updateOptionFlagsEnabled);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 
     response->payload[0] = PLDM_SUCCESS;
     inResp->aux_state = 4;
@@ -475,7 +475,7 @@ TEST(CancelUpdate, testBadDecodeResponse)
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 
     rc = decode_cancel_update_resp(
         NULL, responseMsg.size() - hdrSize, &completionCode,
@@ -501,20 +501,20 @@ TEST(CancelUpdate, testBadDecodeResponse)
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 
     inResp->non_functioning_component_indication =
         COMPONENTS_NOT_FUNCTIONING + 1;
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 
     inResp->non_functioning_component_indication = 0x0F;
     rc = decode_cancel_update_resp(
         response, responseMsg.size() - hdrSize, &completionCode,
         &nonFunctioningComponentIndication, &nonFunctioningComponentBitmap);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 }
 
 TEST(VerifyComplete, testGoodEncodeResponse)
@@ -1412,6 +1412,12 @@ TEST(RequestUpdate, testBadDecodeResponse)
     rc = decode_request_update_resp(response, responseMsg.size() - hdrSize,
                                     &completionCode, &fdMetaDataLen, NULL);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
+
+    response->payload[0] = PLDM_ERROR_INVALID_DATA;
+    rc =
+        decode_request_update_resp(response, responseMsg.size() - hdrSize,
+                                   &completionCode, &fdMetaDataLen, &fdPkgData);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 }
 
 TEST(GetDeviceMetaData, testGoodEncodeRequest)
@@ -1520,6 +1526,12 @@ TEST(GetDeviceMetaData, testGoodDecodeResponse)
                         responseMsg.data() + hdrSize +
                             sizeof(struct get_device_meta_data_resp),
                         outPortionMetaData.length));
+
+    response->payload[0] = PLDM_ERROR_INVALID_DATA;
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
 }
 
 TEST(GetDeviceMetaData, testBadDecodeResponse)

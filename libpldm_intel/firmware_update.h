@@ -254,6 +254,13 @@ enum non_functioning_component_indication {
 	COMPONENTS_NOT_FUNCTIONING = 1
 };
 
+enum encode_decode_rc {
+	ENCODE_SUCCESS = 0xF0,
+	ENCODE_FAILURE = 0xF1,
+	DECODE_SUCCESS = 0xF2,
+	DECODE_FAILURE = 0xF3
+};
+
 /** @struct query_device_identifiers_resp
  *
  *  Structure representing query device identifiers response.

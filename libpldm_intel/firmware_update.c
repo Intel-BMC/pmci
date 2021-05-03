@@ -292,7 +292,7 @@ int decode_query_device_identifiers_resp(const struct pldm_msg *msg,
 
 	*completion_code = msg->payload[0];
 	if (PLDM_SUCCESS != *completion_code) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_length < sizeof(struct query_device_identifiers_resp)) {
@@ -375,7 +375,7 @@ int decode_get_firmware_parameters_comp_img_set_resp(
 	    (struct get_firmware_parameters_resp *)msg->payload;
 
 	if (PLDM_SUCCESS != response->completion_code) {
-		return response->completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (response->active_comp_image_set_ver_str_len == 0) {
@@ -583,7 +583,7 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	struct pldm_request_update_resp *response =
@@ -654,7 +654,7 @@ int decode_get_device_meta_data_resp(
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_length < sizeof(struct get_device_meta_data_resp)) {
@@ -756,7 +756,7 @@ int decode_activate_firmware_resp(const struct pldm_msg *msg,
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_length != sizeof(struct activate_firmware_resp)) {
@@ -861,7 +861,7 @@ int decode_pass_component_table_resp(const struct pldm_msg *msg,
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_length != sizeof(struct pass_component_table_resp)) {
@@ -1021,7 +1021,7 @@ int decode_update_component_resp(const struct pldm_msg *msg,
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_length != sizeof(struct update_component_resp)) {
@@ -1119,7 +1119,7 @@ int decode_cancel_update_resp(const struct pldm_msg *msg,
 
 	*completion_code = msg->payload[0];
 	if (PLDM_SUCCESS != *completion_code) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 
 	if (payload_len != sizeof(struct cancel_update_resp)) {
@@ -1481,7 +1481,7 @@ int decode_get_status_resp(const struct pldm_msg *msg,
 	*completion_code = msg->payload[0];
 
 	if (PLDM_SUCCESS != *completion_code) {
-		return *completion_code;
+		return DECODE_SUCCESS;
 	}
 	if (payload_length != sizeof(struct get_status_resp)) {
 		return PLDM_ERROR_INVALID_LENGTH;
