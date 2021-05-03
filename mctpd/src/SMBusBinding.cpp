@@ -499,6 +499,7 @@ void SMBusBinding::SMBusInit()
         }
     }
     mctp_smbus_set_in_fd(smbus, inFd);
+    mctp_smbus_set_out_fd(smbus, outFd);
 
     smbusReceiverFd.assign(inFd);
     readResponse();
