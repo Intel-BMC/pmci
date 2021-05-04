@@ -515,6 +515,14 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
+	if (data->max_outstand_transfer_req < PLDM_FWUP_MIN_OUTSTANDING_REQ) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
+	if (!check_comp_ver_str_type_valid(data->comp_image_set_ver_str_type)) {
+		return PLDM_ERROR_INVALID_DATA;
+	}
+
 	int rc = encode_pldm_header(instance_id, PLDM_FWUP, PLDM_REQUEST_UPDATE,
 				    PLDM_REQUEST, msg);
 
@@ -536,16 +544,8 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 	request->max_transfer_size = htole32(data->max_transfer_size);
 	request->no_of_comp = htole16(data->no_of_comp);
 
-	if (data->max_outstand_transfer_req < PLDM_FWUP_MIN_OUTSTANDING_REQ) {
-		return PLDM_ERROR_INVALID_DATA;
-	}
-
 	request->max_outstand_transfer_req = data->max_outstand_transfer_req;
 	request->pkg_data_len = htole16(data->pkg_data_len);
-
-	if (!check_comp_ver_str_type_valid(data->comp_image_set_ver_str_type)) {
-		return PLDM_ERROR_INVALID_DATA;
-	}
 
 	request->comp_image_set_ver_str_type =
 	    data->comp_image_set_ver_str_type;
@@ -576,14 +576,14 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
+	if (payload_length != sizeof(struct pldm_request_update_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
+	}
+
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
 		return *completion_code;
-	}
-
-	if (payload_length != sizeof(struct pldm_request_update_resp)) {
-		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
 	struct pldm_request_update_resp *response =
