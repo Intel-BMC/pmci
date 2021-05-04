@@ -113,12 +113,12 @@ int encode_request_firmware_data_resp(
 static bool check_comp_ver_str_type_valid(const uint8_t comp_type)
 {
 	switch (comp_type) {
-	case COMP_VER_STR_TYPE_UNKNOWN:
-	case COMP_ASCII:
-	case COMP_UTF_8:
-	case COMP_UTF_16:
-	case COMP_UTF_16LE:
-	case COMP_UTF_16BE:
+	case PLDM_COMP_VER_STR_TYPE_UNKNOWN:
+	case PLDM_COMP_ASCII:
+	case PLDM_COMP_UTF_8:
+	case PLDM_COMP_UTF_16:
+	case PLDM_COMP_UTF_16LE:
+	case PLDM_COMP_UTF_16BE:
 		return true;
 
 	default:

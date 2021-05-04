@@ -1216,7 +1216,7 @@ TEST(RequestUpdate, testGoodEncodeRequest)
     inReq.no_of_comp = 1;
     inReq.max_outstand_transfer_req = 1;
     inReq.pkg_data_len = 0;
-    inReq.comp_image_set_ver_str_type = COMP_VER_STR_TYPE_UNKNOWN;
+    inReq.comp_image_set_ver_str_type = PLDM_COMP_VER_STR_TYPE_UNKNOWN;
     inReq.comp_image_set_ver_str_len = compImgSetVerStrLen;
 
     std::fill(compImgSetVerStrArr.data(), compImgSetVerStrArr.end(), 0xFF);
@@ -1600,7 +1600,7 @@ TEST(UpdateComponent, testGoodEncodeRequest)
     inReq.comp_comparison_stamp = 0;
     inReq.comp_image_size = 32;
     inReq.update_option_flags.value = 1;
-    inReq.comp_ver_str_type = COMP_ASCII;
+    inReq.comp_ver_str_type = PLDM_COMP_ASCII;
     inReq.comp_ver_str_len = compVerStrLen;
 
     std::fill(compVerStrArr.data(), compVerStrArr.end(), 0xFF);
@@ -1686,7 +1686,7 @@ TEST(UpdateComponent, testBadEncodeRequest)
     inReq.comp_comparison_stamp = 0;
     inReq.comp_image_size = 160;
     inReq.update_option_flags.value = 1;
-    inReq.comp_ver_str_type = COMP_VER_STR_TYPE_UNKNOWN - 1;
+    inReq.comp_ver_str_type = PLDM_COMP_VER_STR_TYPE_UNKNOWN - 1;
     inReq.comp_ver_str_len = 0;
 
     rc = encode_update_component_req(instanceId, msg,
@@ -1716,7 +1716,7 @@ TEST(UpdateComponent, testBadEncodeRequest)
     inReq.comp_comparison_stamp = 0;
     inReq.comp_image_size = 161;
     inReq.update_option_flags.value = 1;
-    inReq.comp_ver_str_type = COMP_UTF_16BE + 1;
+    inReq.comp_ver_str_type = PLDM_COMP_UTF_16BE + 1;
     inReq.comp_ver_str_len = 0;
 
     rc = encode_update_component_req(instanceId, msg,
@@ -2025,7 +2025,7 @@ TEST(PassComponentTable, testGoodEncodeRequest)
     inReq.comp_identifier = 0x00;
     inReq.comp_classification_index = 0x00;
     inReq.comp_comparison_stamp = 0;
-    inReq.comp_ver_str_type = COMP_VER_STR_TYPE_UNKNOWN;
+    inReq.comp_ver_str_type = PLDM_COMP_VER_STR_TYPE_UNKNOWN;
     inReq.comp_ver_str_len = compVerStrLen;
 
     std::fill(compVerStrArr.data(), compVerStrArr.end(), 0xFF);
@@ -2119,7 +2119,7 @@ TEST(PassComponentTable, testBadEncodeRequest)
     inReq.comp_identifier = 0x00;
     inReq.comp_classification_index = 0x00;
     inReq.comp_comparison_stamp = 0;
-    inReq.comp_ver_str_type = COMP_UTF_16BE + 1;
+    inReq.comp_ver_str_type = PLDM_COMP_UTF_16BE + 1;
     inReq.comp_ver_str_len = 0;
 
     rc = encode_pass_component_table_req(
@@ -2147,7 +2147,7 @@ TEST(PassComponentTable, testBadEncodeRequest)
     inReq.comp_identifier = 0x00;
     inReq.comp_classification_index = 0x00;
     inReq.comp_comparison_stamp = 0;
-    inReq.comp_ver_str_type = COMP_VER_STR_TYPE_UNKNOWN - 1;
+    inReq.comp_ver_str_type = PLDM_COMP_VER_STR_TYPE_UNKNOWN - 1;
     inReq.comp_ver_str_len = 0;
 
     rc = encode_pass_component_table_req(

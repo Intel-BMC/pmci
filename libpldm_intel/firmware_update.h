@@ -76,12 +76,12 @@ enum fw_update_agent_timeout_max {
  * Set Version String Type
  */
 enum comp_type {
-	COMP_VER_STR_TYPE_UNKNOWN = 0,
-	COMP_ASCII = 1,
-	COMP_UTF_8 = 2,
-	COMP_UTF_16 = 3,
-	COMP_UTF_16LE = 4,
-	COMP_UTF_16BE = 5
+	PLDM_COMP_VER_STR_TYPE_UNKNOWN = 0,
+	PLDM_COMP_ASCII = 1,
+	PLDM_COMP_UTF_8 = 2,
+	PLDM_COMP_UTF_16 = 3,
+	PLDM_COMP_UTF_16LE = 4,
+	PLDM_COMP_UTF_16BE = 5
 };
 
 /** @brief PLDM FWU common values for Component Response Code and Component
