@@ -532,7 +532,7 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 	request->max_transfer_size = htole32(data->max_transfer_size);
 	request->no_of_comp = htole16(data->no_of_comp);
 
-	if (data->max_outstand_transfer_req < MIN_OUTSTANDING_REQ) {
+	if (data->max_outstand_transfer_req < PLDM_FWUP_MIN_OUTSTANDING_REQ) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
