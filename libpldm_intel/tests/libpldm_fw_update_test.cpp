@@ -1332,7 +1332,7 @@ TEST(RequestUpdate, testBadEncodeRequest)
                                    sizeof(struct request_update_req) +
                                        inCompImgSetVerStr.length,
                                    &inReq, &inCompImgSetVerStr);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
     inCompImgSetVerStr.ptr = NULL;
     inCompImgSetVerStr.length = 0;
@@ -1341,7 +1341,7 @@ TEST(RequestUpdate, testBadEncodeRequest)
                                    sizeof(struct request_update_req) +
                                        inCompImgSetVerStr.length,
                                    &inReq, &inCompImgSetVerStr);
-    EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
+    EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 }
 
 TEST(RequestUpdate, testGoodDecodeResponse)

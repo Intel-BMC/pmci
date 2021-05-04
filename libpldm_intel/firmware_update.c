@@ -367,9 +367,7 @@ int decode_get_firmware_parameters_comp_img_set_resp(
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	const size_t min_resp_len = sizeof(struct get_firmware_parameters_resp);
-
-	if (payload_length < min_resp_len) {
+	if (payload_length < sizeof(struct get_firmware_parameters_resp)) {
 		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
@@ -538,7 +536,7 @@ int encode_request_update_req(const uint8_t instance_id, struct pldm_msg *msg,
 	}
 
 	if (data->max_transfer_size < PLDM_FWU_BASELINE_TRANSFER_SIZE) {
-		return PLDM_ERROR_INVALID_LENGTH;
+		return PLDM_ERROR_INVALID_DATA;
 	}
 
 	request->max_transfer_size = htole32(data->max_transfer_size);
