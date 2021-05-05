@@ -981,7 +981,10 @@ void PDRManager::parseNumericSensorPDR(std ::vector<uint8_t>& pdrData)
         reinterpret_cast<pldm_numeric_sensor_value_pdr*>(pdrOut.data());
     uint16_t sensorID = sensorPDR->sensor_id;
 
-    _numericSensorPDR[sensorID] = *sensorPDR;
+    std::shared_ptr<pldm_numeric_sensor_value_pdr> numericSensorPDR =
+        std::make_shared<pldm_numeric_sensor_value_pdr>(*sensorPDR);
+
+    _numericSensorPDR.emplace(sensorID, std::move(numericSensorPDR));
 
     pldm_entity entity = {sensorPDR->entity_type,
                           sensorPDR->entity_instance_num,
@@ -1207,7 +1210,10 @@ void PDRManager::parseNumericEffecterPDR(std::vector<uint8_t>& pdrData)
     _effecterIntf.emplace(effecterID,
                           std::make_pair(effecterIntf, *effecterPath));
 
-    _numericEffecterPDR.emplace(effecterID, *effecterPDR);
+    std::shared_ptr<pldm_numeric_effecter_value_pdr> numericEffectorPDR =
+        std::make_shared<pldm_numeric_effecter_value_pdr>(*effecterPDR);
+
+    _numericEffecterPDR.emplace(effecterID, std::move(numericEffectorPDR));
 }
 
 static void populateStateEffecter(DBusInterfacePtr& effecterIntf,
@@ -1446,7 +1452,7 @@ void PDRManager::parsePDR()
             .c_str());
 }
 
-std::optional<pldm_numeric_sensor_value_pdr>
+std::optional<std::shared_ptr<pldm_numeric_sensor_value_pdr>>
     PDRManager::getNumericSensorPDR(const SensorID& sensorID)
 {
     auto iter = _numericSensorPDR.find(sensorID);
@@ -1468,7 +1474,7 @@ std::optional<std::shared_ptr<StateSensorPDR>>
     return std::nullopt;
 }
 
-std::optional<pldm_numeric_effecter_value_pdr>
+std::optional<std::shared_ptr<pldm_numeric_effecter_value_pdr>>
     PDRManager::getNumericEffecterPDR(const EffecterID& effecterID)
 {
     auto iter = _numericEffecterPDR.find(effecterID);

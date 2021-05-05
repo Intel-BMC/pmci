@@ -28,7 +28,7 @@ namespace platform
 
 NumericEffecterHandler::NumericEffecterHandler(
     const pldm_tid_t tid, const EffecterID effecterID, const std::string& name,
-    const pldm_numeric_effecter_value_pdr& pdr) :
+    const std::shared_ptr<pldm_numeric_effecter_value_pdr>& pdr) :
     _tid(tid),
     _effecterID(effecterID), _name(name), _pdr(pdr)
 {
@@ -48,7 +48,7 @@ bool NumericEffecterHandler::enableNumericEffecter(
     boost::asio::yield_context& yield)
 {
     uint8_t effecterOpState;
-    switch (_pdr.effecter_init)
+    switch (_pdr->effecter_init)
     {
         case PLDM_NO_INIT:
             effecterOpState = EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING;
@@ -117,7 +117,7 @@ bool NumericEffecterHandler::enableNumericEffecter(
 bool NumericEffecterHandler::initEffecter()
 {
     std::optional<float> maxVal =
-        pdr::effecter::fetchEffecterValue(_pdr, _pdr.max_set_table);
+        pdr::effecter::fetchEffecterValue(*_pdr, _pdr->max_set_table);
     if (maxVal == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -126,10 +126,10 @@ bool NumericEffecterHandler::initEffecter()
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
-    maxSettable = pdr::effecter::calculateEffecterValue(_pdr, *maxVal);
+    maxSettable = pdr::effecter::calculateEffecterValue(*_pdr, *maxVal);
 
     std::optional<float> minVal =
-        pdr::effecter::fetchEffecterValue(_pdr, _pdr.min_set_table);
+        pdr::effecter::fetchEffecterValue(*_pdr, _pdr->min_set_table);
     if (minVal == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -138,12 +138,12 @@ bool NumericEffecterHandler::initEffecter()
             phosphor::logging::entry("TID=%d", _tid));
         return false;
     }
-    minSettable = pdr::effecter::calculateEffecterValue(_pdr, *minVal);
+    minSettable = pdr::effecter::calculateEffecterValue(*_pdr, *minVal);
 
     try
     {
         _effecter = std::make_shared<NumericEffecter>(
-            _name, _tid, maxSettable, minSettable, _pdr.base_unit);
+            _name, _tid, maxSettable, minSettable, _pdr->base_unit);
     }
     catch (std::exception& e)
     {
@@ -170,7 +170,7 @@ bool NumericEffecterHandler::handleEffecterReading(
         case EFFECTER_OPER_STATE_ENABLED_UPDATEPENDING:
         // TODO: Read again after transition interval before setting value
         case EFFECTER_OPER_STATE_ENABLED_NOUPDATEPENDING: {
-            if (_pdr.effecter_data_size != effecterDataSize)
+            if (_pdr->effecter_data_size != effecterDataSize)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Invalid effecter reading. Effecter data size missmatch",
@@ -181,7 +181,7 @@ bool NumericEffecterHandler::handleEffecterReading(
             }
 
             std::optional<float> effecterReading =
-                pdr::effecter::fetchEffecterValue(_pdr, presentReading);
+                pdr::effecter::fetchEffecterValue(*_pdr, presentReading);
             if (effecterReading == std::nullopt)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -193,7 +193,7 @@ bool NumericEffecterHandler::handleEffecterReading(
             }
 
             double value =
-                pdr::effecter::calculateEffecterValue(_pdr, *effecterReading);
+                pdr::effecter::calculateEffecterValue(*_pdr, *effecterReading);
             _effecter->updateValue(value);
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -325,7 +325,7 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
     }
 
     std::optional<double> settableValue =
-        pdr::effecter::calculateSettableEffecterValue(_pdr, value);
+        pdr::effecter::calculateSettableEffecterValue(*_pdr, value);
     if (settableValue == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -334,7 +334,7 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
     }
 
     std::optional<union_effecter_data_size> effecterValue =
-        pdr::effecter::formatSettableEffecterValue(_pdr, *settableValue);
+        pdr::effecter::formatSettableEffecterValue(*_pdr, *settableValue);
     if (effecterValue == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -343,7 +343,7 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
     }
 
     std::optional<size_t> dataSize =
-        getEffecterValueSize(_pdr.effecter_data_size);
+        getEffecterValueSize(_pdr->effecter_data_size);
     if (dataSize == std::nullopt)
     {
         return false;
@@ -358,7 +358,7 @@ bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
 
     int rc;
     rc = encode_set_numeric_effecter_value_req(
-        createInstanceId(_tid), _effecterID, _pdr.effecter_data_size,
+        createInstanceId(_tid), _effecterID, _pdr->effecter_data_size,
         reinterpret_cast<uint8_t*>(&(*effecterValue)), reqMsg, payloadLength);
     if (!validatePLDMReqEncode(_tid, rc, "SetNumericEffecterValue"))
     {
@@ -420,12 +420,12 @@ void NumericEffecterHandler::registerSetEffecter()
                     std::make_unique<boost::asio::steady_timer>(
                         *getIoContext());
                 uint64_t transitionIntervalMilliSec = 0;
-                if (!std::isnan(_pdr.transition_interval) &&
-                    _pdr.transition_interval > 0)
+                if (!std::isnan(_pdr->transition_interval) &&
+                    _pdr->transition_interval > 0)
                 {
                     // Convert to millisec to get more accurate value
                     transitionIntervalMilliSec = static_cast<uint64_t>(
-                        std::round(_pdr.transition_interval * 1000));
+                        std::round(_pdr->transition_interval * 1000));
                 }
                 transitionIntervalTimer->expires_after(
                     boost::asio::chrono::milliseconds(

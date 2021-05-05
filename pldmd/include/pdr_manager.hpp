@@ -109,7 +109,7 @@ class PDRManager
     };
 
     /** @brief Get numeric sensor PDR*/
-    std::optional<pldm_numeric_sensor_value_pdr>
+    std::optional<std::shared_ptr<pldm_numeric_sensor_value_pdr>>
         getNumericSensorPDR(const SensorID& sensorID);
 
     /** @brief Get state sensor PDR*/
@@ -123,7 +123,7 @@ class PDRManager
     };
 
     /** @brief Get numeric effecter PDR*/
-    std::optional<pldm_numeric_effecter_value_pdr>
+    std::optional<std::shared_ptr<pldm_numeric_effecter_value_pdr>>
         getNumericEffecterPDR(const EffecterID& effecterID);
 
     /** @brief Get state effecter PDR*/
@@ -262,7 +262,8 @@ class PDRManager
     std::unordered_map<EffecterID, std::string> _effecterAuxNames;
 
     /** @brief Holds Numeric Sensor PDR */
-    std::map<SensorID, pldm_numeric_sensor_value_pdr> _numericSensorPDR;
+    std::map<SensorID, std::shared_ptr<pldm_numeric_sensor_value_pdr>>
+        _numericSensorPDR;
 
     /** @brief Holds Numeric Sensor D-Bus interfaces and Object paths */
     std::map<SensorID, std::pair<DBusInterfacePtr, DBusObjectPath>> _sensorIntf;
@@ -272,7 +273,8 @@ class PDRManager
         _effecterIntf;
 
     /** @brief Holds Numeric Effecter PDR */
-    std::map<EffecterID, pldm_numeric_effecter_value_pdr> _numericEffecterPDR;
+    std::map<EffecterID, std::shared_ptr<pldm_numeric_effecter_value_pdr>>
+        _numericEffecterPDR;
 
     /** @brief Holds FRU Record Set D-Bus interfaces and Object paths */
     std::map<FRURecordSetIdentifier,

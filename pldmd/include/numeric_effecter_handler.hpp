@@ -38,9 +38,10 @@ class NumericEffecterHandler
     NumericEffecterHandler& operator=(NumericEffecterHandler&&) = delete;
     ~NumericEffecterHandler();
 
-    NumericEffecterHandler(const pldm_tid_t tid, const EffecterID effecterID,
-                           const std::string& name,
-                           const pldm_numeric_effecter_value_pdr& pdr);
+    NumericEffecterHandler(
+        const pldm_tid_t tid, const EffecterID effecterID,
+        const std::string& name,
+        const std::shared_ptr<pldm_numeric_effecter_value_pdr>& pdr);
 
     /** @brief Init NumericEffecterHandler*/
     bool effecterHandlerInit(boost::asio::yield_context& yield);
@@ -79,7 +80,7 @@ class NumericEffecterHandler
     std::string _name;
 
     /** @brief Effecter PDR*/
-    pldm_numeric_effecter_value_pdr _pdr;
+    std::shared_ptr<pldm_numeric_effecter_value_pdr> _pdr;
 
     /** @brief Effecter*/
     std::shared_ptr<NumericEffecter> _effecter;

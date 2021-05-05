@@ -28,7 +28,7 @@ namespace platform
 
 NumericSensorHandler::NumericSensorHandler(
     const pldm_tid_t tid, const SensorID sensorID, const std::string& name,
-    const pldm_numeric_sensor_value_pdr& pdr) :
+    const std::shared_ptr<pldm_numeric_sensor_value_pdr>& pdr) :
     _tid(tid),
     _sensorID(sensorID), _name(name), _pdr(pdr)
 {
@@ -38,7 +38,7 @@ bool NumericSensorHandler::setNumericSensorEnable(
     boost::asio::yield_context& yield)
 {
     uint8_t sensorOpState;
-    switch (_pdr.sensor_init)
+    switch (_pdr->sensor_init)
     {
         case PLDM_SENSOR_NO_INIT:
             sensorOpState = PLDM_SENSOR_ENABLED;
@@ -111,13 +111,13 @@ bool NumericSensorHandler::setNumericSensorEnable(
 void NumericSensorHandler::getSupportedThresholds(
     std::vector<thresholds::Threshold>& thresholdData)
 {
-    if (_pdr.supported_thresholds.bits.bit0)
+    if (_pdr->supported_thresholds.bits.bit0)
     {
         if (auto rangeFieldValue =
-                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_high))
+                pdr::sensor::fetchRangeFieldValue(*_pdr, _pdr->warning_high))
         {
             double value =
-                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+                pdr::sensor::applyUnitModifiers(*_pdr, rangeFieldValue.value());
             thresholdData.emplace_back(thresholds::Level::warning,
                                        thresholds::Direction::high, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -127,14 +127,14 @@ void NumericSensorHandler::getSupportedThresholds(
         }
     }
 
-    if (_pdr.supported_thresholds.bits.bit1 &&
-        _pdr.range_field_support.bits.bit3)
+    if (_pdr->supported_thresholds.bits.bit1 &&
+        _pdr->range_field_support.bits.bit3)
     {
         if (auto rangeFieldValue =
-                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_high))
+                pdr::sensor::fetchRangeFieldValue(*_pdr, _pdr->critical_high))
         {
             double value =
-                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+                pdr::sensor::applyUnitModifiers(*_pdr, rangeFieldValue.value());
             thresholdData.emplace_back(thresholds::Level::critical,
                                        thresholds::Direction::high, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -144,14 +144,14 @@ void NumericSensorHandler::getSupportedThresholds(
         }
     }
 
-    if (_pdr.supported_thresholds.bits.bit3 &&
-        _pdr.range_field_support.bits.bit3)
+    if (_pdr->supported_thresholds.bits.bit3 &&
+        _pdr->range_field_support.bits.bit3)
     {
         if (auto rangeFieldValue =
-                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.warning_low))
+                pdr::sensor::fetchRangeFieldValue(*_pdr, _pdr->warning_low))
         {
             double value =
-                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+                pdr::sensor::applyUnitModifiers(*_pdr, rangeFieldValue.value());
             thresholdData.emplace_back(thresholds::Level::warning,
                                        thresholds::Direction::low, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -161,14 +161,14 @@ void NumericSensorHandler::getSupportedThresholds(
         }
     }
 
-    if (_pdr.supported_thresholds.bits.bit4 &&
-        _pdr.range_field_support.bits.bit4)
+    if (_pdr->supported_thresholds.bits.bit4 &&
+        _pdr->range_field_support.bits.bit4)
     {
         if (auto rangeFieldValue =
-                pdr::sensor::fetchRangeFieldValue(_pdr, _pdr.critical_low))
+                pdr::sensor::fetchRangeFieldValue(*_pdr, _pdr->critical_low))
         {
             double value =
-                pdr::sensor::applyUnitModifiers(_pdr, rangeFieldValue.value());
+                pdr::sensor::applyUnitModifiers(*_pdr, rangeFieldValue.value());
             thresholdData.emplace_back(thresholds::Level::critical,
                                        thresholds::Direction::low, value);
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -183,7 +183,7 @@ void NumericSensorHandler::getSupportedThresholds(
 bool NumericSensorHandler::initSensor()
 {
     std::optional<float> maxVal =
-        pdr::sensor::fetchSensorValue(_pdr, _pdr.max_readable);
+        pdr::sensor::fetchSensorValue(*_pdr, _pdr->max_readable);
     if (maxVal == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -194,7 +194,7 @@ bool NumericSensorHandler::initSensor()
     }
 
     std::optional<float> minVal =
-        pdr::sensor::fetchSensorValue(_pdr, _pdr.min_readable);
+        pdr::sensor::fetchSensorValue(*_pdr, _pdr->min_readable);
     if (minVal == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -204,7 +204,7 @@ bool NumericSensorHandler::initSensor()
         return false;
     }
 
-    std::optional<SensorUnit> baseUnit = pdr::sensor::getSensorUnit(_pdr);
+    std::optional<SensorUnit> baseUnit = pdr::sensor::getSensorUnit(*_pdr);
     if (baseUnit == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -217,7 +217,7 @@ bool NumericSensorHandler::initSensor()
     std::vector<thresholds::Threshold> thresholdData;
     getSupportedThresholds(thresholdData);
 
-    if (_pdr.sensor_init == PLDM_SENSOR_DISABLE)
+    if (_pdr->sensor_init == PLDM_SENSOR_DISABLE)
     {
         sensorDisabled = true;
     }
@@ -225,8 +225,8 @@ bool NumericSensorHandler::initSensor()
     {
         _sensor = std::make_shared<NumericSensor>(
             _name, thresholdData,
-            pdr::sensor::calculateSensorValue(_pdr, *maxVal),
-            pdr::sensor::calculateSensorValue(_pdr, *minVal), *baseUnit,
+            pdr::sensor::calculateSensorValue(*_pdr, *maxVal),
+            pdr::sensor::calculateSensorValue(*_pdr, *minVal), *baseUnit,
             sensorDisabled);
     }
     catch (const std::exception& e)
@@ -271,7 +271,7 @@ bool NumericSensorHandler::handleSensorReading(
             return false;
         }
         case PLDM_SENSOR_ENABLED: {
-            if (_pdr.sensor_data_size != sensorDataSize)
+            if (_pdr->sensor_data_size != sensorDataSize)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Invalid sensor reading. Sensor data size missmatch",
@@ -282,7 +282,7 @@ bool NumericSensorHandler::handleSensorReading(
             }
 
             std::optional<float> sensorReading =
-                pdr::sensor::fetchSensorValue(_pdr, presentReading);
+                pdr::sensor::fetchSensorValue(*_pdr, presentReading);
             if (sensorReading == std::nullopt)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -294,7 +294,7 @@ bool NumericSensorHandler::handleSensorReading(
             }
 
             _sensor->updateValue(
-                pdr::sensor::calculateSensorValue(_pdr, *sensorReading));
+                pdr::sensor::calculateSensorValue(*_pdr, *sensorReading));
 
             phosphor::logging::log<phosphor::logging::level::DEBUG>(
                 "GetSensorReading success",
@@ -344,7 +344,7 @@ bool NumericSensorHandler::getSensorReading(boost::asio::yield_context& yield)
     }
 
     uint8_t completionCode;
-    uint8_t sensorDataSize = _pdr.sensor_data_size;
+    uint8_t sensorDataSize = _pdr->sensor_data_size;
     uint8_t sensorOperationalState;
     uint8_t sensorEventMessageEnable;
     uint8_t presentState;
@@ -371,7 +371,7 @@ bool NumericSensorHandler::populateSensorValue(
     boost::asio::yield_context& yield)
 {
     // No need to read the sensor if it is disabled
-    if (_pdr.sensor_init == PLDM_SENSOR_DISABLE)
+    if (_pdr->sensor_init == PLDM_SENSOR_DISABLE)
     {
         return false;
     }

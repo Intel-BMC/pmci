@@ -38,9 +38,9 @@ class NumericSensorHandler
     NumericSensorHandler& operator=(NumericSensorHandler&&) = delete;
     ~NumericSensorHandler() = default;
 
-    NumericSensorHandler(const pldm_tid_t tid, const SensorID sensorID,
-                         const std::string& name,
-                         const pldm_numeric_sensor_value_pdr& pdr);
+    NumericSensorHandler(
+        const pldm_tid_t tid, const SensorID sensorID, const std::string& name,
+        const std::shared_ptr<pldm_numeric_sensor_value_pdr>& pdr);
 
     /** @brief Init NumericSensorHandler*/
     bool sensorHandlerInit(boost::asio::yield_context& yield);
@@ -83,7 +83,7 @@ class NumericSensorHandler
     std::string _name;
 
     /** @brief Sensor PDR*/
-    pldm_numeric_sensor_value_pdr _pdr;
+    std::shared_ptr<pldm_numeric_sensor_value_pdr> _pdr;
 
     /** @brief Sensor*/
     std::shared_ptr<NumericSensor> _sensor;
