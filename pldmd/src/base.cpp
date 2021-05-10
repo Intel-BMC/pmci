@@ -61,6 +61,7 @@ struct DiscoveryData
 };
 
 static std::unordered_map<pldm_tid_t, DiscoveryData> discoveryDataTable;
+static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
@@ -496,7 +497,6 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             phosphor::logging::entry("TID=0x%X", existingTID.value()));
     }
 
-    static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
     bool prevTIDExists = false;
     std::optional<pldm::platform::UUID> uuid;
     tid = 0x00;
@@ -556,6 +556,11 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
 
 bool deleteDeviceBaseInfo(pldm_tid_t tid)
 {
+    uuidMapping.erase(std::find_if(uuidMapping.begin(), uuidMapping.end(),
+                                   [&tid](const auto& uuidTID) {
+                                       auto const& [uuid, mappedTID] = uuidTID;
+                                       return mappedTID == tid;
+                                   }));
     return discoveryDataTable.erase(tid) == 1;
 }
 
