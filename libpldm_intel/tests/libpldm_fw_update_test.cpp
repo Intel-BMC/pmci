@@ -75,11 +75,36 @@ TEST(RequestFirmwareData, testBadDecodeRequest)
     rc = decode_request_firmware_data_req(
         requestIn, requestMsg.size() - hdrSize, &offset, &length);
     EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
+
     request->length = 121;
     request->offset = 100;
     rc = decode_request_firmware_data_req(
         requestIn, requestMsg.size() - hdrSize, &offset, &length);
     EXPECT_EQ(rc, DATA_OUT_OF_RANGE);
+
+    request->length = 0xffffffff;
+    request->offset = 0;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
+
+    request->length = 0;
+    request->offset = 0xffffffff;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
+
+    request->length = 0;
+    request->offset = 0;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
+
+    request->length = 0xffffffff;
+    request->offset = 0xffffffff;
+    rc = decode_request_firmware_data_req(
+        requestIn, requestMsg.size() - hdrSize, &offset, &length);
+    EXPECT_EQ(rc, INVALID_TRANSFER_LENGTH);
 }
 
 TEST(RequestFirmwareData, testBadEncodeResponse)
