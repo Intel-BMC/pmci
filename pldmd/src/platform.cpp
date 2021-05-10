@@ -399,11 +399,13 @@ bool deleteMnCTerminus(const pldm_tid_t tid)
                 .c_str());
         return false;
     }
+    pauseSensorPolling();
     platforms.erase(entry);
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Platform Monitoring and Control resources deleted for TID " +
          std::to_string(tid))
             .c_str());
+    resumeSensorPolling();
 
     return true;
 }
