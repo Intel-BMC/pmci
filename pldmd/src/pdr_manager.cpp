@@ -849,7 +849,8 @@ void PDRManager::populateSystemHierarchy()
 
             DBusInterfacePtr entityIntf;
             populateEntity(entityIntf, objPath, entity);
-            _systemHierarchyIntf[entity] = std::make_pair(entityIntf, objPath);
+            _systemHierarchyIntf.emplace(entity,
+                                         std::make_pair(entityIntf, objPath));
         }
     }
     // Clear after usage
@@ -1006,7 +1007,6 @@ std::optional<DBusObjectPath>
         return std::nullopt;
     }
 
-    DBusInterfacePtr sensorIntf;
     return entityPath + "/" + sensorName;
 }
 
@@ -1041,7 +1041,7 @@ void PDRManager::parseNumericSensorPDR(std ::vector<uint8_t>& pdrData)
 
     DBusInterfacePtr sensorIntf;
     populateNumericSensor(sensorIntf, *sensorPath);
-    _sensorIntf[sensorID] = std::make_pair(sensorIntf, *sensorPath);
+    _sensorIntf.emplace(sensorID, std::make_pair(sensorIntf, *sensorPath));
 }
 
 static void populateStateSensor(DBusInterfacePtr& sensorIntf,
