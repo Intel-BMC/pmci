@@ -275,13 +275,13 @@ struct component_parameter_table {
 	uint32_t active_comp_comparison_stamp;
 	uint8_t active_comp_ver_str_type;
 	uint8_t active_comp_ver_str_len;
-	uint64_t active_comp_release_date;
+	uint8_t active_comp_release_date[8];
 	uint32_t pending_comp_comparison_stamp;
 	uint8_t pending_comp_ver_str_type;
 	uint8_t pending_comp_ver_str_len;
-	uint64_t pending_comp_release_date;
-	uint16_t comp_activation_methods;
-	uint32_t capabilities_during_update;
+	uint8_t pending_comp_release_date[8];
+	bitfield16_t comp_activation_methods;
+	bitfield32_t capabilities_during_update;
 } __attribute__((packed));
 
 /** @struct get_firmware_parameters_resp

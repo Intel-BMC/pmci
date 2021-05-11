@@ -1157,15 +1157,17 @@ TEST(GetFWParams, testGoodDecodeCompResponse)
     inCompData->active_comp_comparison_stamp = 0;
     inCompData->active_comp_ver_str_type = 1;
     inCompData->active_comp_ver_str_len = activeCompVerStrLen;
-    inCompData->active_comp_release_date = 0xFF,
+    std::fill_n(inCompData->active_comp_release_date,
+                sizeof(inCompData->active_comp_release_date), 0xFF);
 
     inCompData->pending_comp_comparison_stamp = 0;
     inCompData->pending_comp_ver_str_type = 1;
     inCompData->pending_comp_ver_str_len = pendingCompVerStrLen;
-    inCompData->pending_comp_release_date = 0xFF;
+    std::fill_n(inCompData->pending_comp_release_date,
+                sizeof(inCompData->pending_comp_release_date), 0xFF);
 
-    inCompData->comp_activation_methods = 0x0F;
-    inCompData->capabilities_during_update = 0x0F;
+    inCompData->comp_activation_methods.value = 0x0F;
+    inCompData->capabilities_during_update.value = 0x0F;
 
     constexpr uint32_t activeCompVerStrIndex =
         sizeof(struct component_parameter_table);
@@ -1197,8 +1199,9 @@ TEST(GetFWParams, testGoodDecodeCompResponse)
               outCompData.active_comp_ver_str_type);
     EXPECT_EQ(inCompData->active_comp_ver_str_len,
               outCompData.active_comp_ver_str_len);
-    EXPECT_EQ(inCompData->active_comp_release_date,
-              outCompData.active_comp_release_date);
+    EXPECT_EQ(0, memcmp(inCompData->active_comp_release_date,
+                        outCompData.active_comp_release_date,
+                        sizeof(inCompData->active_comp_release_date)));
 
     EXPECT_EQ(inCompData->pending_comp_comparison_stamp,
               outCompData.pending_comp_comparison_stamp);
@@ -1206,13 +1209,14 @@ TEST(GetFWParams, testGoodDecodeCompResponse)
               outCompData.pending_comp_ver_str_type);
     EXPECT_EQ(inCompData->pending_comp_ver_str_len,
               outCompData.pending_comp_ver_str_len);
-    EXPECT_EQ(inCompData->pending_comp_release_date,
-              outCompData.pending_comp_release_date);
+    EXPECT_EQ(0, memcmp(inCompData->pending_comp_release_date,
+                        outCompData.pending_comp_release_date,
+                        sizeof(inCompData->pending_comp_release_date)));
 
-    EXPECT_EQ(inCompData->comp_activation_methods,
-              outCompData.comp_activation_methods);
-    EXPECT_EQ(inCompData->capabilities_during_update,
-              outCompData.capabilities_during_update);
+    EXPECT_EQ(inCompData->comp_activation_methods.value,
+              outCompData.comp_activation_methods.value);
+    EXPECT_EQ(inCompData->capabilities_during_update.value,
+              outCompData.capabilities_during_update.value);
 
     EXPECT_EQ(0, memcmp(outActiveCompVerStr.ptr,
                         response.data() + activeCompVerStrIndex,

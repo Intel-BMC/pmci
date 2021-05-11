@@ -467,20 +467,22 @@ int decode_get_firmware_parameters_comp_resp(
 	    component_resp->active_comp_ver_str_type;
 	component_data->active_comp_ver_str_len =
 	    component_resp->active_comp_ver_str_len;
-	component_data->active_comp_release_date =
-	    htole64(component_resp->active_comp_release_date);
+	memcpy(component_data->active_comp_release_date,
+	       component_resp->active_comp_release_date,
+	       sizeof(component_resp->active_comp_release_date));
 	component_data->pending_comp_comparison_stamp =
 	    htole32(component_resp->pending_comp_comparison_stamp);
 	component_data->pending_comp_ver_str_type =
 	    component_resp->pending_comp_ver_str_type;
 	component_data->pending_comp_ver_str_len =
 	    component_resp->pending_comp_ver_str_len;
-	component_data->pending_comp_release_date =
-	    htole64(component_resp->pending_comp_release_date);
-	component_data->comp_activation_methods =
-	    htole16(component_resp->comp_activation_methods);
-	component_data->capabilities_during_update =
-	    htole16(component_resp->capabilities_during_update);
+	memcpy(component_data->pending_comp_release_date,
+	       component_resp->pending_comp_release_date,
+	       sizeof(component_resp->pending_comp_release_date));
+	component_data->comp_activation_methods.value =
+	    htole16(component_resp->comp_activation_methods.value);
+	component_data->capabilities_during_update.value =
+	    htole16(component_resp->capabilities_during_update.value);
 
 	active_comp_ver_str->ptr =
 	    msg + sizeof(struct component_parameter_table);
