@@ -51,6 +51,7 @@ constexpr size_t retryCount = 3;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
 constexpr uint8_t defaultTID = 0x00;
 constexpr size_t maxTIDPoolSize = 254;
+constexpr std::chrono::minutes tidReclaimWindow{3};
 
 using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
@@ -115,15 +116,6 @@ struct TIDPool
     }
 
   private:
-    FIFOTIDPool::iterator findTID(const pldm_tid_t tid)
-    {
-        return std::find_if(
-            pool.begin(), pool.end(), [&tid](const auto& mappedTIDAndFlag) {
-                auto const& [mappedTID, flag] = mappedTIDAndFlag;
-                return mappedTID == tid;
-            });
-    }
-
     FIFOTIDPool::iterator findUsedTID(const pldm_tid_t tid)
     {
         return std::find_if(
@@ -139,6 +131,9 @@ struct TIDPool
 static std::unordered_map<pldm_tid_t, DiscoveryData> discoveryDataTable;
 static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
 static TIDPool tidPool(maxTIDPoolSize);
+static std::unordered_map<pldm_tid_t,
+                          std::unique_ptr<boost::asio::steady_timer>>
+    tidReclaimWindowTimers;
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
@@ -537,6 +532,68 @@ bool isSupported(const CommandSupportTable& cmdSupportTable,
                        checkCmdBit);
 }
 
+void cancelTIDReclaimTimerIfExists(const pldm_tid_t tid)
+{
+    auto itr = std::find_if(tidReclaimWindowTimers.begin(),
+                            tidReclaimWindowTimers.end(),
+                            [&tid](const auto& tidTimer) {
+                                auto const& [tidInMap, reclaimTimer] = tidTimer;
+                                if (tidInMap == tid)
+                                {
+                                    reclaimTimer->cancel();
+                                    return true;
+                                }
+                                return false;
+                            });
+    if (itr != tidReclaimWindowTimers.end())
+    {
+        tidReclaimWindowTimers.erase(itr);
+    }
+}
+
+void releaseTIDAfterReclaimInterval(const pldm_tid_t tid)
+{
+    std::unique_ptr<boost::asio::steady_timer> tidReclaimTimer =
+        std::make_unique<boost::asio::steady_timer>(
+            *getIoContext(),
+            std::chrono::steady_clock::now() + tidReclaimWindow);
+    tidReclaimTimer->async_wait([tid](const boost::system::error_code& ec) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("TID:" + std::to_string(tid) + " reclaim timer aborted")
+                    .c_str());
+            return;
+        }
+        else if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("TID:" + std::to_string(tid) + " reclaim timer failed")
+                    .c_str());
+        }
+        auto itr = std::find_if(uuidMapping.begin(), uuidMapping.end(),
+                                [&tid](const auto& uuidTID) {
+                                    auto const& [uuid, mappedTID] = uuidTID;
+                                    return mappedTID == tid;
+                                });
+        if (itr != uuidMapping.end())
+        {
+            uuidMapping.erase(itr);
+        }
+        tidPool.pushBackFreedTID(tid);
+        tidReclaimWindowTimers.erase(tid);
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("TID:" + std::to_string(tid) + " released from UUID-TID table")
+                .c_str());
+    });
+    tidReclaimWindowTimers.emplace(tid, std::move(tidReclaimTimer));
+}
+
+bool isTerminusUnregistered(const pldm_tid_t tid)
+{
+    return tidReclaimWindowTimers.count(tid) == 1;
+}
+
 bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
               pldm_tid_t& tid, CommandSupportTable& cmdSupportTable)
 {
@@ -560,18 +617,18 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     cmdSupportTable =
         createCommandSupportTable(yield, eid, versionSupportTable);
 
-    auto existingTID = getTID(yield, eid);
-    if (!existingTID)
+    auto assignedTID = getTID(yield, eid);
+    if (!assignedTID)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            "TID not existing"),
+            "Terminus doesn't have a TID assigned"),
             phosphor::logging::entry("EID=0x%X", eid);
     }
     else
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
-            "TID already exists",
-            phosphor::logging::entry("TID=0x%X", existingTID.value()));
+            "Terminus has TID assigned",
+            phosphor::logging::entry("TID=0x%X", assignedTID.value()));
     }
 
     bool prevTIDExists = false;
@@ -590,27 +647,31 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
             }
         }
     }
-    if (!prevTIDExists)
-    {
-        // device doesnot support GetTerminusUID or didnt respond correctly to
-        // GetTerminusUID request or its UUID is appearing for the first time
-        auto newTID = getFreeTid();
-        if (!newTID)
-        {
-            // Log already in getFreeTID
-            return false;
-        }
-        tid = newTID.value();
-        if (uuid)
-        {
-            uuidMapping.emplace(uuid.value(), tid);
-        }
-    }
-    else
+
+    if (prevTIDExists && assignedTID && !isTerminusUnregistered(tid))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Device already registered");
         return false;
+    }
+
+    // device doesn't support GetTerminusUID or didnt respond correctly to
+    // GetTerminusUID request or its UUID is appearing for the first time
+    if (tid == 0x00)
+    {
+        auto newTID = tidPool.getFreeTID();
+        if (!newTID)
+        {
+            return false;
+        }
+        tid = newTID.value();
+    }
+    else
+    {
+        if (uuid)
+        {
+            cancelTIDReclaimTimerIfExists(tid);
+        }
     }
 
     if (isSupported(cmdSupportTable, PLDM_BASE, PLDM_SET_TID) &&
@@ -618,20 +679,20 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "SetTID failed", phosphor::logging::entry("EID=0x%X", eid));
-        // TODO. tid allocated from getFreeTid() is unused now and need to be
-        // freed
-        if (uuid)
-        {
-            uuidMapping.erase(uuid.value());
-        }
+        tidPool.pushFrontUnusedTID(tid);
         return false;
+    }
+
+    if (uuid)
+    {
+        uuidMapping.emplace(uuid.value(), tid);
     }
     addToMapper(tid, eid);
     discoveryDataTable.insert_or_assign(tid, DiscoveryData({cmdSupportTable}));
     return true;
 }
 
-bool deleteDeviceBaseInfo(pldm_tid_t tid)
+bool deleteDeviceBaseInfo(const pldm_tid_t tid)
 {
     auto itr = std::find_if(uuidMapping.begin(), uuidMapping.end(),
                             [&tid](const auto& uuidTID) {
@@ -640,8 +701,10 @@ bool deleteDeviceBaseInfo(pldm_tid_t tid)
                             });
     if (itr != uuidMapping.end())
     {
-        uuidMapping.erase(itr);
+        auto const& [uuid, mappedTID] = *itr;
+        releaseTIDAfterReclaimInterval(mappedTID);
     }
+    removeFromMapper(tid);
     return discoveryDataTable.erase(tid) == 1;
 }
 

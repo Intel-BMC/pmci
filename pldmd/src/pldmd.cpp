@@ -154,17 +154,15 @@ void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid)
             .c_str());
 }
 
-std::optional<pldm_tid_t> getFreeTid()
+void removeFromMapper(const pldm_tid_t tid)
 {
-    static pldm_tid_t tid = 0x00;
-    if (tid < PLDM_TID_MAX)
+    if (1 == tidMapper.erase(tid))
     {
-        tid += 1;
-        return tid;
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            ("TID " + std::to_string(static_cast<int>(tid)) +
+             " removed from mapper")
+                .c_str());
     }
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "No free TID available");
-    return std::nullopt;
 }
 
 std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid)

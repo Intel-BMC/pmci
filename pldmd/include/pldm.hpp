@@ -140,9 +140,9 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
 
 // Helper functions to manage EID-TID mapping
 void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid);
+void removeFromMapper(const pldm_tid_t tid);
 std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid);
 std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid);
-std::optional<pldm_tid_t> getFreeTid();
 
 /** @brief Validate PLDM message encode
  *

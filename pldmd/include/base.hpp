@@ -55,7 +55,7 @@ using CommandSupportTable =
 // TODO. Use eid_type for eid
 bool baseInit(boost::asio::yield_context yield, const uint8_t eid,
               pldm_tid_t& tid, CommandSupportTable& cmdSupportTable);
-bool deleteDeviceBaseInfo(pldm_tid_t tid);
+bool deleteDeviceBaseInfo(const pldm_tid_t tid);
 
 bool isSupported(const CommandSupportTable& cmdSupportTable, const uint8_t type,
                  const uint8_t cmd);
