@@ -50,6 +50,7 @@ constexpr uint16_t timeOut = 100;
 constexpr size_t retryCount = 3;
 constexpr size_t hdrSize = sizeof(pldm_msg_hdr);
 constexpr uint8_t defaultTID = 0x00;
+constexpr size_t maxTIDPoolSize = 254;
 
 using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
@@ -60,8 +61,84 @@ struct DiscoveryData
     CommandSupportTable cmdSupportTable;
 };
 
+// FIFO TID pool to
+// 1) Support a flag to mark TID as used or unused
+// 2) Avoid chances of TIDs getting exhausted when freed TIDs are not reused
+// 3) Support to re-assign the same TID if a PLDM terminus lost its TID after
+// reset
+struct TIDPool
+{
+    using FIFOTIDPool = std::vector<std::pair<uint8_t, bool>>;
+
+  public:
+    TIDPool(const size_t tidRange)
+    {
+        for (pldm_tid_t tid = 1; tid <= tidRange; tid++)
+        {
+            pool.push_back(std::make_pair(tid, false));
+        }
+    }
+
+    std::optional<pldm_tid_t> getFreeTID()
+    {
+        for (auto& [tid, flag] : pool)
+        {
+            if (!flag)
+            {
+                flag = true;
+                return tid;
+            }
+        }
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "No free TID available");
+        return std::nullopt;
+    }
+
+    void pushFrontUnusedTID(const pldm_tid_t unusedTID)
+    {
+        auto itr = findUsedTID(unusedTID);
+        if (itr != pool.end())
+        {
+            auto& [tid, flag] = *itr;
+            flag = false;
+        }
+    }
+
+    void pushBackFreedTID(const pldm_tid_t freedTID)
+    {
+        auto itr = findUsedTID(freedTID);
+        if (itr != pool.end())
+        {
+            pool.erase(itr);
+            pool.push_back(std::make_pair(freedTID, false));
+        }
+    }
+
+  private:
+    FIFOTIDPool::iterator findTID(const pldm_tid_t tid)
+    {
+        return std::find_if(
+            pool.begin(), pool.end(), [&tid](const auto& mappedTIDAndFlag) {
+                auto const& [mappedTID, flag] = mappedTIDAndFlag;
+                return mappedTID == tid;
+            });
+    }
+
+    FIFOTIDPool::iterator findUsedTID(const pldm_tid_t tid)
+    {
+        return std::find_if(
+            pool.begin(), pool.end(), [&tid](const auto& mappedTIDAndFlag) {
+                auto const& [mappedTID, flag] = mappedTIDAndFlag;
+                return mappedTID == tid && flag == true;
+            });
+    }
+
+    FIFOTIDPool pool;
+};
+
 static std::unordered_map<pldm_tid_t, DiscoveryData> discoveryDataTable;
 static std::unordered_map<pldm::platform::UUID, pldm_tid_t> uuidMapping;
+static TIDPool tidPool(maxTIDPoolSize);
 
 static bool validateBaseReqEncode(const mctpw_eid_t eid, const int rc,
                                   const std::string& commandString)
