@@ -195,14 +195,18 @@ bool validatePLDMRespDecode(const pldm_tid_t tid, const int rc,
  * Even if the sender is expecting a response for the message,
  * it can be received through pldmMsgRecvCallback()
  *
+ * @param yield - Context object that represents the currently executing
+ * coroutine
  * @param tid - TID of the PLDM device
+ * @param retryCount - Maximum retry
  * @param msgTag - MCTP message tag
  * @param tagOwner - MCTP tag owner bit
  * @param payload - PLDM message payload
  *
  * @return Status of the operation
  */
-bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
+bool sendPldmMessage(boost::asio::yield_context yield, const pldm_tid_t tid,
+                     uint8_t retryCount, const uint8_t msgTag,
                      const bool tagOwner, std::vector<uint8_t> payload);
 
 namespace platform

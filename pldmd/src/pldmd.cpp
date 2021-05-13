@@ -393,9 +393,12 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
     return false;
 }
 
-bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
+bool sendPldmMessage(boost::asio::yield_context yield, const pldm_tid_t tid,
+                     uint8_t retryCount, const uint8_t msgTag,
                      const bool tagOwner, std::vector<uint8_t> payload)
+
 {
+    constexpr size_t maxRetryCount = 5;
     pldm_msg_hdr* hdr = reinterpret_cast<pldm_msg_hdr*>(payload.data());
     if (validateReserveBW(tid, hdr->type))
     {
@@ -419,24 +422,34 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
             "PLDM message send failed. Invalid TID");
         return false;
     }
-
     // Insert MCTP Message Type to start of the payload
     payload.insert(payload.begin(), PLDM);
     utils::printVect("Send PLDM message(MCTP payload):", payload);
+    std::pair<boost::system::error_code, int> rc;
 
-    auto sendCallback = [](boost::system::error_code ec, int status) {
-        if (ec)
+    if (retryCount > maxRetryCount)
+    {
+        retryCount = maxRetryCount;
+    }
+
+    for (size_t retry = 0; retry < retryCount; retry++)
+    {
+        rc = mctpWrapper->sendYield(yield, dstEid, msgTag, tagOwner, payload);
+        if (rc.first || rc.second < 0)
         {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                (std::string("Send error ") + ec.message()).c_str());
+            continue;
         }
-        if (status == -1)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "SendMCTPPayload returned -1");
-        }
-    };
-    mctpWrapper->sendAsync(sendCallback, dstEid, msgTag, tagOwner, payload);
+        break;
+    }
+
+    if (rc.first || rc.second < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("SendMCTPPayload Failed, retry count exceeded  rc: " +
+             std::to_string(rc.second) + " " + rc.first.message())
+                .c_str());
+        return false;
+    }
     return true;
 }
 

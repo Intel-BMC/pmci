@@ -64,7 +64,8 @@ class FWUpdate
                           uint32_t& nextDataTransferHandle,
                           uint8_t& transferFlag);
     int processSendPackageData(const boost::asio::yield_context yield);
-    int sendPackageData(uint32_t& offset, uint32_t& length);
+    int sendPackageData(const boost::asio::yield_context yield,
+                        uint32_t& offset, uint32_t& length);
     uint8_t setTransferFlag(const uint32_t offset, const uint32_t length,
                             const uint32_t dataSize);
     uint32_t calcMaxNumReq(const uint32_t dataSize);
@@ -89,26 +90,33 @@ class FWUpdate
     int processRequestFirmwareData(const boost::asio::yield_context yield,
                                    const uint32_t componentSize,
                                    const uint32_t componentOffset);
-    int requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+    int requestFirmwareData(const boost::asio::yield_context yield,
+                            const std ::vector<uint8_t>& pldmReq,
                             uint32_t& offset, uint32_t& length,
                             const uint32_t componentSize,
                             const uint32_t componentOffset);
     uint8_t validateTransferComplete(const uint8_t transferResult);
-    int processTransferComplete(const std::vector<uint8_t>& pldmReq,
+    int processTransferComplete(const boost::asio::yield_context yield,
+                                const std::vector<uint8_t>& pldmReq,
                                 uint8_t& transferResult);
-    int transferComplete(const std::vector<uint8_t>& pldmReq,
+    int transferComplete(const boost::asio::yield_context yield,
+                         const std::vector<uint8_t>& pldmReq,
                          uint8_t& transferResult);
 
     uint8_t validateVerifyComplete(const uint8_t verifyResult);
-    int processVerifyComplete(const std::vector<uint8_t>& pldmReq,
+    int processVerifyComplete(const boost::asio::yield_context yield,
+                              const std::vector<uint8_t>& pldmReq,
                               uint8_t& verifyResult);
-    int verifyComplete(const std::vector<uint8_t>& pldmReq,
+    int verifyComplete(const boost::asio::yield_context yield,
+                       const std::vector<uint8_t>& pldmReq,
                        uint8_t& verifyResult);
     uint8_t validateApplyComplete(const uint8_t applyResult);
-    int processApplyComplete(const std::vector<uint8_t>& pldmReq,
+    int processApplyComplete(const boost::asio::yield_context yield,
+                             const std::vector<uint8_t>& pldmReq,
                              uint8_t& applyResult,
                              bitfield16_t& compActivationMethodsModification);
-    int applyComplete(const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
+    int applyComplete(const boost::asio::yield_context yield,
+                      const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
                       bitfield16_t& compActivationMethodsModification);
     int sendMetaData(const boost::asio::yield_context yield);
     int processActivateFirmware(
@@ -127,7 +135,8 @@ class FWUpdate
     int cancelUpdate(const boost::asio::yield_context yield,
                      bool8_t& nonFunctioningComponentIndication,
                      bitfield64_t& nonFunctioningComponentBitmap);
-    bool sendErrorCompletionCode(const uint8_t fdInstanceId,
+    bool sendErrorCompletionCode(const boost::asio::yield_context yield,
+                                 const uint8_t fdInstanceId,
                                  const uint8_t complCode,
                                  const uint8_t command);
     bool prepareRequestUpdateCommand();

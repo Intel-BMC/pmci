@@ -127,7 +127,8 @@ bool FWUpdate::setMatchedFDDescriptors()
     return true;
 }
 
-bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
+bool FWUpdate::sendErrorCompletionCode(const boost::asio::yield_context yield,
+                                       const uint8_t fdInstanceId,
                                        const uint8_t complCode,
                                        const uint8_t command)
 {
@@ -144,7 +145,8 @@ bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
             phosphor::logging::entry("RETVAL=%d", retVal));
         return false;
     }
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "sendError: Failed to send PLDM message",
@@ -702,14 +704,15 @@ uint8_t FWUpdate::validateTransferComplete(const uint8_t transferResult)
                : PLDM_ERROR_INVALID_DATA;
 }
 
-int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
+int FWUpdate::processTransferComplete(const boost::asio::yield_context yield,
+                                      const std::vector<uint8_t>& pldmReq,
                                       uint8_t& transferResult)
 {
     if (!updateMode || fdState != FD_DOWNLOAD)
     {
         const struct pldm_msg* msgReq =
             reinterpret_cast<const pldm_msg*>(pldmReq.data());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      COMMAND_NOT_EXPECTED,
                                      PLDM_TRANSFER_COMPLETE))
         {
@@ -718,7 +721,7 @@ int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
         }
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal = transferComplete(pldmReq, transferResult);
+    int retVal = transferComplete(yield, pldmReq, transferResult);
     if (retVal != PLDM_SUCCESS)
     {
         return retVal;
@@ -727,7 +730,8 @@ int FWUpdate::processTransferComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
+int FWUpdate::transferComplete(const boost::asio::yield_context yield,
+                               const std::vector<uint8_t>& pldmReq,
                                uint8_t& transferResult)
 {
     const struct pldm_msg* msgReq =
@@ -739,7 +743,7 @@ int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
             ("transferComplete: decode request failed. RETVAL:" +
              std::to_string(retVal))
                 .c_str());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_TRANSFER_COMPLETE))
         {
@@ -755,7 +759,7 @@ int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
             ("transferComplete: invalid transferResult. transferResult: " +
              std::to_string(transferResult))
                 .c_str());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_TRANSFER_COMPLETE))
         {
@@ -776,7 +780,8 @@ int FWUpdate::transferComplete(const std::vector<uint8_t>& pldmReq,
                 .c_str());
         return retVal;
     }
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "TransferComplete: Failed to send PLDM message");
@@ -791,13 +796,14 @@ uint8_t FWUpdate::validateVerifyComplete(const uint8_t verifyResult)
                                                      : PLDM_ERROR_INVALID_DATA;
 }
 
-int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
+int FWUpdate::processVerifyComplete(const boost::asio::yield_context yield,
+                                    const std::vector<uint8_t>& pldmReq,
                                     uint8_t& verifyResult)
 {
     if (!updateMode || fdState != FD_VERIFY)
     {
         auto msgReq = reinterpret_cast<const pldm_msg*>(pldmReq.data());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      COMMAND_NOT_EXPECTED,
                                      PLDM_VERIFY_COMPLETE))
         {
@@ -806,7 +812,7 @@ int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
         }
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal = verifyComplete(pldmReq, verifyResult);
+    int retVal = verifyComplete(yield, pldmReq, verifyResult);
     if (retVal != PLDM_SUCCESS)
     {
         return retVal;
@@ -815,7 +821,8 @@ int FWUpdate::processVerifyComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
+int FWUpdate::verifyComplete(const boost::asio::yield_context yield,
+                             const std::vector<uint8_t>& pldmReq,
                              uint8_t& verifyResult)
 {
 
@@ -827,7 +834,7 @@ int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
             ("verifyComplete: decode request failed. RETVAL:" +
              std::to_string(retVal))
                 .c_str());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_VERIFY_COMPLETE))
         {
@@ -843,7 +850,7 @@ int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
             ("verifyComplete: invalid verifyResult. verifyResult: " +
              std::to_string(verifyResult))
                 .c_str());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_VERIFY_COMPLETE))
         {
@@ -864,7 +871,8 @@ int FWUpdate::verifyComplete(const std::vector<uint8_t>& pldmReq,
                 .c_str());
         return retVal;
     }
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "verifyComplete: sendErrorCompletionCode failed.");
@@ -884,13 +892,13 @@ uint8_t FWUpdate::validateApplyComplete(const uint8_t applyResult)
 }
 
 int FWUpdate::processApplyComplete(
-    const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
-    bitfield16_t& compActivationMethodsModification)
+    const boost::asio::yield_context yield, const std::vector<uint8_t>& pldmReq,
+    uint8_t& applyResult, bitfield16_t& compActivationMethodsModification)
 {
     if (!updateMode || fdState != FD_APPLY)
     {
         auto msgReq = reinterpret_cast<const pldm_msg*>(pldmReq.data());
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      COMMAND_NOT_EXPECTED, PLDM_APPLY_COMPLETE))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -899,8 +907,8 @@ int FWUpdate::processApplyComplete(
         }
         return COMMAND_NOT_EXPECTED;
     }
-    int retVal =
-        applyComplete(pldmReq, applyResult, compActivationMethodsModification);
+    int retVal = applyComplete(yield, pldmReq, applyResult,
+                               compActivationMethodsModification);
     if (retVal != PLDM_SUCCESS)
     {
         return retVal;
@@ -909,7 +917,8 @@ int FWUpdate::processApplyComplete(
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
+int FWUpdate::applyComplete(const boost::asio::yield_context yield,
+                            const std::vector<uint8_t>& pldmReq,
                             uint8_t& applyResult,
                             bitfield16_t& compActivationMethodsModification)
 {
@@ -924,7 +933,7 @@ int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
             "ApplyComplete: decode request failed",
             phosphor::logging::entry("TID=%d", currentTid),
             phosphor::logging::entry("RETVAL=%d", retVal));
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_APPLY_COMPLETE))
         {
@@ -948,7 +957,8 @@ int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
             phosphor::logging::entry("RETVAL=%d", retVal));
         return retVal;
     }
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "ApplyComplete: Failed to send PLDM message",
@@ -990,8 +1000,8 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
             fdTransferCompleted = false;
             break;
         }
-        retVal = requestFirmwareData(fdReq, offset, length, componentSize,
-                                     componentOffset);
+        retVal = requestFirmwareData(yield, fdReq, offset, length,
+                                     componentSize, componentOffset);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1025,7 +1035,8 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
     return retVal;
 }
 
-int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
+int FWUpdate::requestFirmwareData(const boost::asio::yield_context yield,
+                                  const std ::vector<uint8_t>& pldmReq,
                                   uint32_t& offset, uint32_t& length,
                                   const uint32_t componentSize,
                                   const uint32_t componentOffset)
@@ -1040,7 +1051,7 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
             "requestfirmware: decode request failed",
             phosphor::logging::entry("TID=%d", currentTid),
             phosphor::logging::entry("RETVAL=%d", retVal));
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_REQUEST_FIRMWARE_DATA))
         {
@@ -1064,7 +1075,8 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
         }
         else
         {
-            if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
+            if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
+                                         PLDM_ERROR,
                                          PLDM_REQUEST_FIRMWARE_DATA))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1080,7 +1092,7 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "update image read failed",
             phosphor::logging::entry("TID=%d", currentTid));
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id, PLDM_ERROR,
                                      PLDM_REQUEST_FIRMWARE_DATA))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1107,7 +1119,8 @@ int FWUpdate::requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
         return retVal;
     }
 
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "requestFirmwareData: Failed to send PLDM message",
@@ -1174,7 +1187,7 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
             break;
         }
 
-        retVal = sendPackageData(offset, length);
+        retVal = sendPackageData(yield, offset, length);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1199,7 +1212,8 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
     return retVal;
 }
 
-int FWUpdate::sendPackageData(uint32_t& offset, uint32_t& length)
+int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
+                              uint32_t& offset, uint32_t& length)
 {
     uint32_t dataTransferHandle = 1;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
@@ -1220,7 +1234,7 @@ int FWUpdate::sendPackageData(uint32_t& offset, uint32_t& length)
              std::to_string(retVal))
                 .c_str());
 
-        if (!sendErrorCompletionCode(msgReq->hdr.instance_id,
+        if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
                                      PLDM_GET_PACKAGE_DATA))
         {
@@ -1264,8 +1278,8 @@ int FWUpdate::sendPackageData(uint32_t& offset, uint32_t& length)
         }
         else
         {
-            if (!sendErrorCompletionCode(msgReq->hdr.instance_id, PLDM_ERROR,
-                                         PLDM_GET_PACKAGE_DATA))
+            if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
+                                         PLDM_ERROR, PLDM_GET_PACKAGE_DATA))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     ("sendPackageData: Failed to send PLDM message"));
@@ -1308,7 +1322,8 @@ int FWUpdate::sendPackageData(uint32_t& offset, uint32_t& length)
         return retVal;
     }
 
-    if (!sendPldmMessage(currentTid, msgTag, tagOwner, pldmResp))
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+                         pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             ("sendPackageData: Failed to send PLDM message"));
@@ -1751,7 +1766,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         // Add Activation progress percentage of update to D-Bus interface
         compUpdateProgress(yield);
 
-        retVal = processTransferComplete(fdReq, transferResult);
+        retVal = processTransferComplete(yield, fdReq, transferResult);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1793,7 +1808,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
             continue;
         }
 
-        retVal = processVerifyComplete(fdReq, verifyResult);
+        retVal = processVerifyComplete(yield, fdReq, verifyResult);
         if (retVal != PLDM_SUCCESS)
         {
 
@@ -1836,7 +1851,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
             compOffset += compSize;
             continue;
         }
-        retVal = processApplyComplete(fdReq, applyResult,
+        retVal = processApplyComplete(yield, fdReq, applyResult,
                                       compActivationMethodsModification);
         if (retVal != PLDM_SUCCESS)
         {
