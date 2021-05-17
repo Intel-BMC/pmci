@@ -141,11 +141,24 @@ static std::optional<int> getPcieMuxDevAddr(const std::string& configPath)
         "org.freedesktop.DBus.Properties", "Get");
     methodCall.append("xyz.openbmc_project.Configuration.PCA9546Mux");
     methodCall.append("Address");
-    auto reply = conn->call(methodCall);
+
+    sdbusplus::message::message reply;
+    const std::string replyErrorMsg =
+        "Error in reading pcie mux device address property";
+    try
+    {
+        reply = conn->call(methodCall);
+    }
+    catch (const std::exception& e)
+    {
+        auto errorMsg = replyErrorMsg + ": " + e.what();
+        phosphor::logging::log<phosphor::logging::level::ERR>(errorMsg.c_str());
+        return std::nullopt;
+    }
     if (reply.is_method_error())
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in reading pcie mux device address property");
+            replyErrorMsg.c_str());
         return std::nullopt;
     }
 
@@ -342,7 +355,17 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     }
 
     const std::string objectPath = boardPathNamespace + "/" + relativePath;
-    const ConfigurationMap map = getConfigurationMap(objectPath);
+    ConfigurationMap map;
+    try
+    {
+        map = getConfigurationMap(objectPath);
+    }
+    catch (const std::exception& e)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Error retrieving configuration from EntityManager");
+        return std::nullopt;
+    }
 
     std::string name;
     if (!getField(map, "Name", name))
