@@ -31,6 +31,10 @@ namespace pldm
 namespace fwu
 {
 
+static std::unordered_map<
+    pldm_tid_t, std::vector<std::unique_ptr<sdbusplus::asio::dbus_interface>>>
+    fwuIface;
+
 // Maximum timeout in milliseconds for fwu commad request
 constexpr uint16_t timeout = 100;
 
@@ -1690,6 +1694,15 @@ bool deleteFWDevice(const pldm_tid_t tid)
         return false;
     }
     terminusFwuProperties.erase(itr);
+
+    if (fwuIface.erase(tid) == 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("FWU D-Bus interface not present for TID " + std::to_string(tid))
+                .c_str());
+        return false;
+    }
+
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("PLDM firmware update device resources deleted for TID " +
          std::to_string(tid))
@@ -1806,6 +1819,7 @@ static void initializeFWUBase()
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
 {
+
     if (!fwuBaseInitialized)
     {
         initializeFWUBase();
@@ -1825,6 +1839,8 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     }
 
     inventoryInfo.addInventoryInfoToDBus();
+    fwuIface.insert(
+        std::make_pair(tid, std::move(inventoryInfo.getInterfaces())));
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("fwuInit success for TID:" + std::to_string(tid)).c_str());
 

@@ -38,7 +38,15 @@ class FWInventoryInfo
      */
     void addInventoryInfoToDBus();
 
+    std::vector<std::unique_ptr<sdbusplus::asio::dbus_interface>>&
+        getInterfaces()
+    {
+        return interfaceList;
+    }
+
   private:
+    std::vector<std::unique_ptr<sdbusplus::asio::dbus_interface>> interfaceList;
+
     /** @brief run query device identifiers command
      * @return PLDM_SUCCESS on success and corresponding error completion code
      * on failure
