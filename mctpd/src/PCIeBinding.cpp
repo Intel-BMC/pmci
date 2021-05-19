@@ -112,8 +112,9 @@ void PCIeBinding::updateRoutingTable()
         std::vector<uint8_t> getRoutingTableEntryResp = {};
         std::vector<routingTableEntry_t> routingTableTmp;
         uint8_t entryHandle = 0x00;
+        uint8_t responseCount = 0;
 
-        while (entryHandle != 0xff)
+        while (entryHandle != 0xff && responseCount < 0xff)
         {
             if (!getRoutingTableCtrlCmd(yield, prvData, MCTP_EID_NULL,
                                         entryHandle, getRoutingTableEntryResp))
@@ -156,6 +157,7 @@ void PCIeBinding::updateRoutingTable()
                 entryOffset += routingTableEntry->phys_address_size;
             }
             entryHandle = routingTableHdr->next_entry_handle;
+            responseCount++;
         }
 
         if (routingTableTmp != routingTable)

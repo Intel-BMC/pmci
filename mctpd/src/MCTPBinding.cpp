@@ -1730,7 +1730,54 @@ bool MctpBinding::getRoutingTableCtrlCmd(
     if (*(respPtr + sizeof(mctp_ctrl_msg_hdr)) != MCTP_CTRL_CC_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Get Routing Table Entry failed");
+            "Get Routing Table Entry: Unsuccessful completion code");
+        return false;
+    }
+
+    if (resp.size() < sizeof(mctp_ctrl_resp_get_routing_table))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table Entry: Response length is too short: Cannot "
+            "read number of entries",
+            phosphor::logging::entry("LEN=%d", resp.size()));
+        return false;
+    }
+
+    mctp_ctrl_resp_get_routing_table* routingTableHdr =
+        reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(resp.data());
+    size_t entryOffset = sizeof(mctp_ctrl_resp_get_routing_table);
+    for (uint8_t i = 0; i < routingTableHdr->number_of_entries; i++)
+    {
+        get_routing_table_entry* routingTableEntry =
+            reinterpret_cast<get_routing_table_entry*>(resp.data() +
+                                                       entryOffset);
+        entryOffset += sizeof(get_routing_table_entry);
+        if (resp.size() < entryOffset)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get Routing Table Entry: Response length is too short: Cannot "
+                "read routing table entry",
+                phosphor::logging::entry("LEN=%d", resp.size()));
+            return false;
+        }
+
+        entryOffset += routingTableEntry->phys_address_size;
+        if (resp.size() < entryOffset)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get Routing Table Entry: Response length is too short: Cannot "
+                "read physical address",
+                phosphor::logging::entry("LEN=%d", resp.size()));
+            return false;
+        }
+    }
+
+    if (resp.size() != entryOffset)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Get Routing Table Entry: Invalid response length",
+            phosphor::logging::entry("LEN=%d", resp.size()),
+            phosphor::logging::entry("EXPECTED_LEN=%d", entryOffset));
         return false;
     }
 
