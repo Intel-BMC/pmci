@@ -16,7 +16,7 @@
 
 #include "service_monitor.hpp"
 
-#include "mctp_wrapper.hpp"
+#include "mctp_impl.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/container/flat_map.hpp>
@@ -33,8 +33,7 @@ using MctpPropertiesVariantType =
     std::variant<uint16_t, int16_t, int32_t, uint32_t, bool, std::string,
                  uint8_t, std::vector<uint8_t>>;
 
-NewServiceCallback::NewServiceCallback(MCTPWrapper& mctpWrapper) :
-    parent(mctpWrapper)
+NewServiceCallback::NewServiceCallback(MCTPImpl& mctpImpl) : parent(mctpImpl)
 {
 }
 
@@ -56,8 +55,8 @@ void NewServiceCallback::operator()(sdbusplus::message::message& msg)
     parent.registerListeners(msg.get_sender());
 }
 
-DeleteServiceCallback::DeleteServiceCallback(MCTPWrapper& mctpWrapper) :
-    parent(mctpWrapper)
+DeleteServiceCallback::DeleteServiceCallback(MCTPImpl& mctpImpl) :
+    parent(mctpImpl)
 {
 }
 

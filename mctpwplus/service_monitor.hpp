@@ -19,21 +19,20 @@
 
 namespace mctpw
 {
-class MCTPWrapper;
+class MCTPImpl;
 }
-
 namespace mctpw::internal
 {
 struct NewServiceCallback
 {
-    explicit NewServiceCallback(mctpw::MCTPWrapper& mctpWrapper);
+    explicit NewServiceCallback(mctpw::MCTPImpl& MCTPImpl);
     void operator()(sdbusplus::message::message& msg);
-    mctpw::MCTPWrapper& parent;
+    mctpw::MCTPImpl& parent;
 };
 struct DeleteServiceCallback
 {
-    explicit DeleteServiceCallback(mctpw::MCTPWrapper& mctpWrapper);
+    explicit DeleteServiceCallback(mctpw::MCTPImpl& mctpImpl);
     void operator()(sdbusplus::message::message& msg);
-    mctpw::MCTPWrapper& parent;
+    mctpw::MCTPImpl& parent;
 };
 } // namespace mctpw::internal

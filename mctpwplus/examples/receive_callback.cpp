@@ -27,10 +27,13 @@ int main(int argc, char* argv[])
     uint8_t eid =
         argc < 2 ? defaultEId : static_cast<uint8_t>(std::stoi(argv[1]));
 
+    using namespace mctpw;
     boost::asio::io_context io;
     boost::asio::signal_set signals(io, SIGINT, SIGTERM);
     signals.async_wait(
         [&io](const boost::system::error_code&, const int&) { io.stop(); });
+
+    MCTPConfiguration config(MessageType::pldm, BindingType::mctpOverSmBus);
 
     auto onMCTPReceive = [](void*, eid_t eidReceived, bool, uint8_t,
                             const std::vector<uint8_t>& data, int status) {
@@ -44,7 +47,7 @@ int main(int argc, char* argv[])
         }
         std::cout << '\n';
     };
-
+    MCTPWrapper mctpWrapper(io, config, nullptr, onMCTPReceive);
     auto sendCB = [](boost::system::error_code ec, int status) {
         if (ec)
         {
@@ -52,44 +55,39 @@ int main(int argc, char* argv[])
         }
         std::cout << "Send status async " << status << '\n';
     };
-    auto registerCB = [eid, sendCB](boost::system::error_code ec, void* ctx) {
+    auto registerCB = [eid, sendCB, &mctpWrapper](boost::system::error_code ec,
+                                                  void*) {
         if (ec)
         {
             std::cout << "Error" << ec.message() << std::endl;
             return;
         }
-        if (ctx)
+
+        auto& ep = mctpWrapper.getEndpointMap();
+        for (auto& i : ep)
         {
-            auto mctpwCtx = reinterpret_cast<MCTPWrapper*>(ctx);
-            auto& ep = mctpwCtx->getEndpointMap();
-            for (auto& i : ep)
-            {
-                std::cout << "EID:" << static_cast<unsigned>(i.first)
-                          << " Bus:" << i.second.first
-                          << " Service:" << i.second.second << std::endl;
-            }
-
-            // GetVersion request for PLDM Base
-            std::vector<uint8_t> request = {1, 143, 0, 3, 0, 0, 0, 0, 1, 0};
-            mctpwCtx->sendAsync(sendCB, eid, 0, false, request);
-
-            boost::asio::spawn([mctpwCtx,
-                                eid](boost::asio::yield_context yield) {
-                // GetUID request
-                std::vector<uint8_t> request2 = {1, 143, 2, 3};
-                std::vector<uint8_t> response;
-                auto status =
-                    mctpwCtx->sendYield(yield, eid, 0, false, request2);
-                std::cout << "Yield Status "
-                          << (status.first ? status.first.message() : "true")
-                          << ". Send status " << status.second << '\n';
-                return;
-            });
+            std::cout << "EID:" << static_cast<unsigned>(i.first)
+                      << " Bus:" << i.second.first
+                      << " Service:" << i.second.second << std::endl;
         }
+
+        // GetVersion request for PLDM Base
+        std::vector<uint8_t> request = {1, 143, 0, 3, 0, 0, 0, 0, 1, 0};
+        mctpWrapper.sendAsync(sendCB, eid, 0, false, request);
+
+        boost::asio::spawn([&mctpWrapper,
+                            eid](boost::asio::yield_context yield) {
+            // GetUID request
+            std::vector<uint8_t> request2 = {1, 143, 2, 3};
+            std::vector<uint8_t> response;
+            auto status = mctpWrapper.sendYield(yield, eid, 0, false, request2);
+            std::cout << "Yield Status "
+                      << (status.first ? status.first.message() : "true")
+                      << ". Send status " << status.second << '\n';
+            return;
+        });
     };
 
-    MCTPConfiguration config(MessageType::pldm, BindingType::mctpOverSmBus);
-    MCTPWrapper mctpWrapper(io, config, nullptr, onMCTPReceive);
     mctpWrapper.detectMctpEndpointsAsync(registerCB);
 
     io.run();

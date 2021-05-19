@@ -16,20 +16,16 @@
 
 #pragma once
 
-#include <boost/asio.hpp>
-#include <boost/asio/spawn.hpp>
 #include <chrono>
 #include <cstdint>
 #include <functional>
 #include <optional>
 #include <sdbusplus/asio/connection.hpp>
-#include <sdbusplus/bus/match.hpp>
 #include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace mctpw
 {
+class MCTPImpl;
 /// MCTP Endpoint Id
 using eid_t = uint8_t;
 using ByteArray = std::vector<uint8_t>;
@@ -102,7 +98,6 @@ struct MCTPConfiguration
      */
     MCTPConfiguration(MessageType msgType, BindingType binding, uint16_t vid,
                       uint16_t vendorMsgType, uint16_t vendorMsgTypeMask);
-
     /// MCTP message type
     MessageType type;
     /// MCTP binding type
@@ -155,12 +150,6 @@ using ReconfigurationCallback =
 using ReceiveMessageCallback =
     std::function<void(void*, eid_t, bool, uint8_t, const ByteArray&, int)>;
 
-namespace internal
-{
-struct NewServiceCallback;
-struct DeleteServiceCallback;
-} // namespace internal
-
 /**
  * @brief Wrapper class to access MCTP functionalities
  *
@@ -210,6 +199,7 @@ class MCTPWrapper
                 const MCTPConfiguration& configIn,
                 const ReconfigurationCallback& networkChangeCb = nullptr,
                 const ReceiveMessageCallback& rxCb = nullptr);
+
     /**
      * @brief Destroy the MCTPWrapper object
      *
@@ -239,11 +229,8 @@ class MCTPWrapper
      *
      * @return const EndpointMap&
      */
-    inline const EndpointMap& getEndpointMap() const
-    {
-        return this->endpointMap;
-    }
 
+    const EndpointMap& getEndpointMap();
     /**
      * @brief Send request to dstEId and receive response asynchronously in
      * receiveCb
@@ -286,7 +273,6 @@ class MCTPWrapper
     void sendAsync(const SendCallback& callback, const eid_t dstEId,
                    const uint8_t msgTag, const bool tagOwner,
                    const ByteArray& request);
-
     /**
      * @brief Send MCTP request to dstEId and receive status of send operation
      *
@@ -303,16 +289,6 @@ class MCTPWrapper
         sendYield(boost::asio::yield_context& yield, const eid_t dstEId,
                   const uint8_t msgTag, const bool tagOwner,
                   const ByteArray& request);
-
-    void addToEidMap(boost::asio::yield_context yield,
-                     const std::string& serviceName);
-
-    size_t eraseDevice(eid_t eid);
-
-    /// Callback to be executed when a network change occurs
-    ReconfigurationCallback networkChangeCallback = nullptr;
-    /// Callback to be executed when a MCTP message received
-    ReceiveMessageCallback receiveCallback = nullptr;
     /// MCTP Configuration to store message type and vendor defined properties
     MCTPConfiguration config{};
 
@@ -337,32 +313,7 @@ class MCTPWrapper
                               {BindingType::vendorDefined, ""}};
 
   private:
-    std::unordered_map<
-        std::string, std::vector<std::unique_ptr<sdbusplus::bus::match::match>>>
-        matchers;
-    std::unordered_map<std::string,
-                       std::unique_ptr<sdbusplus::bus::match::match>>
-        monitorServiceMatchers;
-
-    EndpointMap endpointMap;
-    std::shared_ptr<sdbusplus::asio::connection> connection;
-
-    // Get list of pair<bus, service_name_string> which expose mctp object
-    std::optional<std::vector<std::pair<unsigned, std::string>>>
-        findBusByBindingType(boost::asio::yield_context yield);
-    /* Return format: map<Eid, pair<bus, service_name_string>> */
-    EndpointMap buildMatchingEndpointMap(
-        boost::asio::yield_context yield,
-        std::vector<std::pair<unsigned, std::string>>& buses);
-    // Get bus id from servicename. Example: Returns 2 if device path is
-    // /dev/i2c-2
-    int getBusId(const std::string& serviceName);
-    void registerListeners(const std::string& serviceName);
-    void unRegisterListeners(const std::string& serviceName);
-    void listenForNewMctpServices();
-    void listenForRemovedMctpServices();
-    friend struct internal::NewServiceCallback;
-    friend struct internal::DeleteServiceCallback;
+    std::unique_ptr<MCTPImpl> pimpl;
 };
 
 } // namespace mctpw

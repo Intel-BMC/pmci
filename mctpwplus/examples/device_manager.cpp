@@ -45,27 +45,26 @@ int main()
     signals.async_wait(
         [&io](const boost::system::error_code&, const int&) { io.stop(); });
 
-    auto registerCB = [](boost::system::error_code ec, void* ctx) {
+    MCTPConfiguration config(MessageType::pldm, BindingType::mctpOverSmBus);
+    MCTPWrapper mctpWrapper(io, config, onDeviceUpdate, nullptr);
+
+    auto registerCB = [&mctpWrapper](boost::system::error_code ec, void*) {
         if (ec)
         {
             std::cout << "Error" << ec.message() << std::endl;
             return;
         }
-        if (ctx)
+
+        auto& ep = mctpWrapper.getEndpointMap();
+        for (auto& i : ep)
         {
-            auto mctpwCtx = reinterpret_cast<MCTPWrapper*>(ctx);
-            auto& ep = mctpwCtx->getEndpointMap();
-            for (auto& i : ep)
-            {
-                std::cout << "EID:" << static_cast<unsigned>(i.first)
-                          << " Bus:" << i.second.first
-                          << " Service:" << i.second.second << std::endl;
-            }
+
+            std::cout << "EID:" << static_cast<unsigned>(i.first)
+                      << " Bus:" << i.second.first
+                      << " Service:" << i.second.second << std::endl;
         }
     };
 
-    MCTPConfiguration config(MessageType::pldm, BindingType::mctpOverSmBus);
-    MCTPWrapper mctpWrapper(io, config, onDeviceUpdate, nullptr);
     mctpWrapper.detectMctpEndpointsAsync(registerCB);
 
     io.run();

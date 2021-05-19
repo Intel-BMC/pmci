@@ -16,7 +16,7 @@
 
 #include "dbus_cb.hpp"
 
-#include "mctp_wrapper.hpp"
+#include "mctp_impl.hpp"
 
 #include <boost/container/flat_map.hpp>
 #include <phosphor-logging/log.hpp>
@@ -27,6 +27,7 @@ using DictType = boost::container::flat_map<T1, T2>;
 using MctpPropertiesVariantType =
     std::variant<uint16_t, int16_t, int32_t, uint32_t, bool, std::string,
                  uint8_t, std::vector<uint8_t>>;
+using eid_t = uint8_t;
 
 namespace mctpw
 {
@@ -39,7 +40,7 @@ int onPropertiesChanged(sd_bus_message* rawMsg, void* userData,
         return -1;
     }
 
-    MCTPWrapper* context = static_cast<MCTPWrapper*>(userData);
+    MCTPImpl* context = static_cast<MCTPImpl*>(userData);
     sdbusplus::message::message message{rawMsg};
     if (!context->networkChangeCallback)
     {
@@ -93,7 +94,7 @@ int onInterfacesAdded(sd_bus_message* rawMsg, void* userData,
         return -1;
     }
 
-    MCTPWrapper* context = static_cast<MCTPWrapper*>(userData);
+    MCTPImpl* context = static_cast<MCTPImpl*>(userData);
     sdbusplus::message::message message{rawMsg};
     if (!context->networkChangeCallback)
     {
@@ -119,7 +120,7 @@ int onInterfacesAdded(sd_bus_message* rawMsg, void* userData,
             event.eid = getEIdFromPath(object_path);
             const auto& properties = itSupportedMsgTypes->second;
             const auto& pldmSupport =
-                properties.at(mctpw::MCTPWrapper::msgTypeToPropertyName.at(
+                properties.at(mctpw::MCTPImpl::msgTypeToPropertyName.at(
                     context->config.type));
             if (std::get<bool>(pldmSupport))
             {
@@ -149,7 +150,7 @@ int onInterfacesRemoved(sd_bus_message* rawMsg, void* userData,
         return -1;
     }
 
-    MCTPWrapper* context = static_cast<MCTPWrapper*>(userData);
+    MCTPImpl* context = static_cast<MCTPImpl*>(userData);
     sdbusplus::message::message message{rawMsg};
     if (!context->networkChangeCallback)
     {
@@ -202,7 +203,7 @@ int onMessageReceivedSignal(sd_bus_message* rawMsg, void* userData,
 
     try
     {
-        MCTPWrapper* context = static_cast<MCTPWrapper*>(userData);
+        MCTPImpl* context = static_cast<MCTPImpl*>(userData);
         sdbusplus::message::message message{rawMsg};
 
         if (!context->receiveCallback)
