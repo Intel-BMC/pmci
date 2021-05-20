@@ -46,6 +46,10 @@ constexpr size_t pldmHdrSize = sizeof(pldm_msg_hdr);
 bool PLDMFRUTable::parseFRUField(uint8_t recordType, uint8_t type,
                                  uint8_t length, const uint8_t* value)
 {
+    if (value == NULL)
+    {
+        return false;
+    }
     try
     {
         auto& [typeString, parser] = fruFieldTypes.at(recordType).at(type);
@@ -64,6 +68,10 @@ bool PLDMFRUTable::parseFRUField(uint8_t recordType, uint8_t type,
 
 bool PLDMFRUTable::isTableEnd(const uint8_t* pTable)
 {
+    if (pTable == NULL)
+    {
+        return false;
+    }
     constexpr size_t fixedFRUBytes = 7;
     if (pTable < table.data())
     {
@@ -99,6 +107,13 @@ bool PLDMFRUTable::parseTable()
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "FRU Encode Type",
             phosphor::logging::entry("FRU_ENCODE_TYPE=%s", encodeType.c_str()));
+
+        if (fruFieldNum < 1)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Number of FRU fields cannot be 0.");
+            return false;
+        }
 
         auto isGeneralRec = false;
         if (record->record_type == PLDM_FRU_RECORD_TYPE_GENERAL)

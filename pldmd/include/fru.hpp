@@ -133,6 +133,13 @@ class PLDMFRUTable
     static std::string fruFieldParserString(const uint8_t* value,
                                             uint8_t length)
     {
+        assert(value != NULL);
+        if (length < 1)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Invalid FRU field length");
+            return std::string("");
+        }
         std::string strVal(reinterpret_cast<const char*>(value), length);
         // non printable characters cause sdbusplus exceptions, so better to
         // handle it by replacing with space
@@ -145,6 +152,7 @@ class PLDMFRUTable
     static std::string fruFieldParserTimestamp(const uint8_t* value,
                                                uint8_t length)
     {
+        assert(value != NULL);
         timestamp104_t fruStamp;
         std::string timeStampStr;
 
@@ -193,6 +201,7 @@ class PLDMFRUTable
 
     static std::string fruFieldParserU32(const uint8_t* value, uint8_t length)
     {
+        assert(value != NULL);
         if (length == 4)
         {
             uint32_t v;
