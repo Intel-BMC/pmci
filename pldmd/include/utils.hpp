@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <sstream>
+
 namespace utils
 {
 
@@ -55,6 +57,25 @@ inline uint32_t to_uint32(uint32_t num)
 inline uint32_t to_uint32(uint64_t num)
 {
     return static_cast<uint32_t>(num);
+}
+
+/** @brief Helper to convert input to String
+ *
+ * Helper to convert a valid input to string type
+ * This particular override helps in avoiding
+ * the usage of std::to_string() which can
+ * throw exception during the conversion operation
+ *
+ * @param t[in] - Data to convert to string
+ * @return - Result of the conversion to string
+ *
+ */
+template <class T>
+std::string changeToString(T const& t)
+{
+    std::ostringstream ss;
+    ss << t;
+    return ss.str();
 }
 
 } // namespace utils
