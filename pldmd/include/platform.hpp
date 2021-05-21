@@ -15,12 +15,10 @@
  */
 #pragma once
 
-#include "numeric_effecter_handler.hpp"
-#include "numeric_sensor_handler.hpp"
-#include "pdr_manager.hpp"
+#include "platform_terminus.hpp"
 #include "pldm.hpp"
-#include "state_effecter_handler.hpp"
-#include "state_sensor_handler.hpp"
+
+#include <boost/asio/steady_timer.hpp>
 
 #include "platform.h"
 
@@ -38,17 +36,28 @@ std::optional<UUID>
     getTerminusUID(boost::asio::yield_context yield, const pldm_tid_t tid,
                    std::optional<mctpw_eid_t> eid = std::nullopt);
 
-struct PlatformTerminus
+class Platform
 {
-    std::unique_ptr<PDRManager> pdrManager;
-    std::unordered_map<SensorID, std::unique_ptr<NumericSensorHandler>>
-        numericSensors;
-    std::unordered_map<SensorID, std::unique_ptr<StateSensorHandler>>
-        stateSensors;
-    std::unordered_map<EffecterID, std::unique_ptr<NumericEffecterHandler>>
-        numericEffecters;
-    std::unordered_map<EffecterID, std::unique_ptr<StateEffecterHandler>>
-        stateEffecters;
+  public:
+    void stopSensorPolling();
+    void startSensorPolling();
+    bool initTerminus(boost::asio::yield_context yield, const pldm_tid_t tid,
+                      const pldm::base::CommandSupportTable& commandTable);
+    bool deleteTerminus(const pldm_tid_t tid);
+
+  private:
+    bool introduceDelayInPolling(boost::asio::yield_context yield);
+    void pollAllSensors(boost::asio::yield_context yield);
+    void initSensorPoll();
+    void initializeSensorPollIntf();
+    void initializePlatformIntf();
+    bool isTerminusRemoved(const pldm_tid_t tid);
+    void removeTIDFromInitializationList(const pldm_tid_t tid);
+
+    std::map<pldm_tid_t, PlatformTerminus> platforms{};
+    std::unique_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
+    bool isSensorPollRunning = false;
+    std::set<pldm_tid_t> tidsUnderInitialization{};
 };
 
 /** @brief Pause sensor polling

@@ -15,23 +15,17 @@
  */
 #include "platform.hpp"
 
-#include "pldm.hpp"
-
-#include <boost/asio/steady_timer.hpp>
 #include <phosphor-logging/log.hpp>
 
 namespace pldm
 {
 namespace platform
 {
-// Holds platform monitoring and control resources for each termini
-static std::map<pldm_tid_t, PlatformTerminus> platforms{};
 // TODO: Optimize poll interval
 static constexpr const int pollIntervalMillisec = 500;
-std::unique_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
-static bool isSensorPollRunning = false;
+static Platform platform;
 
-bool introduceDelayInPolling(boost::asio::yield_context& yield)
+bool Platform::introduceDelayInPolling(boost::asio::yield_context yield)
 {
     if (!sensorTimer)
     {
@@ -65,7 +59,7 @@ bool introduceDelayInPolling(boost::asio::yield_context& yield)
 // associated sensors. Which will result in higher number(M*N) of PLDM
 // message traffic through mux. In this case mux switching is a constraint.
 // Thus poll sensors sequentially.
-void pollAllSensors(boost::asio::yield_context& yield)
+void Platform::pollAllSensors(boost::asio::yield_context yield)
 {
     for (auto const& [tid, platformTerminus] : platforms)
     {
@@ -106,7 +100,7 @@ void pollAllSensors(boost::asio::yield_context& yield)
     }
 }
 
-void initSensorPoll()
+void Platform::initSensorPoll()
 {
     if (isSensorPollRunning)
     {
@@ -115,134 +109,9 @@ void initSensorPoll()
         return;
     }
     sensorTimer = std::make_unique<boost::asio::steady_timer>(*getIoContext());
-    boost::asio::spawn(*getIoContext(), [](boost::asio::yield_context yield) {
-        pollAllSensors(yield);
-    });
-}
-
-void initSensors(boost::asio::yield_context& yield, const pldm_tid_t tid)
-{
-    PlatformTerminus& platformTerminus = platforms[tid];
-    std::unordered_map<SensorID, std::string> sensorList =
-        platformTerminus.pdrManager->getSensors();
-
-    for (auto const& [sensorID, sensorName] : sensorList)
-    {
-        if (auto pdr =
-                platformTerminus.pdrManager->getNumericSensorPDR(sensorID))
-        {
-            std::unique_ptr<NumericSensorHandler> numericSensorHandler =
-                std::make_unique<NumericSensorHandler>(tid, sensorID,
-                                                       sensorName, *pdr);
-            if (!numericSensorHandler->sensorHandlerInit(yield))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Sensor Handler Init failed",
-                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
-                    phosphor::logging::entry("TID=%d", tid));
-                continue;
-            }
-
-            platformTerminus.numericSensors[sensorID] =
-                std::move(numericSensorHandler);
-        }
-
-        if (auto pdr = platformTerminus.pdrManager->getStateSensorPDR(sensorID))
-        {
-            std::unique_ptr<StateSensorHandler> stateSensorHandler;
-            try
-            {
-                stateSensorHandler = std::make_unique<StateSensorHandler>(
-                    tid, sensorID, sensorName, *pdr);
-            }
-            catch (const std::exception& e)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    e.what(),
-                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
-                    phosphor::logging::entry("TID=%d", tid));
-                continue;
-            }
-
-            if (!stateSensorHandler->sensorHandlerInit(yield))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "State Sensor Init failed",
-                    phosphor::logging::entry("SENSOR_ID=0x%0X", sensorID),
-                    phosphor::logging::entry("TID=%d", tid));
-                continue;
-            }
-
-            platformTerminus.stateSensors[sensorID] =
-                std::move(stateSensorHandler);
-        }
-    }
-}
-
-void initEffecters(boost::asio::yield_context& yield, const pldm_tid_t tid)
-{
-    PlatformTerminus& platformTerminus = platforms[tid];
-    std::unordered_map<EffecterID, std::string> effecterList =
-        platformTerminus.pdrManager->getEffecters();
-
-    for (auto const& [effecterID, effecterName] : effecterList)
-    {
-        if (auto pdr =
-                platformTerminus.pdrManager->getNumericEffecterPDR(effecterID))
-        {
-            std::unique_ptr<NumericEffecterHandler> numericEffecterHandler =
-                std::make_unique<NumericEffecterHandler>(tid, effecterID,
-                                                         effecterName, *pdr);
-            if (!numericEffecterHandler->effecterHandlerInit(yield))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Numeric Effecter Handler Init failed",
-                    phosphor::logging::entry("EFFECTER_ID=0x%0X", effecterID),
-                    phosphor::logging::entry("TID=%d", tid));
-                continue;
-            }
-
-            platformTerminus.numericEffecters[effecterID] =
-                std::move(numericEffecterHandler);
-        }
-
-        if (auto pdr =
-                platformTerminus.pdrManager->getStateEffecterPDR(effecterID))
-        {
-            std::unique_ptr<StateEffecterHandler> stateEffecterHandler =
-                std::make_unique<StateEffecterHandler>(tid, effecterID,
-                                                       effecterName, pdr);
-            if (!stateEffecterHandler->effecterHandlerInit(yield))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "State Effecter Init failed",
-                    phosphor::logging::entry("EFFECTER_ID=0x%0X", effecterID),
-                    phosphor::logging::entry("TID=%d", tid));
-                continue;
-            }
-
-            platformTerminus.stateEffecters[effecterID] =
-                std::move(stateEffecterHandler);
-        }
-    }
-}
-
-bool initPDRs(boost::asio::yield_context& yield, const pldm_tid_t tid)
-{
-    std::unique_ptr<PDRManager> pdrManager = std::make_unique<PDRManager>(tid);
-    if (!pdrManager->pdrManagerInit(yield))
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "PDR Manager Init failed", phosphor::logging::entry("TID=%d", tid));
-        return false;
-    }
-    phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        "PDR Manager Init Success", phosphor::logging::entry("TID=%d", tid));
-
-    PlatformTerminus& platformTerminus = platforms[tid];
-    platformTerminus.pdrManager = std::move(pdrManager);
-
-    return true;
+    boost::asio::spawn(
+        *getIoContext(),
+        [this](boost::asio::yield_context yield) { pollAllSensors(yield); });
 }
 
 std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
@@ -282,7 +151,7 @@ std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
     return uuid;
 }
 
-void pauseSensorPolling()
+void Platform::stopSensorPolling()
 {
     if (!sensorTimer)
     {
@@ -296,14 +165,14 @@ void pauseSensorPolling()
         "Sensor polling paused");
 }
 
-void resumeSensorPolling()
+void Platform::startSensorPolling()
 {
     initSensorPoll();
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Sensor polling resumed");
 }
 
-void initializeSensorPollIntf()
+void Platform::initializeSensorPollIntf()
 {
     static std::unique_ptr<sdbusplus::asio::dbus_interface> pausePollInterface =
         nullptr;
@@ -331,7 +200,7 @@ void initializeSensorPollIntf()
     pausePollInterface->initialize();
 }
 
-void initializePlatformIntf()
+void Platform::initializePlatformIntf()
 {
     static std::unique_ptr<sdbusplus::asio::dbus_interface> platformInterface =
         nullptr;
@@ -355,8 +224,23 @@ void initializePlatformIntf()
     platformInterface->initialize();
 }
 
-bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
-                  const pldm::base::CommandSupportTable& /*commandTable*/)
+bool Platform::isTerminusRemoved(const pldm_tid_t tid)
+{
+    return tidsUnderInitialization.count(tid) == 0;
+}
+
+void Platform::removeTIDFromInitializationList(const pldm_tid_t tid)
+{
+    auto search = tidsUnderInitialization.find(tid);
+    if (search != tidsUnderInitialization.end())
+    {
+        tidsUnderInitialization.erase(search);
+    }
+}
+
+bool Platform::initTerminus(
+    boost::asio::yield_context yield, const pldm_tid_t tid,
+    const pldm::base::CommandSupportTable& /*commandTable*/)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Platform Monitoring and Control initialisation",
@@ -364,15 +248,7 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
 
     // Delete previous resources if any
     deleteMnCTerminus(tid);
-
-    if (!initPDRs(yield, tid))
-    {
-        return false;
-    }
-
-    initSensors(yield, tid);
-
-    initEffecters(yield, tid);
+    tidsUnderInitialization.emplace(tid);
 
     if (debug)
     {
@@ -380,6 +256,28 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
         initializePlatformIntf();
     }
 
+    try
+    {
+        PlatformTerminus platformTerminus(yield, tid);
+        if (isTerminusRemoved(tid))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "Terminus removed before Platform Monitoring and Control "
+                "initialisation completes",
+                phosphor::logging::entry("TID=%d", tid));
+            return false;
+        }
+        platforms.insert_or_assign(tid, std::move(platformTerminus));
+    }
+    catch (const std::exception& e)
+    {
+        removeTIDFromInitializationList(tid);
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            e.what(), phosphor::logging::entry("TID=%d", tid));
+        return false;
+    }
+
+    removeTIDFromInitializationList(tid);
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Platform Monitoring and Control initialisation success",
         phosphor::logging::entry("TID=%d", tid));
@@ -387,8 +285,10 @@ bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
     return true;
 }
 
-bool deleteMnCTerminus(const pldm_tid_t tid)
+bool Platform::deleteTerminus(const pldm_tid_t tid)
 {
+    removeTIDFromInitializationList(tid);
+
     auto entry = platforms.find(tid);
     if (entry == platforms.end())
     {
@@ -409,5 +309,27 @@ bool deleteMnCTerminus(const pldm_tid_t tid)
 
     return true;
 }
+
+void pauseSensorPolling()
+{
+    platform.stopSensorPolling();
+}
+
+void resumeSensorPolling()
+{
+    platform.startSensorPolling();
+}
+
+bool platformInit(boost::asio::yield_context yield, const pldm_tid_t tid,
+                  const pldm::base::CommandSupportTable& commandTable)
+{
+    return platform.initTerminus(yield, tid, commandTable);
+}
+
+bool deleteMnCTerminus(const pldm_tid_t tid)
+{
+    return platform.deleteTerminus(tid);
+}
+
 } // namespace platform
 } // namespace pldm
