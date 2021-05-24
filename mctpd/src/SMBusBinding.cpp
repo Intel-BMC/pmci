@@ -389,10 +389,12 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
 void SMBusBinding::scanDevices(boost::asio::yield_context& yield)
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Scanning devices");
-    // TODO: Compare UUIDs to check whether Add-In-Devices were port swapped
     boost::system::error_code ec = boost::asio::error::operation_aborted;
 
-    initEndpointDiscovery(yield);
+    if (!rsvBWActive)
+    {
+        initEndpointDiscovery(yield);
+    }
 
     // TODO: Get timer tick frequency from EntityManager
     scanTimer.expires_after(std::chrono::seconds(60));
