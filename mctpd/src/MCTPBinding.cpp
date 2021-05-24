@@ -349,9 +349,22 @@ void MctpBinding::handleCtrlResp(void* msg, const size_t len)
  * passed to libmctp and we have to match its expected prototype.
  */
 void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
-                            bool tagOwner, uint8_t msgTag,
-                            void* /*bindingPrivate*/)
+                            bool tagOwner, uint8_t msgTag, void* bindingPrivate)
 {
+    if (msg == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "MCTP Receive Message is not initialized.");
+        return;
+    }
+
+    if (data == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Null data received");
+        return;
+    }
+
     uint8_t* payload = reinterpret_cast<uint8_t*>(msg);
     uint8_t msgType = payload[0]; // Always the first byte
     std::vector<uint8_t> response;
@@ -359,6 +372,11 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
     response.assign(payload, payload + len);
 
     auto& binding = *static_cast<MctpBinding*>(data);
+
+    if (binding.bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    {
+        binding.addUnknownEIDToDeviceTable(srcEid, bindingPrivate);
+    }
 
     if (msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL)
     {
@@ -402,6 +420,14 @@ void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
             "MCTP Control Message is not initialized.");
         return;
     }
+
+    if (data == nullptr)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Null data received");
+        return;
+    }
+
     if (!tagOwner)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -409,6 +435,12 @@ void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
         return;
     }
     auto& binding = *static_cast<MctpBinding*>(data);
+
+    if (binding.bindingModeType == mctp_server::BindingModeTypes::Endpoint)
+    {
+        binding.addUnknownEIDToDeviceTable(srcEid, bindingPrivate);
+    }
+
     binding.handleCtrlReq(srcEid, bindingPrivate, msg, len, msgTag);
 }
 
@@ -2392,4 +2424,9 @@ void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
             break;
         }
     }
+}
+
+void MctpBinding::addUnknownEIDToDeviceTable(const mctp_eid_t, void*)
+{
+    // Do nothing
 }

@@ -952,3 +952,36 @@ void SMBusBinding::updateDiscoveredFlag(DiscoveryFlags flag)
     discoveredFlag = flag;
     smbusInterface->set_property("DiscoveredFlag", convertToString(flag));
 }
+
+void SMBusBinding::addUnknownEIDToDeviceTable(const mctp_eid_t eid,
+                                              void* bindingPrivate)
+{
+    if (bindingPrivate == nullptr)
+    {
+        return;
+    }
+
+    auto deviceIter = std::find_if(
+        smbusDeviceTable.begin(), smbusDeviceTable.end(),
+        [eid](auto const eidEntry) { return std::get<0>(eidEntry) == eid; });
+
+    if (deviceIter != smbusDeviceTable.end())
+    {
+        return;
+    }
+
+    auto bindingPtr = reinterpret_cast<mctp_smbus_pkt_private*>(bindingPrivate);
+
+    struct mctp_smbus_pkt_private smbusBindingPvt = {};
+    smbusBindingPvt.fd = bindingPtr->fd;
+    smbusBindingPvt.mux_hold_timeout = bindingPtr->mux_hold_timeout;
+    smbusBindingPvt.mux_flags = bindingPtr->mux_flags;
+    smbusBindingPvt.slave_addr =
+        static_cast<uint8_t>((bindingPtr->slave_addr) & (~1));
+
+    smbusDeviceTable.emplace_back(std::make_pair(eid, smbusBindingPvt));
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("New EID added to device table. EID = " + std::to_string(eid))
+            .c_str());
+}
