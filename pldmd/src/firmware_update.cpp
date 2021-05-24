@@ -19,6 +19,7 @@
 #include "platform.hpp"
 #include "pldm.hpp"
 #include "pldm_fwu_image.hpp"
+#include "utils.hpp"
 
 #include <filesystem>
 #include <phosphor-logging/log.hpp>
@@ -92,7 +93,7 @@ void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
         fdTransferCompleted = true;
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("TransferComplete received from TID: " +
-             std::to_string(currentTid))
+             utils::changeToString(currentTid))
                 .c_str());
     }
 
@@ -100,7 +101,7 @@ void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("Firmware update in progress for TID: " +
-             std::to_string(currentTid))
+             utils::changeToString(currentTid))
                 .c_str());
         return;
     }
@@ -119,7 +120,7 @@ bool FWUpdate::setMatchedFDDescriptors()
         phosphor::logging::log<phosphor::logging::level::ERR>(
             ("setMatchedFDDescriptors: targetFDProperties not found for "
              "TID: " +
-             std::to_string(currentTid))
+             utils::changeToString(currentTid))
                 .c_str());
         return false;
     }
@@ -738,14 +739,15 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("PassComponentTable command failed, component: " +
-                 std::to_string(count) + " retVal: " + std::to_string(retVal))
+                 utils::changeToString(count) +
+                 " retVal: " + utils::changeToString(retVal))
                     .c_str());
 
             continue;
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("PassComponentTable command success, component: " +
-             std::to_string(count))
+             utils::changeToString(count))
                 .c_str());
         ++totalCompsAcceptedByFd;
         createAsyncDelay(yield, delayBtw);
@@ -917,7 +919,7 @@ int FWUpdate::transferComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("transferComplete: decode request failed. RETVAL:" +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
@@ -933,7 +935,7 @@ int FWUpdate::transferComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("transferComplete: invalid transferResult. transferResult: " +
-             std::to_string(transferResult))
+             utils::changeToString(transferResult))
                 .c_str());
         if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
@@ -952,7 +954,7 @@ int FWUpdate::transferComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("transferComplete: encode response failed. RETVAL:" +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         return retVal;
     }
@@ -1009,7 +1011,7 @@ int FWUpdate::verifyComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("verifyComplete: decode request failed. RETVAL:" +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
@@ -1025,7 +1027,7 @@ int FWUpdate::verifyComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("verifyComplete: invalid verifyResult. verifyResult: " +
-             std::to_string(verifyResult))
+             utils::changeToString(verifyResult))
                 .c_str());
         if (!sendErrorCompletionCode(yield, msgReq->hdr.instance_id,
                                      static_cast<uint8_t>(retVal),
@@ -1044,7 +1046,7 @@ int FWUpdate::verifyComplete(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("VerifyComplete: encode response failed. RETVAL:" +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         return retVal;
     }
@@ -1190,8 +1192,8 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
                 ("processRequestFirmwareData: Failed to run "
                  "RequestFirmwareData"
                  "command, retVal=" +
-                 std::to_string(retVal) +
-                 " component=" + std::to_string(currentComp))
+                 utils::changeToString(retVal) +
+                 " component=" + utils::changeToString(currentComp))
                     .c_str());
             continue;
         }
@@ -1201,10 +1203,10 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
         {
             prevProgress = progress;
             phosphor::logging::log<phosphor::logging::level::INFO>(
-                ("TID: " + std::to_string(currentTid) +
-                 " Component: " + std::to_string(currentComp + 1) +
-                 " update package transfered: " + std::to_string(progress) +
-                 "%")
+                ("TID: " + utils::changeToString(currentTid) +
+                 " Component: " + utils::changeToString(currentComp + 1) +
+                 " update package transfered: " +
+                 utils::changeToString(progress) + "%")
                     .c_str());
         }
         if (offset + length > componentSize)
@@ -1684,7 +1686,7 @@ int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context yield)
         phosphor::logging::log<phosphor::logging::level::ERR>(
             ("CancelUpdateComponent: encode_cancel_update_component_req "
              "failed. RETVAL: " +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         return retVal;
     }
@@ -1707,8 +1709,8 @@ int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context yield)
         phosphor::logging::log<phosphor::logging::level::ERR>(
             ("CancelUpdateComponent: decode_cancel_update_component_resp "
              "failed. RETVAL: " +
-             std::to_string(retVal) +
-             ". COMPLETION_CODE: " + std::to_string(completionCode))
+             utils::changeToString(retVal) +
+             ". COMPLETION_CODE: " + utils::changeToString(completionCode))
                 .c_str());
         return retVal;
     }
@@ -1893,8 +1895,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: processUpdateComponent failed. RETVAL: " +
-                 std::to_string(retVal) +
-                 ". COMPONENT: " + std::to_string(count))
+                 utils::changeToString(retVal) +
+                 ". COMPONENT: " + utils::changeToString(count))
                     .c_str());
 
             compOffset += compSize;
@@ -1903,10 +1905,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         if (compCompatabilityResp != COMPONENT_CAN_BE_UPDATED)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("COMPONENT: " + std::to_string(count) +
+                ("COMPONENT: " + utils::changeToString(count) +
                  " will not be updated, "
                  "ComponentCompatibilityResponse Code: " +
-                 std::to_string(compCompatabilityRespCode))
+                 utils::changeToString(compCompatabilityRespCode))
                     .c_str());
             compOffset += compSize;
             continue;
@@ -1917,14 +1919,14 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
             "FD changed state to DOWNLOAD");
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("UpdateComponent command is success. COMPONENT: " +
-             std::to_string(count))
+             utils::changeToString(count))
                 .c_str());
 
         if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: reserveBandwidth failed. TID: " +
-                 std::to_string(currentTid))
+                 utils::changeToString(currentTid))
                     .c_str());
         }
         else
@@ -1944,7 +1946,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("Timeout waiting for Transfer complete. COMPONENT: " +
-                 std::to_string(count))
+                 utils::changeToString(count))
                     .c_str());
 
             compOffset += compSize;
@@ -1959,8 +1961,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: processTransferComplete failed. RETVAL: " +
-                 std::to_string(retVal) +
-                 ". COMPONENT: " + std::to_string(count))
+                 utils::changeToString(retVal) +
+                 ". COMPONENT: " + utils::changeToString(count))
                     .c_str());
             int ret = doCancelUpdateComponent(yield);
             if (ret != PLDM_SUCCESS)
@@ -1968,8 +1970,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("runUpdate: Failed to run CancelUpdateComponent. "
                      "RETVAL: " +
-                     std::to_string(ret) +
-                     ". COMPONENT: " + std::to_string(count))
+                     utils::changeToString(ret) +
+                     ". COMPONENT: " + utils::changeToString(count))
                         .c_str());
             }
             compOffset += compSize;
@@ -1977,7 +1979,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("TransferComplete command is success. COMPONENT: " +
-             std::to_string(count))
+             utils::changeToString(count))
                 .c_str());
         fdState = FD_VERIFY;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -2002,7 +2004,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: processVerifyComplete failed for COMPONENT: " +
-                 std::to_string(count) + ".RETVAL: " + std::to_string(retVal))
+                 utils::changeToString(count) +
+                 ".RETVAL: " + utils::changeToString(retVal))
                     .c_str());
             int ret = doCancelUpdateComponent(yield);
             if (ret != PLDM_SUCCESS)
@@ -2010,8 +2013,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
                     ("runUpdate: Failed to run CancelUpdateComponent. "
                      "RETVAL: " +
-                     std::to_string(ret) +
-                     ". COMPONENT: " + std::to_string(count))
+                     utils::changeToString(ret) +
+                     ". COMPONENT: " + utils::changeToString(count))
                         .c_str());
             }
             compOffset += compSize;
@@ -2019,7 +2022,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("VerifyComplete command is success. COMPONENT: " +
-             std::to_string(count))
+             utils::changeToString(count))
                 .c_str());
         fdState = FD_APPLY;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -2033,7 +2036,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("Timeout waiting for Apply complete. COMPONENT: " +
-                 std::to_string(count + 1))
+                 utils::changeToString(count + 1))
                     .c_str());
 
             compOffset += compSize;
@@ -2045,8 +2048,8 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 ("runUpdate: processApplyComplete failed. RETVAL: " +
-                 std::to_string(retVal) +
-                 ". COMPONENT: " + std::to_string(count))
+                 utils::changeToString(retVal) +
+                 ". COMPONENT: " + utils::changeToString(count))
                     .c_str());
 
             compOffset += compSize;
@@ -2055,7 +2058,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         isComponentAvailableForUpdate = true;
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("ApplyComplete command is success. COMPONENT: " +
-             std::to_string(count))
+             utils::changeToString(count))
                 .c_str());
         fdState = FD_READY_XFER;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -2093,7 +2096,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     if (!isComponentAvailableForUpdate)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            ("firmware update failed. RETVAL: " + std::to_string(retVal))
+            ("firmware update failed. RETVAL: " + utils::changeToString(retVal))
                 .c_str());
         return retVal;
     }
@@ -2106,16 +2109,17 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             ("runUpdate: doActivateFirmware failed. RETVAL: " +
-             std::to_string(retVal))
+             utils::changeToString(retVal))
                 .c_str());
         return retVal;
     }
+
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "ActivateFirmware command is success");
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Firmware update completed successfully for TID:" +
-         std::to_string(currentTid))
+         utils::changeToString(currentTid))
             .c_str());
 
     return PLDM_SUCCESS;
@@ -2209,7 +2213,7 @@ bool deleteFWDevice(const pldm_tid_t tid)
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             ("PLDM firmware update device not matched for TID " +
-             std::to_string(tid))
+             utils::changeToString(tid))
                 .c_str());
         return false;
     }
@@ -2236,7 +2240,7 @@ bool deleteFWDevice(const pldm_tid_t tid)
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("PLDM firmware update device resources deleted for TID " +
-         std::to_string(tid))
+         utils::changeToString(tid))
             .c_str());
     return true;
 }
@@ -2263,7 +2267,7 @@ static int initUpdate(const boost::asio::yield_context yield)
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 ("initUpdate: Failed to set TargetFDProperties for "
                  "TID: " +
-                 std::to_string(matchedTid))
+                 utils::changeToString(matchedTid))
                     .c_str());
             continue;
         }
@@ -2272,8 +2276,9 @@ static int initUpdate(const boost::asio::yield_context yield)
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
-                ("runUpdate failed for TID: " + std::to_string(matchedTid) +
-                 ". RETVAL:" + std::to_string(retVal))
+                ("runUpdate failed for TID: " +
+                 utils::changeToString(matchedTid) +
+                 ". RETVAL:" + utils::changeToString(retVal))
                     .c_str());
             fwUpdateStatus = false;
             fwUpdate->terminateFwUpdate(yield);
@@ -2397,7 +2402,7 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     updateAssociationsProperty();
     terminusFwuProperties[tid] = *properties;
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("fwuInit success for TID:" + std::to_string(tid)).c_str());
+        ("fwuInit success for TID:" + utils::changeToString(tid)).c_str());
 
     return true;
 }
