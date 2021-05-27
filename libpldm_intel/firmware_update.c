@@ -22,10 +22,10 @@ static int check_request_firmware_data_req_validity()
 	      (requested_comp_image_seg.length <= maximum_transfer_size))) {
 		return INVALID_TRANSFER_LENGTH;
 	}
-	uint64_t requestedPayload =
-	    requested_comp_image_seg.length + requested_comp_image_seg.offset;
+	uint64_t requestedPayload = (uint64_t)requested_comp_image_seg.length +
+				    requested_comp_image_seg.offset;
 	uint64_t maxPayload =
-	    PLDM_FWU_BASELINE_TRANSFER_SIZE + component_image_size;
+	    (uint64_t)component_image_size + PLDM_FWU_BASELINE_TRANSFER_SIZE;
 	if (!(requestedPayload <= maxPayload)) {
 		return DATA_OUT_OF_RANGE;
 	}
@@ -38,8 +38,8 @@ static int get_padding_length(uint32_t *padding_length)
 		return PLDM_ERROR_INVALID_DATA;
 	}
 	*padding_length = 0;
-	uint64_t requestedPayload =
-	    requested_comp_image_seg.length + requested_comp_image_seg.offset;
+	uint64_t requestedPayload = (uint64_t)requested_comp_image_seg.length +
+				    requested_comp_image_seg.offset;
 	int64_t padding = (requestedPayload - component_image_size);
 
 	if (padding > PLDM_FWU_BASELINE_TRANSFER_SIZE) {
