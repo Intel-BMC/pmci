@@ -689,13 +689,26 @@ bool MctpBinding::manageVdpciVersionInfo(uint16_t vendorIdx,
 
 MctpBinding::~MctpBinding()
 {
-    for (auto [eid, assigned] : eidPool)
+    for (auto& iter : endpointInterface)
     {
-        if (assigned)
-        {
-            unregisterEndpoint(eid);
-        }
+        objectServer->remove_interface(iter.second);
     }
+
+    for (auto& iter : msgTypeInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+
+    for (auto& iter : uuidInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+
+    for (auto& iter : vendorIdInterface)
+    {
+        objectServer->remove_interface(iter.second);
+    }
+
     objectServer->remove_interface(mctpInterface);
     if (mctp)
     {
@@ -1818,14 +1831,15 @@ void MctpBinding::populateEndpointProperties(
         mctp_server::convertBindingModeTypesToString(epProperties.mode));
     endpointIntf->register_property("NetworkId", epProperties.networkId);
     endpointIntf->initialize();
-    endpointInterface.push_back(endpointIntf);
+    endpointInterface.emplace(epProperties.endpointEid,
+                              std::move(endpointIntf));
 
     // Message type interface
     std::shared_ptr<dbus_interface> msgTypeIntf;
     msgTypeIntf =
         objectServer->add_interface(mctpEpObj, mctp_msg_types::interface);
     registerMsgTypes(msgTypeIntf, epProperties.endpointMsgTypes);
-    msgTypeInterface.push_back(msgTypeIntf);
+    msgTypeInterface.emplace(epProperties.endpointEid, std::move(msgTypeIntf));
 
     // UUID interface
     std::shared_ptr<dbus_interface> uuidIntf;
@@ -1833,7 +1847,7 @@ void MctpBinding::populateEndpointProperties(
                                            "xyz.openbmc_project.Common.UUID");
     uuidIntf->register_property("UUID", epProperties.uuid);
     uuidIntf->initialize();
-    uuidInterface.push_back(uuidIntf);
+    uuidInterface.emplace(epProperties.endpointEid, std::move(uuidIntf));
     if (epProperties.endpointMsgTypes.vdpci)
     {
         std::shared_ptr<dbus_interface> vendorIdIntf;
@@ -1844,7 +1858,8 @@ void MctpBinding::populateEndpointProperties(
         vendorIdIntf->register_property("VendorID",
                                         epProperties.vendorIdFormat);
         vendorIdIntf->initialize();
-        vendorIdInterface.push_back(vendorIdIntf);
+        vendorIdInterface.emplace(epProperties.endpointEid,
+                                  std::move(vendorIdIntf));
     }
 }
 
@@ -1971,13 +1986,14 @@ static std::optional<mctp_eid_t> checkEIDMismatchAndGetEID(mctp_eid_t eid,
 
 bool MctpBinding::isEIDRegistered(mctp_eid_t eid)
 {
-    if (getBindingPrivateData(eid))
+    if (endpointInterface.count(eid) > 0)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Endpoint already Registered with EID " + std::to_string(eid))
                 .c_str());
         return true;
     }
+
     return false;
 }
 
@@ -2225,20 +2241,14 @@ std::optional<mctp_eid_t>
     return eid;
 }
 
-void MctpBinding::removeInterface(
-    std::string& interfacePath,
-    std::vector<std::shared_ptr<dbus_interface>>& interfaces)
+void MctpBinding::removeInterface(mctp_eid_t eid,
+                                  endpointInterfaceMap& interfaces)
 {
-    for (auto dbusInterface = interfaces.begin();
-         dbusInterface != interfaces.end(); dbusInterface++)
+    auto iter = interfaces.find(eid);
+    if (iter != interfaces.end())
     {
-        if ((*dbusInterface)->get_object_path() == interfacePath)
-        {
-            std::shared_ptr<dbus_interface> tmpIf = *dbusInterface;
-            interfaces.erase(dbusInterface);
-            objectServer->remove_interface(tmpIf);
-            break;
-        }
+        objectServer->remove_interface(iter->second);
+        interfaces.erase(iter);
     }
 }
 
@@ -2246,14 +2256,11 @@ void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
 {
     phosphor::logging::log<phosphor::logging::level::WARNING>(
         ("Unregistering EID = " + std::to_string(eid)).c_str());
-    static const std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
-    std::string mctpEpObj = mctpDevObj + std::to_string(eid);
 
-    removeInterface(mctpEpObj, endpointInterface);
-    removeInterface(mctpEpObj, msgTypeInterface);
-    removeInterface(mctpEpObj, uuidInterface);
-    // Vendor ID set Support
-    removeInterface(mctpEpObj, vendorIdInterface);
+    removeInterface(eid, endpointInterface);
+    removeInterface(eid, msgTypeInterface);
+    removeInterface(eid, uuidInterface);
+    removeInterface(eid, vendorIdInterface);
 }
 
 std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)

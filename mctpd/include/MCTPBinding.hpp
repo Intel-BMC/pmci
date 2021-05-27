@@ -14,6 +14,9 @@ class PCIeBinding;
 
 constexpr uint8_t vendorIdNoMoreSets = 0xff;
 
+using endpointInterfaceMap =
+    std::unordered_map<mctp_eid_t, std::shared_ptr<dbus_interface>>;
+
 enum MctpStatus
 {
     mctpErrorOperationNotAllowed = -5,
@@ -176,7 +179,7 @@ class MctpBinding
         versionNumbersForUpperLayerResponder;
 
     // vendor PCI Msg Interface
-    std::vector<std::shared_ptr<dbus_interface>> vendorIdInterface;
+    endpointInterfaceMap vendorIdInterface;
 
     void initializeMctp();
     void initializeLogging(void);
@@ -289,9 +292,9 @@ class MctpBinding
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
     std::shared_ptr<object_server> objectServer;
-    std::vector<std::shared_ptr<dbus_interface>> endpointInterface;
-    std::vector<std::shared_ptr<dbus_interface>> msgTypeInterface;
-    std::vector<std::shared_ptr<dbus_interface>> uuidInterface;
+    endpointInterfaceMap endpointInterface;
+    endpointInterfaceMap msgTypeInterface;
+    endpointInterfaceMap uuidInterface;
 
     boost::asio::steady_timer ctrlTxTimer;
 
@@ -341,9 +344,7 @@ class MctpBinding
     mctp_server::BindingModeTypes getEndpointType(const uint8_t types);
     MsgTypes getMsgTypes(const std::vector<uint8_t>& msgType);
     std::vector<uint8_t> getBindingMsgTypes();
-    void removeInterface(
-        std::string& interfacePath,
-        std::vector<std::shared_ptr<dbus_interface>>& interfaces);
+    void removeInterface(mctp_eid_t eid, endpointInterfaceMap& interfaces);
     std::optional<mctp_eid_t> getEIDFromUUID(std::string& uuidStr);
     void clearRegisteredDevice(const mctp_eid_t eid);
     bool isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID);
