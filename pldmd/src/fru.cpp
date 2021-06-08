@@ -29,7 +29,6 @@ using FRU =
 std::string fruPath = "/xyz/openbmc_project/pldm/fru/";
 
 std::shared_ptr<sdbusplus::asio::dbus_interface> setFRUIface;
-std::shared_ptr<sdbusplus::asio::dbus_interface> fruIface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> fruInterface;
 
 using FRUMetadata = std::map<std::string, uint32_t>;
@@ -418,7 +417,8 @@ static bool addFRUObjectToDbus(const std::string& fruObjPath,
                                const pldm_tid_t tid)
 {
     auto objServer = getObjServer();
-    fruIface = objServer->add_interface(fruObjPath, FRU::interface);
+    std::shared_ptr<sdbusplus::asio::dbus_interface> fruIface =
+        objServer->add_interface(fruObjPath, FRU::interface);
 
     auto it = terminusFRUProperties.find(tid);
     if (it == terminusFRUProperties.end())
