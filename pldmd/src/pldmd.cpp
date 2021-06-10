@@ -20,6 +20,10 @@
 #include "pldm.hpp"
 #include "utils.hpp"
 
+extern "C" {
+#include <signal.h>
+}
+
 #include <phosphor-logging/log.hpp>
 
 static constexpr const char* pldmService = "xyz.openbmc_project.pldm";
@@ -606,14 +610,17 @@ int main(void)
     auto ioc = std::make_shared<boost::asio::io_context>();
     setIoContext(ioc);
     boost::asio::signal_set signals(*ioc, SIGINT, SIGTERM);
-    signals.async_wait([&ioc](const boost::system::error_code&, const int&) {
-        pldm::platform::pauseSensorPolling();
-        for (auto& [tid, eid] : pldm::tidMapper)
-        {
-            deleteDevice(tid);
-        }
-        ioc->stop();
-    });
+    signals.async_wait(
+        [&ioc](const boost::system::error_code&, const int sigNum) {
+            pldm::platform::pauseSensorPolling();
+            for (auto& [tid, eid] : pldm::tidMapper)
+            {
+                deleteDevice(tid);
+            }
+            ioc->stop();
+            signal(sigNum, SIG_DFL);
+            raise(sigNum);
+        });
 
     auto conn = std::make_shared<sdbusplus::asio::connection>(*ioc);
 
