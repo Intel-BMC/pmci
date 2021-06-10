@@ -310,9 +310,9 @@ class MctpBinding
     void createUuid();
     void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
     mctp_eid_t getAvailableEidFromPool();
-    bool sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
-                         bool tagOwner, uint8_t msgTag,
-                         std::vector<uint8_t> bindingPrivate);
+    bool sendMctpCtrlMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
+                             bool tagOwner, uint8_t msgTag,
+                             std::vector<uint8_t> bindingPrivate);
     void processCtrlTxQueue();
     void pushToCtrlTxQueue(
         PacketState pktState, const mctp_eid_t destEid,

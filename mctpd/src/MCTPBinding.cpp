@@ -827,15 +827,16 @@ mctp_eid_t MctpBinding::getAvailableEidFromPool()
         std::make_error_code(std::errc::address_not_available));
 }
 
-bool MctpBinding::sendMctpMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
-                                  bool tagOwner, uint8_t msgTag,
-                                  std::vector<uint8_t> bindingPrivate)
+bool MctpBinding::sendMctpCtrlMessage(mctp_eid_t destEid,
+                                      std::vector<uint8_t> req, bool tagOwner,
+                                      uint8_t msgTag,
+                                      std::vector<uint8_t> bindingPrivate)
 {
     if (mctp_message_tx(mctp, destEid, req.data(), req.size(), tagOwner, msgTag,
                         bindingPrivate.data()) < 0)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Error in mctp_message_tx");
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "MCTP control: mctp_message_tx failed");
         return false;
     }
     return true;
@@ -880,8 +881,8 @@ void MctpBinding::processCtrlTxQueue()
                         if (retryCount > 0 &&
                             maxRespDelay <= retryCount * ctrlTxRetryDelay)
                         {
-                            if (sendMctpMessage(destEid, req, true, 0,
-                                                bindingPrivate))
+                            if (sendMctpCtrlMessage(destEid, req, true, 0,
+                                                    bindingPrivate))
                             {
                                 phosphor::logging::log<
                                     phosphor::logging::level::DEBUG>(
@@ -898,7 +899,7 @@ void MctpBinding::processCtrlTxQueue()
 
                     state = PacketState::noResponse;
                     std::vector<uint8_t> resp1 = {};
-                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                    phosphor::logging::log<phosphor::logging::level::DEBUG>(
                         "Retry timed out, No response");
 
                     // Call Callback function
@@ -1132,7 +1133,7 @@ void MctpBinding::pushToCtrlTxQueue(
         state, ctrlTxRetryCount, ((ctrlTxRetryCount + 1) * ctrlTxRetryDelay),
         destEid, bindingPrivate, req, callback));
 
-    if (sendMctpMessage(destEid, req, true, 0, bindingPrivate))
+    if (sendMctpCtrlMessage(destEid, req, true, 0, bindingPrivate))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Packet transmited");
@@ -1508,7 +1509,7 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
     if (PacketState::receivedResponse !=
         sendAndRcvMctpCtrl(yield, req, destEid, bindingPrivate, resp))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get MCTP Version Support: Unable to get response");
         return false;
     }
@@ -2012,9 +2013,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
                                        MCTP_MESSAGE_TYPE_MCTP_CTRL,
                                        &getMctpControlVersion)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get MCTP Control Version failed");
-
         return std::nullopt;
     }
 
@@ -2023,7 +2023,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     std::vector<uint8_t> getEidResp = {};
     if (!(getEidCtrlCmd(yield, bindingPrivate, eid, getEidResp)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>("Get EID failed");
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Get EID failed");
         return std::nullopt;
     }
     mctp_ctrl_resp_get_eid* getEidRespPtr =
@@ -2039,7 +2040,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     std::vector<uint8_t> getUuidResp = {};
     if (!(getUuidCtrlCmd(yield, bindingPrivate, eid, getUuidResp)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get UUID failed");
         if (isEIDRegistered(eid))
         {
@@ -2079,7 +2080,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     if (!(setEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, set_eid, eid,
                         setEidResp)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>("Set EID failed");
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Set EID failed");
         updateEidStatus(eid, false);
         return std::nullopt;
     }
@@ -2100,7 +2102,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     if (!(getMsgTypeSupportCtrlCmd(yield, bindingPrivate, eid,
                                    &msgTypeSupportResp)))
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get Message Type Support failed");
         return std::nullopt;
     }

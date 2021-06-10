@@ -79,7 +79,7 @@ void SMBusBinding::scanPort(const int scanFd,
             continue;
         }
 
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             ("Adding device " + std::to_string(it)).c_str());
 
         deviceMap.insert(std::make_pair(scanFd, it));
@@ -605,9 +605,9 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
      * are attempted with registration sequentially */
     for (const auto& device : registerDeviceMap)
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("Checking device " + std::to_string(std::get<1>(device)) +
-             " to be registered")
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            ("Device discovery: Checking device " +
+             std::to_string(std::get<1>(device)))
                 .c_str());
 
         struct mctp_smbus_pkt_private smbusBindingPvt;
@@ -658,7 +658,7 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
                     std::make_pair(eid.value(), smbusBindingPvt));
 
                 phosphor::logging::log<phosphor::logging::level::INFO>(
-                    ("New Device Registered: EID=" +
+                    ("New Device Registered: EID = " +
                      std::to_string(eid.value()))
                         .c_str());
             }
