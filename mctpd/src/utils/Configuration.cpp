@@ -123,54 +123,6 @@ static bool getField(const json& configuration, const std::string& fieldName,
     }
 }
 
-static std::optional<int> getPcieMuxDevAddr(const std::string& configPath)
-{
-    std::vector<std::string> parts;
-    boost::split(parts, configPath, boost::is_any_of("/"));
-    if (parts.size() != 2)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            ("getPcieMuxDevAddr: Invalid configPath. configPath:" + configPath)
-                .c_str());
-        return std::nullopt;
-    }
-    const std::string objectPath =
-        boardPathNamespace + "/" + parts[0] + "/" + "PCIE_Mux";
-    auto methodCall = conn->new_method_call(
-        "xyz.openbmc_project.EntityManager", objectPath.c_str(),
-        "org.freedesktop.DBus.Properties", "Get");
-    methodCall.append("xyz.openbmc_project.Configuration.PCA9546Mux");
-    methodCall.append("Address");
-
-    sdbusplus::message::message reply;
-    const std::string replyErrorMsg =
-        "Error in reading pcie mux device address property";
-    try
-    {
-        reply = conn->call(methodCall);
-    }
-    catch (const std::exception& e)
-    {
-        auto errorMsg = replyErrorMsg + ": " + e.what();
-        phosphor::logging::log<phosphor::logging::level::ERR>(errorMsg.c_str());
-        return std::nullopt;
-    }
-    if (reply.is_method_error())
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            replyErrorMsg.c_str());
-        return std::nullopt;
-    }
-
-    std::variant<uint64_t> addr;
-    reply.read(addr);
-    if (auto address = std::get_if<uint64_t>(&addr))
-    {
-        return static_cast<int>(*address);
-    }
-    return std::nullopt;
-}
-
 template <typename T>
 static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
 {
@@ -384,10 +336,6 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     {
         if (auto optConfig = getSMBusConfiguration(map))
         {
-            if (auto pcieMuxDevAddr = getPcieMuxDevAddr(relativePath))
-            {
-                optConfig->pcieMuxDevAddr = *pcieMuxDevAddr;
-            }
             configuration =
                 std::make_unique<SMBusConfiguration>(std::move(*optConfig));
         }

@@ -357,7 +357,6 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         arpMasterSupport = conf.arpMasterSupport;
         bus = conf.bus;
         bmcSlaveAddr = conf.bmcSlaveAddr;
-        pcieMuxDevAddr = conf.pcieMuxDevAddr;
         supportedEndpointSlaveAddress = conf.supportedEndpointSlaveAddress;
 
         // TODO: If we are not top most busowner, wait for top mostbus owner
@@ -416,6 +415,90 @@ void SMBusBinding::scanDevices(boost::asio::yield_context& yield)
     }
 }
 
+void SMBusBinding::restoreMuxIdleMode()
+{
+    auto logMuxErr = [](const std::string& path) {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Unable to restore mux idle mode",
+            phosphor::logging::entry("MUX_PATH=%s", path.c_str()));
+    };
+
+    for (const auto& [path, idleMode] : muxIdleModeMap)
+    {
+        fs::path idlePath = fs::path(path);
+        if (!fs::exists(idlePath))
+        {
+            logMuxErr(path);
+            continue;
+        }
+
+        std::fstream idleFile(idlePath);
+        if (idleFile.good())
+        {
+            idleFile << idleMode;
+            if (idleFile.bad())
+            {
+                logMuxErr(path);
+            }
+        }
+        else
+        {
+            logMuxErr(path);
+        }
+    }
+}
+
+void SMBusBinding::setMuxIdleModeToDisconnect()
+{
+    std::string rootPort;
+    if (!getBusNumFromPath(bus, rootPort))
+    {
+        throwRunTimeError("Error in finding root port");
+    }
+
+    fs::path rootPath = fs::path("/sys/bus/i2c/devices/i2c-" + rootPort + "/");
+    std::string matchString = rootPort + std::string(R"(-\d+$)");
+    std::vector<std::string> i2cMuxes{};
+
+    // Search for mux ports
+    if (!findFiles(rootPath, matchString, i2cMuxes))
+    {
+        phosphor::logging::log<phosphor::logging::level::INFO>(
+            "No mux interfaces found");
+        return;
+    }
+
+    const std::string muxIdleModeDisconnect = "-2";
+    for (const auto& muxPath : i2cMuxes)
+    {
+        std::string path = muxPath + "/idle_state";
+        fs::path idlePath = fs::path(path);
+        if (!fs::exists(idlePath))
+        {
+            continue;
+        }
+
+        std::fstream idleFile(idlePath);
+        if (idleFile.good())
+        {
+            std::string currentMuxIdleMode;
+            idleFile >> currentMuxIdleMode;
+            muxIdleModeMap.insert_or_assign(path, currentMuxIdleMode);
+
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                (path + " " + currentMuxIdleMode).c_str());
+
+            idleFile << muxIdleModeDisconnect;
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Unable to set idle mode for mux",
+                phosphor::logging::entry("MUX_PATH=%s", idlePath.c_str()));
+        }
+    }
+}
+
 void SMBusBinding::initializeBinding()
 {
     try
@@ -424,12 +507,8 @@ void SMBusBinding::initializeBinding()
         auto rootPort = SMBusInit();
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Scanning root port");
-        // Reset mux and scan root port
-        if (mctp_smbus_close_mux(outFd, pcieMuxDevAddr) < 0)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "Scanning root port: mctp_smbus_close_mux failed.");
-        }
+        setMuxIdleModeToDisconnect();
+        // Scan root port
         scanPort(outFd, rootDeviceMap);
         muxPortMap = getMuxFds(rootPort);
     }
@@ -448,6 +527,8 @@ void SMBusBinding::initializeBinding()
 
 SMBusBinding::~SMBusBinding()
 {
+    restoreMuxIdleMode();
+
     if (smbusReceiverFd.native_handle() >= 0)
     {
         smbusReceiverFd.release();
@@ -563,12 +644,6 @@ void SMBusBinding::readResponse()
 
 void SMBusBinding::scanMuxBus(std::set<std::pair<int, uint8_t>>& deviceMap)
 {
-    if (mctp_smbus_close_mux(outFd, pcieMuxDevAddr) < 0)
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            "scanMuxBus: mctp_smbus_close_mux failed.");
-    }
-
     for (const auto& [muxFd, muxPort] : muxPortMap)
     {
         // Scan each port only once

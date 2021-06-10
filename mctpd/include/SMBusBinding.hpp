@@ -52,7 +52,6 @@ class SMBusBinding : public MctpBinding
     std::string bus;
     bool arpMasterSupport;
     uint8_t bmcSlaveAddr;
-    int pcieMuxDevAddr;
     std::set<uint8_t> supportedEndpointSlaveAddress;
     struct mctp_binding_smbus* smbus = nullptr;
     int inFd{-1};  // in_fd for the smbus binding
@@ -68,6 +67,7 @@ class SMBusBinding : public MctpBinding
     std::map<int, int> muxPortMap;
     std::set<std::pair<int, uint8_t>> rootDeviceMap;
     bool addRootDevices;
+    std::unordered_map<std::string, std::string> muxIdleModeMap{};
     void scanDevices(boost::asio::yield_context& yield);
     std::map<int, int> getMuxFds(const std::string& rootPort);
     void scanPort(const int scanFd,
@@ -78,4 +78,6 @@ class SMBusBinding : public MctpBinding
     void removeDeviceTableEntry(const mctp_eid_t eid);
     void updateDiscoveredFlag(DiscoveryFlags flag);
     std::string convertToString(DiscoveryFlags flag);
+    void restoreMuxIdleMode();
+    void setMuxIdleModeToDisconnect();
 };
