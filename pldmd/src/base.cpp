@@ -633,11 +633,15 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
 
 bool deleteDeviceBaseInfo(pldm_tid_t tid)
 {
-    uuidMapping.erase(std::find_if(uuidMapping.begin(), uuidMapping.end(),
-                                   [&tid](const auto& uuidTID) {
-                                       auto const& [uuid, mappedTID] = uuidTID;
-                                       return mappedTID == tid;
-                                   }));
+    auto itr = std::find_if(uuidMapping.begin(), uuidMapping.end(),
+                            [&tid](const auto& uuidTID) {
+                                auto const& [uuid, mappedTID] = uuidTID;
+                                return mappedTID == tid;
+                            });
+    if (itr != uuidMapping.end())
+    {
+        uuidMapping.erase(itr);
+    }
     return discoveryDataTable.erase(tid) == 1;
 }
 
