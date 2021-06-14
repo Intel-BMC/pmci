@@ -100,7 +100,7 @@ class PDRManager
 
     PDRManager(const pldm_tid_t tid);
 
-    bool pdrManagerInit(boost::asio::yield_context& yield);
+    bool pdrManagerInit(boost::asio::yield_context yield);
 
     /** @brief Get Sensors list*/
     const std::unordered_map<SensorID, std::string>& getSensors()
@@ -133,17 +133,17 @@ class PDRManager
   private:
     /** @brief fetch PDR Repository Info from terminus*/
     std::optional<pldm_pdr_repository_info>
-        getPDRRepositoryInfo(boost::asio::yield_context& yield);
+        getPDRRepositoryInfo(boost::asio::yield_context yield);
 
     /** @brief fetch single PDR record from terminus*/
-    bool getDevicePDRRecord(boost::asio::yield_context& yield,
+    bool getDevicePDRRecord(boost::asio::yield_context yield,
                             const RecordHandle recordHandle,
                             RecordHandle& nextRecordHandle,
                             std::vector<uint8_t>& pdrRecord);
 
     /** @brief fetch PDR repo from terminus*/
     bool getDevicePDRRepo(
-        boost::asio::yield_context& yield, uint32_t recordCount,
+        boost::asio::yield_context yield, uint32_t recordCount,
         std::unordered_map<RecordHandle, std::vector<uint8_t>>& pdrRepo);
 
     /** @brief Add Device PDRs to BMC PDR repo*/
@@ -151,7 +151,7 @@ class PDRManager
         std::unordered_map<RecordHandle, std::vector<uint8_t>>& pdrRepo);
 
     /** @brief fetch PDRs from terminus and add to BMC PDR repo*/
-    bool constructPDRRepo(boost::asio::yield_context& yield);
+    bool constructPDRRepo(boost::asio::yield_context yield);
 
     /** @brief Parse the Auxiliary Names PDR */
     void parseEntityAuxNamesPDR(std::vector<uint8_t>& pdrData);

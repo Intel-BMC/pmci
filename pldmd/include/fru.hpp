@@ -53,8 +53,7 @@ static void removeInterface(
  * @return PLDM_SUCCESS on success and corresponding error completion code
  * on failure
  */
-int setFruRecordTableCmd(boost::asio::yield_context& yield,
-                         const pldm_tid_t tid,
+int setFruRecordTableCmd(boost::asio::yield_context yield, const pldm_tid_t tid,
                          const std::vector<uint8_t>& setFruData);
 
 class GetPLDMFRU

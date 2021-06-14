@@ -44,17 +44,17 @@ class NumericEffecterHandler
         const std::shared_ptr<pldm_numeric_effecter_value_pdr>& pdr);
 
     /** @brief Init NumericEffecterHandler*/
-    bool effecterHandlerInit(boost::asio::yield_context& yield);
+    bool effecterHandlerInit(boost::asio::yield_context yield);
 
   private:
     /** @brief  Enable effecter*/
-    bool enableNumericEffecter(boost::asio::yield_context& yield);
+    bool enableNumericEffecter(boost::asio::yield_context yield);
 
     /** @brief Init effecter*/
     bool initEffecter();
 
     /** @brief fetch the effecter value*/
-    bool getEffecterReading(boost::asio::yield_context& yield);
+    bool getEffecterReading(boost::asio::yield_context yield);
 
     /** @brief Decode effecter value and update D-Bus interfaces*/
     bool handleEffecterReading(boost::asio::yield_context yield,
@@ -63,10 +63,10 @@ class NumericEffecterHandler
                                union_effecter_data_size& presentReading);
 
     /** @brief Read effecter value and update interfaces*/
-    bool populateEffecterValue(boost::asio::yield_context& yield);
+    bool populateEffecterValue(boost::asio::yield_context yield);
 
     /** @brief Set effecter value*/
-    bool setEffecter(boost::asio::yield_context& yield, double& value);
+    bool setEffecter(boost::asio::yield_context yield, double& value);
 
     /** @brief Register D-Bus interfaces for SetEffecterValue*/
     void registerSetEffecter();

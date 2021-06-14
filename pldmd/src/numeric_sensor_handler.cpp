@@ -35,7 +35,7 @@ NumericSensorHandler::NumericSensorHandler(
 }
 
 bool NumericSensorHandler::setNumericSensorEnable(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     uint8_t sensorOpState;
     switch (_pdr->sensor_init)
@@ -316,7 +316,7 @@ bool NumericSensorHandler::handleSensorReading(
     return true;
 }
 
-bool NumericSensorHandler::getSensorReading(boost::asio::yield_context& yield)
+bool NumericSensorHandler::getSensorReading(boost::asio::yield_context yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -367,8 +367,7 @@ bool NumericSensorHandler::getSensorReading(boost::asio::yield_context& yield)
                                presentReading);
 }
 
-bool NumericSensorHandler::populateSensorValue(
-    boost::asio::yield_context& yield)
+bool NumericSensorHandler::populateSensorValue(boost::asio::yield_context yield)
 {
     // No need to read the sensor if it is disabled
     if (_pdr->sensor_init == PLDM_SENSOR_DISABLE)
@@ -383,7 +382,7 @@ bool NumericSensorHandler::populateSensorValue(
     return true;
 }
 
-bool NumericSensorHandler::sensorHandlerInit(boost::asio::yield_context& yield)
+bool NumericSensorHandler::sensorHandlerInit(boost::asio::yield_context yield)
 {
     if (!setNumericSensorEnable(yield))
     {

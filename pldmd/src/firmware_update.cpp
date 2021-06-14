@@ -151,7 +151,7 @@ bool FWUpdate::sendErrorCompletionCode(const uint8_t fdInstanceId,
     return true;
 }
 
-void FWUpdate::terminateFwUpdate(const boost::asio::yield_context& yield)
+void FWUpdate::terminateFwUpdate(const boost::asio::yield_context yield)
 {
     bool8_t nonFunctioningComponentIndication = false;
     bitfield64_t nonFunctioningComponentBitmap = {};
@@ -324,7 +324,7 @@ bool FWUpdate::prepareUpdateComponentRequest(
     return true;
 }
 
-int FWUpdate::processRequestUpdate(const boost::asio::yield_context& yield)
+int FWUpdate::processRequestUpdate(const boost::asio::yield_context yield)
 
 {
     if (updateMode)
@@ -349,7 +349,7 @@ int FWUpdate::processRequestUpdate(const boost::asio::yield_context& yield)
     return requestUpdate(yield, compImgSetVerStr);
 }
 
-int FWUpdate::requestUpdate(const boost::asio::yield_context& yield,
+int FWUpdate::requestUpdate(const boost::asio::yield_context yield,
                             struct variable_field& compImgSetVerStrn)
 {
 
@@ -405,7 +405,7 @@ int FWUpdate::requestUpdate(const boost::asio::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context& yield,
+int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context yield,
                                   const uint32_t dataTransferHandle,
                                   const uint8_t transferOperationFlag,
                                   uint32_t& nextDataTransferHandle,
@@ -430,7 +430,7 @@ int FWUpdate::doGetDeviceMetaData(const boost::asio::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::getDeviceMetaData(const boost::asio::yield_context& yield,
+int FWUpdate::getDeviceMetaData(const boost::asio::yield_context yield,
                                 const uint32_t dataTransferHandle,
                                 const uint8_t transferOperationFlag,
                                 uint32_t& nextDataTransferHandle,
@@ -473,7 +473,7 @@ int FWUpdate::getDeviceMetaData(const boost::asio::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processPassComponentTable(const boost::asio::yield_context& yield)
+int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
 
 {
     if (!updateMode)
@@ -531,7 +531,7 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context& yield)
 }
 
 int FWUpdate::passComponentTable(
-    const boost::asio::yield_context& yield,
+    const boost::asio::yield_context yield,
     const struct pass_component_table_req& componentTable,
     struct variable_field& compImgSetVerStr, uint8_t& compResp,
     uint8_t& compRespCode)
@@ -573,7 +573,7 @@ int FWUpdate::passComponentTable(
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processUpdateComponent(const boost::asio::yield_context& yield,
+int FWUpdate::processUpdateComponent(const boost::asio::yield_context yield,
                                      uint8_t& compCompatabilityResp,
                                      uint8_t& compCompatabilityRespCode,
                                      bitfield32_t& updateOptFlagsEnabled,
@@ -605,7 +605,7 @@ int FWUpdate::processUpdateComponent(const boost::asio::yield_context& yield,
                            updateOptFlagsEnabled, estimatedTimeReqFd);
 }
 
-int FWUpdate::updateComponent(const boost::asio::yield_context& yield,
+int FWUpdate::updateComponent(const boost::asio::yield_context yield,
                               const struct update_component_req& component,
                               variable_field& compVerStr,
                               uint8_t& compCompatabilityResp,
@@ -914,9 +914,9 @@ int FWUpdate::applyComplete(const std::vector<uint8_t>& pldmReq,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processRequestFirmwareData(
-    const boost::asio::yield_context& yield, const uint32_t componentSize,
-    const uint32_t componentOffset)
+int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
+                                         const uint32_t componentSize,
+                                         const uint32_t componentOffset)
 {
     if (!updateMode || fdState != FD_DOWNLOAD)
     {
@@ -1305,7 +1305,7 @@ uint8_t FWUpdate::setTransferFlag(const uint32_t offset, const uint32_t length,
 }
 
 int FWUpdate::processActivateFirmware(
-    const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
+    const boost::asio::yield_context yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
 {
     if (!updateMode)
@@ -1329,7 +1329,7 @@ int FWUpdate::processActivateFirmware(
 }
 
 int FWUpdate::activateFirmware(
-    const boost::asio::yield_context& yield, bool8_t selfContainedActivationReq,
+    const boost::asio::yield_context yield, bool8_t selfContainedActivationReq,
     uint16_t& estimatedTimeForSelfContainedActivation)
 {
     uint8_t instanceID = createInstanceId(currentTid);
@@ -1367,7 +1367,7 @@ int FWUpdate::activateFirmware(
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::getStatus(const boost::asio::yield_context& yield)
+int FWUpdate::getStatus(const boost::asio::yield_context yield)
 {
     uint8_t instanceID = createInstanceId(currentTid);
     std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
@@ -1402,7 +1402,7 @@ int FWUpdate::getStatus(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doCancelUpdateComponent(const boost::asio::yield_context& yield)
+int FWUpdate::doCancelUpdateComponent(const boost::asio::yield_context yield)
 {
     if (!updateMode)
     {
@@ -1424,7 +1424,7 @@ int FWUpdate::doCancelUpdateComponent(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context& yield)
+int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context yield)
 {
     uint8_t instanceID = createInstanceId(currentTid);
     std::vector<uint8_t> pldmReq(sizeof(struct PLDMEmptyRequest));
@@ -1466,7 +1466,7 @@ int FWUpdate::cancelUpdateComponent(const boost::asio::yield_context& yield)
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::doCancelUpdate(const boost ::asio ::yield_context& yield,
+int FWUpdate::doCancelUpdate(const boost ::asio ::yield_context yield,
                              bool8_t& nonFunctioningComponentIndication,
                              bitfield64_t& nonFunctioningComponentBitmap)
 {
@@ -1491,7 +1491,7 @@ int FWUpdate::doCancelUpdate(const boost ::asio ::yield_context& yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::cancelUpdate(const boost::asio::yield_context& yield,
+int FWUpdate::cancelUpdate(const boost::asio::yield_context yield,
                            bool8_t& nonFunctioningComponentIndication,
                            bitfield64_t& nonFunctioningComponentBitmap)
 
@@ -1558,7 +1558,7 @@ constexpr uint32_t convertSecondsToMilliseconds(const uint16_t seconds)
 }
 
 boost::system::error_code
-    FWUpdate::startTimer(const boost::asio::yield_context& yield,
+    FWUpdate::startTimer(const boost::asio::yield_context yield,
                          const uint32_t interval)
 {
     boost::system::error_code ec;
@@ -1567,7 +1567,7 @@ boost::system::error_code
     return ec;
 }
 
-int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
+int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 {
     uint32_t compOffset = 0;
     compCount = pldmImg->getTotalCompCount();
@@ -1860,7 +1860,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context& yield)
 }
 
 template <typename propertyType>
-void FWUpdate::updateFWUProperty(const boost::asio::yield_context& yield,
+void FWUpdate::updateFWUProperty(const boost::asio::yield_context yield,
                                  const std::string& interfaceName,
                                  const std::string& propertyName,
                                  const propertyType& propertyValue)
@@ -1945,7 +1945,7 @@ bool deleteFWDevice(const pldm_tid_t tid)
 }
 
 static bool updateMode = false;
-static int initUpdate(const boost::asio::yield_context& yield)
+static int initUpdate(const boost::asio::yield_context yield)
 {
     if (updateMode)
     {

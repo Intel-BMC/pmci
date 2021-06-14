@@ -85,7 +85,7 @@ the commands to UA(BMC)
  *
  * @return Status of the operation
  */
-bool reserveBandwidth(const boost::asio::yield_context& yield,
+bool reserveBandwidth(const boost::asio::yield_context yield,
                       const pldm_tid_t tid, const uint8_t pldmType,
                       const uint16_t timeout);
 
@@ -98,7 +98,7 @@ bool reserveBandwidth(const boost::asio::yield_context& yield,
  *
  * @return Status of the operation
  */
-bool releaseBandwidth(const boost::asio::yield_context& yield,
+bool releaseBandwidth(const boost::asio::yield_context yield,
                       const pldm_tid_t tid, const uint8_t pldmType);
 // TODO: Add an API to free the Instance ID after usage.
 

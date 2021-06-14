@@ -43,10 +43,10 @@ class NumericSensorHandler
         const std::shared_ptr<pldm_numeric_sensor_value_pdr>& pdr);
 
     /** @brief Init NumericSensorHandler*/
-    bool sensorHandlerInit(boost::asio::yield_context& yield);
+    bool sensorHandlerInit(boost::asio::yield_context yield);
 
     /** @brief Read sensor value and update interfaces*/
-    bool populateSensorValue(boost::asio::yield_context& yield);
+    bool populateSensorValue(boost::asio::yield_context yield);
 
     /**@brief Check sensor is disabled or not*/
     bool isSensorDisabled()
@@ -56,7 +56,7 @@ class NumericSensorHandler
 
   private:
     /** @brief  Enable sensor*/
-    bool setNumericSensorEnable(boost::asio::yield_context& yield);
+    bool setNumericSensorEnable(boost::asio::yield_context yield);
 
     /** @brief  Get supported thresholds from PDR*/
     void getSupportedThresholds(
@@ -66,7 +66,7 @@ class NumericSensorHandler
     bool initSensor();
 
     /** @brief fetch the sensor value*/
-    bool getSensorReading(boost::asio::yield_context& yield);
+    bool getSensorReading(boost::asio::yield_context yield);
 
     /** @brief Decode sensor value and D-Bus interfaces*/
     bool handleSensorReading(uint8_t sensorOperationalState,

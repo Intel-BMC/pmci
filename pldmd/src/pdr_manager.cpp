@@ -108,7 +108,7 @@ static void printPDRResp(const RecordHandle& recordHandle,
 }
 
 std::optional<pldm_pdr_repository_info>
-    PDRManager::getPDRRepositoryInfo(boost::asio::yield_context& yield)
+    PDRManager::getPDRRepositoryInfo(boost::asio::yield_context yield)
 {
     int rc;
     std::vector<uint8_t> req(sizeof(PLDMEmptyRequest));
@@ -213,7 +213,7 @@ static bool handleGetPDRResp(pldm_tid_t tid, std::vector<uint8_t>& resp,
     return true;
 }
 
-bool PDRManager::getDevicePDRRecord(boost::asio::yield_context& yield,
+bool PDRManager::getDevicePDRRecord(boost::asio::yield_context yield,
                                     const RecordHandle recordHandle,
                                     RecordHandle& nextRecordHandle,
                                     std::vector<uint8_t>& pdrRecord)
@@ -298,7 +298,7 @@ bool PDRManager::getDevicePDRRecord(boost::asio::yield_context& yield,
 }
 
 bool PDRManager::getDevicePDRRepo(
-    boost::asio::yield_context& yield, uint32_t recordCount,
+    boost::asio::yield_context yield, uint32_t recordCount,
     std::unordered_map<RecordHandle, std::vector<uint8_t>>& devicePDRs)
 {
     RecordHandle recordHandle = 0x00;
@@ -367,7 +367,7 @@ bool PDRManager::addDevicePDRToRepo(
     return true;
 }
 
-bool PDRManager::constructPDRRepo(boost::asio::yield_context& yield)
+bool PDRManager::constructPDRRepo(boost::asio::yield_context yield)
 {
     uint32_t recordCount = pdrRepoInfo.record_count;
 
@@ -1496,7 +1496,7 @@ std::shared_ptr<StateEffecterPDR>
     return nullptr;
 }
 
-bool PDRManager::pdrManagerInit(boost::asio::yield_context& yield)
+bool PDRManager::pdrManagerInit(boost::asio::yield_context yield)
 {
     std::optional<pldm_pdr_repository_info> pdrInfo =
         getPDRRepositoryInfo(yield);

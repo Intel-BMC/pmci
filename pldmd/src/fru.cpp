@@ -512,8 +512,7 @@ bool deleteFRUDevice(const pldm_tid_t tid)
     return true;
 }
 
-int setFruRecordTableCmd(boost::asio::yield_context& yield,
-                         const pldm_tid_t tid,
+int setFruRecordTableCmd(boost::asio::yield_context yield, const pldm_tid_t tid,
                          const std::vector<uint8_t>& setFruData)
 {
     auto it = terminusFRUMetadata.find(tid);

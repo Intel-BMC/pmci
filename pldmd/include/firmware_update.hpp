@@ -31,41 +31,40 @@ class FWUpdate
 {
   public:
     FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord);
-    int runUpdate(const boost::asio::yield_context& yield);
+    int runUpdate(const boost::asio::yield_context yield);
     void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t messageTag,
                                 const bool _tagOwner,
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
-    void terminateFwUpdate(const boost::asio::yield_context& yield);
+    void terminateFwUpdate(const boost::asio::yield_context yield);
 
     template <typename propertyType>
-    void updateFWUProperty(const boost::asio::yield_context& yield,
+    void updateFWUProperty(const boost::asio::yield_context yield,
                            const std::string& interfaceName,
                            const std::string& propertyName,
                            const propertyType& propertyValue);
 
   private:
     bool isComponentApplicable();
-    boost::system::error_code
-        startTimer(const boost::asio::yield_context& yield,
-                   const uint32_t interval);
+    boost::system::error_code startTimer(const boost::asio::yield_context yield,
+                                         const uint32_t interval);
     uint32_t findMaxNumReq(const uint32_t size)
     {
         return (1 + (size / PLDM_FWU_BASELINE_TRANSFER_SIZE)) * 3;
     }
     uint64_t getApplicableComponents();
 
-    int processRequestUpdate(const boost::asio::yield_context& yield);
-    int requestUpdate(const boost::asio::yield_context& yield,
+    int processRequestUpdate(const boost::asio::yield_context yield);
+    int requestUpdate(const boost::asio::yield_context yield,
                       struct variable_field& compImgSetVerStrn);
-    int sendPackageData(const boost::asio::yield_context& yield);
-    int doGetDeviceMetaData(const boost::asio::yield_context& yield,
+    int sendPackageData(const boost::asio::yield_context yield);
+    int doGetDeviceMetaData(const boost::asio::yield_context yield,
                             const uint32_t dataTransferHandle,
                             const uint8_t transferOperationFlag,
                             uint32_t& nextDataTransferHandle,
                             uint8_t& transferFlag,
                             std::vector<uint8_t>& portionOfMetaData);
-    int getDeviceMetaData(const boost::asio::yield_context& yield,
+    int getDeviceMetaData(const boost::asio::yield_context yield,
                           const uint32_t dataTransferHandle,
                           const uint8_t transferOperationFlag,
                           uint32_t& nextDataTransferHandle,
@@ -77,25 +76,25 @@ class FWUpdate
     uint8_t setTransferFlag(const uint32_t offset, const uint32_t length,
                             const uint32_t dataSize);
     uint32_t calcMaxNumReq(const uint32_t dataSize);
-    int processPassComponentTable(const boost::asio::yield_context& yield);
+    int processPassComponentTable(const boost::asio::yield_context yield);
     int passComponentTable(
-        const boost::asio::yield_context& yield,
+        const boost::asio::yield_context yield,
         const struct pass_component_table_req& componentTable,
         struct variable_field& compImgSetVerStr, uint8_t& compResp,
         uint8_t& compRespCode);
-    int processUpdateComponent(const boost::asio::yield_context& yield,
+    int processUpdateComponent(const boost::asio::yield_context yield,
                                uint8_t& compCompatabilityResp,
                                uint8_t& compCompatabilityRespCode,
                                bitfield32_t& updateOptFlagsEnabled,
                                uint16_t& estimatedTimeReqFd);
-    int updateComponent(const boost::asio::yield_context& yield,
+    int updateComponent(const boost::asio::yield_context yield,
                         const struct update_component_req& component,
                         variable_field& compVerStr,
                         uint8_t& compCompatabilityResp,
                         uint8_t& compCompatabilityRespCode,
                         bitfield32_t& updateOptFlagsEnabled,
                         uint16_t& estimatedTimeReqFd);
-    int processRequestFirmwareData(const boost::asio::yield_context& yield,
+    int processRequestFirmwareData(const boost::asio::yield_context yield,
                                    const uint32_t componentSize,
                                    const uint32_t componentOffset);
     int requestFirmwareData(const std ::vector<uint8_t>& pldmReq,
@@ -119,21 +118,21 @@ class FWUpdate
                              bitfield16_t& compActivationMethodsModification);
     int applyComplete(const std::vector<uint8_t>& pldmReq, uint8_t& applyResult,
                       bitfield16_t& compActivationMethodsModification);
-    int sendMetaData(const boost::asio::yield_context& yield);
+    int sendMetaData(const boost::asio::yield_context yield);
     int processActivateFirmware(
-        const boost::asio::yield_context& yield,
+        const boost::asio::yield_context yield,
         bool8_t selfContainedActivationReq,
         uint16_t& estimatedTimeForSelfContainedActivation);
-    int activateFirmware(const boost::asio::yield_context& yield,
+    int activateFirmware(const boost::asio::yield_context yield,
                          bool8_t selfContainedActivationReq,
                          uint16_t& estimatedTimeForSelfContainedActivation);
-    int getStatus(const boost::asio::yield_context& yield);
-    int doCancelUpdateComponent(const boost::asio::yield_context& yield);
-    int cancelUpdateComponent(const boost::asio::yield_context& yield);
-    int doCancelUpdate(const boost::asio::yield_context& yield,
+    int getStatus(const boost::asio::yield_context yield);
+    int doCancelUpdateComponent(const boost::asio::yield_context yield);
+    int cancelUpdateComponent(const boost::asio::yield_context yield);
+    int doCancelUpdate(const boost::asio::yield_context yield,
                        bool8_t& nonFunctioningComponentIndication,
                        bitfield64_t& nonFunctioningComponentBitmap);
-    int cancelUpdate(const boost::asio::yield_context& yield,
+    int cancelUpdate(const boost::asio::yield_context yield,
                      bool8_t& nonFunctioningComponentIndication,
                      bitfield64_t& nonFunctioningComponentBitmap);
     bool sendErrorCompletionCode(const uint8_t fdInstanceId,

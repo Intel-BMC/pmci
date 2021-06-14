@@ -188,8 +188,7 @@ void StateEffecterHandler::updateState(const uint8_t currentState,
     }
 }
 
-bool StateEffecterHandler::enableStateEffecter(
-    boost::asio::yield_context& yield)
+bool StateEffecterHandler::enableStateEffecter(boost::asio::yield_context yield)
 {
     uint8_t effecterOpState;
     switch (_pdr->stateEffecterData.effecter_init)
@@ -351,7 +350,7 @@ bool StateEffecterHandler::handleStateEffecterState(
 }
 
 bool StateEffecterHandler::getStateEffecterStates(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -407,7 +406,7 @@ bool StateEffecterHandler::getStateEffecterStates(
 }
 
 bool StateEffecterHandler::populateEffecterValue(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     if (!getStateEffecterStates(yield))
     {
@@ -434,7 +433,7 @@ bool StateEffecterHandler::isEffecterStateSettable(const uint8_t state)
     return false;
 }
 
-bool StateEffecterHandler::setEffecter(boost::asio::yield_context& yield,
+bool StateEffecterHandler::setEffecter(boost::asio::yield_context yield,
                                        const uint8_t state)
 {
     int rc;
@@ -556,8 +555,7 @@ void StateEffecterHandler::registerSetEffecter()
     setEffecterInterface->initialize();
 }
 
-bool StateEffecterHandler::effecterHandlerInit(
-    boost::asio::yield_context& yield)
+bool StateEffecterHandler::effecterHandlerInit(boost::asio::yield_context yield)
 {
     transitionIntervalTimer =
         std::make_unique<boost::asio::steady_timer>(*getIoContext());

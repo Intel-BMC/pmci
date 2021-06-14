@@ -48,7 +48,7 @@ static bool validateReserveBW(const pldm_tid_t tid, const uint8_t pldmType)
     return rsvBWActive && !(tid == reservedTID && pldmType == reservedPLDMType);
 }
 
-bool reserveBandwidth(const boost::asio::yield_context& yield,
+bool reserveBandwidth(const boost::asio::yield_context yield,
                       const pldm_tid_t tid, const uint8_t pldmType,
                       const uint16_t timeout)
 {
@@ -90,7 +90,7 @@ bool reserveBandwidth(const boost::asio::yield_context& yield,
     return true;
 }
 
-bool releaseBandwidth(const boost::asio::yield_context& yield,
+bool releaseBandwidth(const boost::asio::yield_context yield,
                       const pldm_tid_t tid, const uint8_t pldmType)
 {
     if (!rsvBWActive)
@@ -492,7 +492,7 @@ uint8_t createInstanceId(pldm_tid_t tid)
 }
 } // namespace pldm
 
-void initDevice(const mctpw_eid_t eid, boost::asio::yield_context& yield)
+void initDevice(const mctpw_eid_t eid, boost::asio::yield_context yield)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Initializing MCTP EID " + std::to_string(eid)).c_str());
@@ -561,7 +561,7 @@ extern void setObjServer(
     const std::shared_ptr<sdbusplus::asio::object_server>& newServer);
 
 void onDeviceUpdate(void*, const mctpw::Event& evt,
-                    boost::asio::yield_context& yield)
+                    boost::asio::yield_context yield)
 {
     switch (evt.type)
     {

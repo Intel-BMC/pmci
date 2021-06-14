@@ -289,8 +289,7 @@ bool StateSensorHandler::handleSensorReading(
     return true;
 }
 
-bool StateSensorHandler::setStateSensorEnables(
-    boost::asio::yield_context& yield)
+bool StateSensorHandler::setStateSensorEnables(boost::asio::yield_context yield)
 {
     uint8_t sensorOpState;
     switch (_pdr->stateSensorData.sensor_init)
@@ -371,7 +370,7 @@ bool StateSensorHandler::setStateSensorEnables(
 }
 
 bool StateSensorHandler::getStateSensorReadings(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -420,7 +419,7 @@ bool StateSensorHandler::getStateSensorReadings(
     return handleSensorReading(stateField[0]);
 }
 
-bool StateSensorHandler::populateSensorValue(boost::asio::yield_context& yield)
+bool StateSensorHandler::populateSensorValue(boost::asio::yield_context yield)
 {
     // No need to read the sensor if it is disabled
     if (_pdr->stateSensorData.sensor_init == PLDM_SENSOR_DISABLE)
@@ -435,7 +434,7 @@ bool StateSensorHandler::populateSensorValue(boost::asio::yield_context& yield)
     return true;
 }
 
-bool StateSensorHandler::sensorHandlerInit(boost::asio::yield_context& yield)
+bool StateSensorHandler::sensorHandlerInit(boost::asio::yield_context yield)
 {
     if (!setStateSensorEnables(yield))
     {

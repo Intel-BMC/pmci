@@ -41,7 +41,7 @@ class StateEffecterHandler
                          const std::shared_ptr<StateEffecterPDR>& pdr);
 
     /** @brief Init StateEffecterHandler*/
-    bool effecterHandlerInit(boost::asio::yield_context& yield);
+    bool effecterHandlerInit(boost::asio::yield_context yield);
 
   private:
     /** @brief Initialize initial D-Bus interfaces and properties*/
@@ -63,23 +63,23 @@ class StateEffecterHandler
     void updateState(const uint8_t currentState, const uint8_t pendingState);
 
     /** @brief  Enable effecter*/
-    bool enableStateEffecter(boost::asio::yield_context& yield);
+    bool enableStateEffecter(boost::asio::yield_context yield);
 
     /** @brief Handle effecter reading*/
     bool handleStateEffecterState(boost::asio::yield_context yield,
                                   get_effecter_state_field& stateReading);
 
     /** @brief fetch the effecter value*/
-    bool getStateEffecterStates(boost::asio::yield_context& yield);
+    bool getStateEffecterStates(boost::asio::yield_context yield);
 
     /** @brief Read effecter value and update interfaces*/
-    bool populateEffecterValue(boost::asio::yield_context& yield);
+    bool populateEffecterValue(boost::asio::yield_context yield);
 
     /** @brief Validate the effecter value is supported*/
     bool isEffecterStateSettable(const uint8_t state);
 
     /** @brief Set effecter value*/
-    bool setEffecter(boost::asio::yield_context& yield, const uint8_t value);
+    bool setEffecter(boost::asio::yield_context yield, const uint8_t value);
 
     /** @brief Register D-Bus interfaces for SetEffecterValue*/
     void registerSetEffecter();

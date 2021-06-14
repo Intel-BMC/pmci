@@ -46,7 +46,7 @@ NumericEffecterHandler::~NumericEffecterHandler()
 }
 
 bool NumericEffecterHandler::enableNumericEffecter(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     uint8_t effecterOpState;
     switch (_pdr->effecter_init)
@@ -276,7 +276,7 @@ bool NumericEffecterHandler::handleEffecterReading(
 }
 
 bool NumericEffecterHandler::getEffecterReading(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     int rc;
     std::vector<uint8_t> req(pldmMsgHdrSize +
@@ -324,7 +324,7 @@ bool NumericEffecterHandler::getEffecterReading(
 }
 
 bool NumericEffecterHandler::populateEffecterValue(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     if (!getEffecterReading(yield))
     {
@@ -354,7 +354,7 @@ static std::optional<size_t> getEffecterValueSize(const uint8_t dataSize)
     }
 }
 
-bool NumericEffecterHandler::setEffecter(boost::asio::yield_context& yield,
+bool NumericEffecterHandler::setEffecter(boost::asio::yield_context yield,
                                          double& value)
 {
     if (value < minSettable || value > maxSettable)
@@ -507,7 +507,7 @@ void NumericEffecterHandler::registerSetEffecter()
 }
 
 bool NumericEffecterHandler::effecterHandlerInit(
-    boost::asio::yield_context& yield)
+    boost::asio::yield_context yield)
 {
     if (!enableNumericEffecter(yield))
     {

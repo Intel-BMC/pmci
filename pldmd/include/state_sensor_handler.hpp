@@ -41,10 +41,10 @@ class StateSensorHandler
                        const std::shared_ptr<StateSensorPDR>& pdr);
 
     /** @brief Init StateSensorHandler*/
-    bool sensorHandlerInit(boost::asio::yield_context& yield);
+    bool sensorHandlerInit(boost::asio::yield_context yield);
 
     /** @brief Read sensor value and update interfaces*/
-    bool populateSensorValue(boost::asio::yield_context& yield);
+    bool populateSensorValue(boost::asio::yield_context yield);
 
     /**@brief Check sensor is disabled or not*/
     bool isSensorDisabled()
@@ -54,10 +54,10 @@ class StateSensorHandler
 
   private:
     /** @brief Enable/Disable sensor*/
-    bool setStateSensorEnables(boost::asio::yield_context& yield);
+    bool setStateSensorEnables(boost::asio::yield_context yield);
 
     /** @brief fetch the sensor value*/
-    bool getStateSensorReadings(boost::asio::yield_context& yield);
+    bool getStateSensorReadings(boost::asio::yield_context yield);
 
     /** @brief Set initial D-Bus interfaces and properties*/
     void setInitialProperties();
