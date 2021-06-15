@@ -389,7 +389,7 @@ bool PCIeBinding::handleGetVdmSupport(mctp_eid_t destEid, void* bindingPrivate,
 
     mctp_astpcie_pkt_private* pciePrivate =
         reinterpret_cast<mctp_astpcie_pkt_private*>(bindingPrivate);
-    pciePrivate->routing = PCIE_ROUTE_TO_RC;
+    pciePrivate->routing = PCIE_ROUTE_BY_ID;
 
     /* Cast to full binding specific response. */
     mctp_pci_ctrl_resp_get_vdm_support* resp =
