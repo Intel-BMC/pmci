@@ -404,8 +404,10 @@ void FWInventoryInfo::addCompDataToDBus()
             "ActiveComponentReleaseDate",
             std::get<uint64_t>(compProps["ActiveComponentReleaseDate"]));
         activeCompInfoIntf->register_property(
-            "ComponentAutoApply", getCompAutoApply(std::get<uint32_t>(
-                                      compProps["CapabilitiesDuringUpdate"])));
+            "ComponentAutoApply",
+            getCompAutoApply(
+                (std::get<bitfield32_t>(compProps["CapabilitiesDuringUpdate"]))
+                    .value));
         std::string activeCompStr =
             std::get<std::string>(compProps["ActiveComponentVersionString"]);
         std::replace_if(
@@ -417,10 +419,12 @@ void FWInventoryInfo::addCompDataToDBus()
         // to separate interfaces.
         activeCompInfoIntf->register_property(
             "ComponentActivationMethods",
-            std::get<uint16_t>(compProps["ComponentActivationMethods"]));
+            (std::get<bitfield16_t>(compProps["ComponentActivationMethods"]))
+                .value);
         activeCompInfoIntf->register_property(
             "CapabilitiesDuringUpdate",
-            std::get<uint32_t>(compProps["CapabilitiesDuringUpdate"]));
+            (std::get<bitfield32_t>(compProps["CapabilitiesDuringUpdate"]))
+                .value);
         activeCompInfoIntf->initialize();
 
         auto pendingCompInfoIntf = objServer->add_unique_interface(
