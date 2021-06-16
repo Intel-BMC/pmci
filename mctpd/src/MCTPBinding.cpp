@@ -2017,7 +2017,7 @@ bool MctpBinding::isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID)
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Endpoint needs re-registration");
-        unregisterEndpoint(eid);
+        unregisterEndpoint(eidFromTable.value());
         // Give priority for EID from UUID table while re-registering
         eid = eidFromTable.value();
     }
@@ -2029,7 +2029,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     const std::vector<uint8_t>& bindingPrivate, mctp_eid_t eid)
 {
     MctpVersionSupportCtrlResp getMctpControlVersion = {};
-    if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, eid,
+    if (!(getMctpVersionSupportCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL,
                                        MCTP_MESSAGE_TYPE_MCTP_CTRL,
                                        &getMctpControlVersion)))
     {
@@ -2041,7 +2041,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     // TODO: Validate MCTP Control message version supported
 
     std::vector<uint8_t> getEidResp = {};
-    if (!(getEidCtrlCmd(yield, bindingPrivate, eid, getEidResp)))
+    if (!(getEidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getEidResp)))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get EID failed");
@@ -2058,14 +2058,20 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     eid = destEID.value();
 
     std::vector<uint8_t> getUuidResp = {};
-    if (!(getUuidCtrlCmd(yield, bindingPrivate, eid, getUuidResp)))
+    if (!(getUuidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getUuidResp)))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get UUID failed");
-        if (isEIDRegistered(eid))
+        if (isEIDRegistered(getEidRespPtr->eid))
         {
-            return eid;
+            return getEidRespPtr->eid;
         }
+
+        if (eid != MCTP_EID_NULL)
+        {
+            unregisterEndpoint(eid);
+        }
+
         // In case EP doesn't support Get UUID set to all 0. This results in
         // nullUUID
         getUuidResp.resize(sizeof(mctp_ctrl_resp_get_uuid), 0);
@@ -2074,9 +2080,9 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     mctp_ctrl_resp_get_uuid* getUuidRespPtr =
         reinterpret_cast<mctp_ctrl_resp_get_uuid*>(getUuidResp.data());
     std::string destUUID = formatUUID(getUuidRespPtr->uuid);
-    if (isEIDMappedToUUID(eid, destUUID))
+    if (isEIDMappedToUUID(getEidRespPtr->eid, destUUID))
     {
-        return eid;
+        return getEidRespPtr->eid;
     }
 
     if (eid == MCTP_EID_NULL)
