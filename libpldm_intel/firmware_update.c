@@ -606,7 +606,7 @@ int encode_get_device_meta_data_req(const uint8_t instance_id,
 				    const uint32_t data_transfer_handle,
 				    const uint8_t transfer_operation_flag)
 {
-	if (msg == NULL || transfer_operation_flag == NULL) {
+	if (msg == NULL) {
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
@@ -676,10 +676,6 @@ int decode_get_device_meta_data_resp(
 	}
 
 	*transfer_flag = response->transfer_flag;
-
-	if (portion_of_meta_data->ptr == NULL) {
-		return PLDM_ERROR_INVALID_DATA;
-	}
 
 	portion_of_meta_data->ptr =
 	    msg->payload + sizeof(struct get_device_meta_data_resp);
