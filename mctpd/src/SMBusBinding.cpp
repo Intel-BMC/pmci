@@ -396,23 +396,34 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
     }
 }
 
-void SMBusBinding::scanDevices(boost::asio::yield_context& yield)
+void SMBusBinding::scanDevices()
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Scanning devices");
-    boost::system::error_code ec = boost::asio::error::operation_aborted;
 
     if (!rsvBWActive)
     {
-        initEndpointDiscovery(yield);
+        boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+            initEndpointDiscovery(yield);
+        });
     }
 
     // TODO: Get timer tick frequency from EntityManager
     scanTimer.expires_after(std::chrono::seconds(60));
-    scanTimer.async_wait(yield[ec]);
-    if (ec != boost::asio::error::operation_aborted)
-    {
-        scanDevices(yield);
-    }
+    scanTimer.async_wait([this](const boost::system::error_code& ec) {
+        if (ec == boost::asio::error::operation_aborted)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "Device scanning aborted");
+            return;
+        }
+        if (ec)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Device scanning timer failed");
+            return;
+        }
+        scanDevices();
+    });
 }
 
 void SMBusBinding::restoreMuxIdleMode()
@@ -521,8 +532,7 @@ void SMBusBinding::initializeBinding()
         return;
     }
 
-    boost::asio::spawn(
-        io, [this](boost::asio::yield_context yield) { scanDevices(yield); });
+    scanDevices();
 }
 
 SMBusBinding::~SMBusBinding()

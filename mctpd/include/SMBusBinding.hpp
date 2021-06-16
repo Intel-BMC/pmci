@@ -68,7 +68,7 @@ class SMBusBinding : public MctpBinding
     std::set<std::pair<int, uint8_t>> rootDeviceMap;
     bool addRootDevices;
     std::unordered_map<std::string, std::string> muxIdleModeMap{};
-    void scanDevices(boost::asio::yield_context& yield);
+    void scanDevices();
     std::map<int, int> getMuxFds(const std::string& rootPort);
     void scanPort(const int scanFd,
                   std::set<std::pair<int, uint8_t>>& deviceMap);
