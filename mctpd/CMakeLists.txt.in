@@ -42,6 +42,7 @@ ExternalProject_Add(
 ExternalProject_Add(
   CLIUtils
   GIT_REPOSITORY "https://github.com/CLIUtils/CLI11.git"
+  GIT_TAG 6ca5df8722738149d5db19727e26b2953975d317
   SOURCE_DIR "${CMAKE_BINARY_DIR}/src/CLIUtils"
   BINARY_DIR "${CMAKE_BINARY_DIR}/libs/CLIUtils"
   CONFIGURE_COMMAND ""
