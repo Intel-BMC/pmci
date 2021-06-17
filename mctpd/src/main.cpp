@@ -47,8 +47,8 @@ int main(int argc, char* argv[])
     app.add_option("-b,--binding", binding,
                    "MCTP Physical Binding. Supported: -b smbus, -b pcie")
         ->required();
-    app.add_option("-c,--config", configPath, "Path to configuration file.",
-                   true);
+    app.add_option("-c,--config", configPath, "Path to configuration file.")
+        ->capture_default_str();
     CLI11_PARSE(app, argc, argv);
 
     boost::asio::io_context ioc;
