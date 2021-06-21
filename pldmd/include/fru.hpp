@@ -25,6 +25,10 @@ namespace pldm
 namespace fru
 {
 
+using FRUMetadata = std::map<std::string, uint32_t>;
+using FRUVariantType = std::variant<uint8_t, uint32_t, std::string>;
+using FRUProperties = std::map<std::string, FRUVariantType>;
+
 static constexpr uint16_t timeout = 100;
 static constexpr size_t retryCount = 3;
 constexpr uint8_t timeStamp104Size = 13;
@@ -40,9 +44,6 @@ static inline const std::map<uint8_t, const char*> fruEncodingType{
 static inline const std::map<uint8_t, const char*> fruRecordTypes{
     {PLDM_FRU_RECORD_TYPE_GENERAL, "General"},
     {PLDM_FRU_RECORD_TYPE_OEM, "OEM"}};
-
-static bool addFRUObjectToDbus(const std::string& fruObjPath,
-                               const pldm_tid_t tid);
 
 static void removeInterface(
     std::string& interfacePath,
@@ -83,7 +84,7 @@ class GetPLDMFRU
      * @return PLDM_SUCCESS on success and corresponding error completion code
      * on failure
      */
-    int getFRURecordTableCmd();
+    int getFRURecordTableCmd(FRUProperties& fruProperties);
 
     /** @brief verify Integrity checksum on the FRU Table Data with metadata
      * checksum value
@@ -94,6 +95,7 @@ class GetPLDMFRU
 
     boost::asio::yield_context yield;
     pldm_tid_t tid;
+    FRUMetadata fruMetadata;
 };
 
 class PLDMFRUTable
@@ -103,7 +105,7 @@ class PLDMFRUTable
     PLDMFRUTable(const std::vector<uint8_t> tableVal, const pldm_tid_t tidVal);
     ~PLDMFRUTable();
 
-    bool parseTable();
+    std::optional<FRUProperties> parseTable();
 
   private:
     using FRUFieldParser =
@@ -247,6 +249,7 @@ class PLDMFRUTable
 
     const std::vector<uint8_t> table;
     pldm_tid_t tid;
+    FRUProperties fruProperties;
 };
 
 } // namespace fru

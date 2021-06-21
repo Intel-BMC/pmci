@@ -31,13 +31,7 @@ std::string fruPath = "/xyz/openbmc_project/pldm/fru/";
 std::shared_ptr<sdbusplus::asio::dbus_interface> setFRUIface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> fruInterface;
 
-using FRUMetadata = std::map<std::string, uint32_t>;
-static FRUMetadata fruMetadata;
 static std::map<pldm_tid_t, FRUMetadata> terminusFRUMetadata;
-
-using FRUVariantType = std::variant<uint8_t, uint32_t, std::string>;
-using FRUProperties = std::map<std::string, FRUVariantType>;
-static FRUProperties fruProperties;
 static std::map<pldm_tid_t, FRUProperties> terminusFRUProperties;
 
 constexpr size_t pldmHdrSize = sizeof(pldm_msg_hdr);
@@ -80,7 +74,7 @@ bool PLDMFRUTable::isTableEnd(const uint8_t* pTable)
     return (table.size() - offset) <= fixedFRUBytes;
 }
 
-bool PLDMFRUTable::parseTable()
+std::optional<FRUProperties> PLDMFRUTable::parseTable()
 {
     const uint8_t* pTable = table.data();
     while (!isTableEnd(pTable))
@@ -111,7 +105,7 @@ bool PLDMFRUTable::parseTable()
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "Number of FRU fields cannot be 0.");
-            return false;
+            return std::nullopt;
         }
 
         auto isGeneralRec = false;
@@ -137,9 +131,8 @@ bool PLDMFRUTable::parseTable()
             }
             pTable += sizeof(pldm_fru_record_tlv) - 1 + tlv->length;
         }
-        terminusFRUProperties[tid] = fruProperties;
     }
-    return true;
+    return fruProperties;
 }
 
 PLDMFRUTable::PLDMFRUTable(const std::vector<uint8_t> tableVal,
@@ -155,18 +148,8 @@ PLDMFRUTable::~PLDMFRUTable()
 
 bool GetPLDMFRU::verifyCRC(std::vector<uint8_t>& fruTable)
 {
-    auto it = terminusFRUMetadata.find(tid);
-    if (it == terminusFRUMetadata.end())
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "GetFruRecordTable: no TID match found for CRC check",
-            phosphor::logging::entry("TID=%d", tid));
-        return false;
-    }
-
-    FRUMetadata& tmpMap = it->second;
-    auto crcFound = tmpMap.find("Checksum");
-    if (crcFound == tmpMap.end())
+    auto crcFound = fruMetadata.find("Checksum");
+    if (crcFound == fruMetadata.end())
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "GetFruRecordTable: No CRC-32 available in metadata",
@@ -198,7 +181,38 @@ bool GetPLDMFRU::verifyCRC(std::vector<uint8_t>& fruTable)
     return true;
 }
 
-int GetPLDMFRU::getFRURecordTableCmd()
+static bool addFRUObjectToDbus(const std::string& fruObjPath,
+                               const pldm_tid_t tid,
+                               FRUProperties& fruProperties)
+{
+    auto objServer = getObjServer();
+    std::shared_ptr<sdbusplus::asio::dbus_interface> fruIface =
+        objServer->add_interface(fruObjPath, FRU::interface);
+
+    std::string propertyVal = "";
+    for (auto i : fruProperties)
+    {
+        try
+        {
+            propertyVal = std::get<std::string>(i.second);
+        }
+        catch (const std::bad_variant_access&)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Failed to register FRU property",
+                phosphor::logging::entry("TID=%d", tid));
+            continue;
+        }
+        fruIface->register_property(i.first, propertyVal);
+    }
+
+    fruIface->initialize();
+    fruInterface.push_back(fruIface);
+
+    return true;
+}
+
+int GetPLDMFRU::getFRURecordTableCmd(FRUProperties& fruProperties)
 {
     uint32_t dataTransferHandle = 0;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
@@ -212,30 +226,23 @@ int GetPLDMFRU::getFRURecordTableCmd()
 
     while (transferFlag != PLDM_END && transferFlag != PLDM_START_AND_END)
     {
-        // Check for fruRecordTableLen from metadata FRUTableLength and
-        // multipartTransferLimit
-        auto it = terminusFRUMetadata.find(tid);
-        if (it != terminusFRUMetadata.end())
+        auto fruTableLen = fruMetadata.find("FRUTableLength");
+        if (fruTableLen == fruMetadata.end())
         {
-            FRUMetadata& tmpMap = it->second;
-            auto fruTableLen = tmpMap.find("FRUTableLength");
-            if (fruTableLen == tmpMap.end())
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "GetFruRecordTable: No FRUTableLength available in "
-                    "metadata",
-                    phosphor::logging::entry("TID=%d", tid));
-                return PLDM_ERROR;
-            }
-            if (fruRecordTableData.size() > fruTableLen->second ||
-                !(--multipartTransferLimit))
-            {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    "Max FRU record table length limit reached. Discarding the "
-                    "record",
-                    phosphor::logging::entry("TID=%d", tid));
-                return PLDM_ERROR;
-            }
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "GetFruRecordTable: No FRUTableLength available in "
+                "metadata",
+                phosphor::logging::entry("TID=%d", tid));
+            return PLDM_ERROR;
+        }
+        if (fruRecordTableData.size() > fruTableLen->second ||
+            !(--multipartTransferLimit))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                "Max FRU record table length limit reached. Discarding the "
+                "record",
+                phosphor::logging::entry("TID=%d", tid));
+            return PLDM_ERROR;
         }
 
         uint8_t instanceID = createInstanceId(tid);
@@ -306,16 +313,18 @@ int GetPLDMFRU::getFRURecordTableCmd()
 
     PLDMFRUTable tableParse(std::move(fruRecordTableData), tid);
 
-    if (!tableParse.parseTable())
+    std::optional<FRUProperties> fruProp = tableParse.parseTable();
+    if (!fruProp.has_value())
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to parse fru table data",
             phosphor::logging::entry("TID=%d", tid));
         return PLDM_ERROR_INVALID_DATA;
     }
+    fruProperties = std::move(fruProp.value());
 
     std::string tidFRUObjPath = fruPath + std::to_string(tid);
-    addFRUObjectToDbus(tidFRUObjPath, tid);
+    addFRUObjectToDbus(tidFRUObjPath, tid, fruProperties);
 
     return PLDM_SUCCESS;
 }
@@ -372,7 +381,6 @@ int GetPLDMFRU::getFRURecordTableMetadataCmd()
     fruMetadata["FRUTableMaximumSize"] = fruTableMaximumSize;
     fruMetadata["FRUTableLength"] = fruTableLength;
     fruMetadata["Checksum"] = checksum;
-    terminusFRUMetadata[tid] = fruMetadata;
 
     return PLDM_SUCCESS;
 }
@@ -391,7 +399,6 @@ GetPLDMFRU::~GetPLDMFRU()
 bool GetPLDMFRU::runGetFRUCommands()
 {
     int retVal = getFRURecordTableMetadataCmd();
-
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -400,8 +407,8 @@ bool GetPLDMFRU::runGetFRUCommands()
         return false;
     }
 
-    retVal = getFRURecordTableCmd();
-
+    FRUProperties fruProperties;
+    retVal = getFRURecordTableCmd(fruProperties);
     if (retVal != PLDM_SUCCESS)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -410,46 +417,8 @@ bool GetPLDMFRU::runGetFRUCommands()
         return false;
     }
 
-    return true;
-}
-
-static bool addFRUObjectToDbus(const std::string& fruObjPath,
-                               const pldm_tid_t tid)
-{
-    auto objServer = getObjServer();
-    std::shared_ptr<sdbusplus::asio::dbus_interface> fruIface =
-        objServer->add_interface(fruObjPath, FRU::interface);
-
-    auto it = terminusFRUProperties.find(tid);
-    if (it == terminusFRUProperties.end())
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "No TID match found to populate FRU",
-            phosphor::logging::entry("TID=%d", tid));
-        return false;
-    }
-    FRUProperties& tmpMap = it->second;
-
-    std::string propertyVal = "";
-    for (auto i : tmpMap)
-    {
-        try
-        {
-            propertyVal = std::get<std::string>(i.second);
-        }
-        catch (const std::bad_variant_access&)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Failed to register FRU property",
-                phosphor::logging::entry("TID=%d", tid));
-            continue;
-        }
-        fruIface->register_property(i.first, propertyVal);
-    }
-
-    fruIface->initialize();
-    fruInterface.push_back(fruIface);
-
+    terminusFRUMetadata.insert_or_assign(tid, fruMetadata);
+    terminusFRUProperties.insert_or_assign(tid, std::move(fruProperties));
     return true;
 }
 
@@ -662,8 +631,6 @@ bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)
             phosphor::logging::entry("TID=%d", tid));
     }
 
-    fruMetadata.clear();
-    fruProperties.clear();
     return retVal;
 }
 } // namespace fru
