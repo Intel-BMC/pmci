@@ -2165,6 +2165,7 @@ TEST(PassComponentTable, testBadEncodeRequest)
         &inCompVerStr);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_LENGTH);
 
+    inCompVerStr.length = 0;
     inReq.transfer_flag = PLDM_START_AND_END;
     inReq.comp_classification = COMP_SOFTWARE_BUNDLE + 1;
     inReq.comp_identifier = 0x00;
