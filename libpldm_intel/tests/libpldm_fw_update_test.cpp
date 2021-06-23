@@ -1524,12 +1524,6 @@ TEST(GetDeviceMetaData, testGoodDecodeResponse)
                         responseMsg.data() + hdrSize +
                             sizeof(struct get_device_meta_data_resp),
                         outPortionMetaData.length));
-
-    response->payload[0] = PLDM_ERROR_INVALID_DATA;
-    rc = decode_get_device_meta_data_resp(
-        response, responseMsg.size() - hdrSize, &completionCode,
-        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
-    EXPECT_EQ(rc, DECODE_SUCCESS);
 }
 
 TEST(GetDeviceMetaData, testBadDecodeResponse)
@@ -1589,6 +1583,14 @@ TEST(GetDeviceMetaData, testBadDecodeResponse)
         &nextDataTransferHandle, &transferFlag, NULL);
     EXPECT_EQ(rc, PLDM_ERROR_INVALID_DATA);
 
+    inResp->completion_code = PLDM_ERROR_INVALID_DATA;
+
+    rc = decode_get_device_meta_data_resp(
+        response, responseMsg.size() - hdrSize, &completionCode,
+        &nextDataTransferHandle, &transferFlag, &outPortionMetaData);
+    EXPECT_EQ(rc, DECODE_SUCCESS);
+
+    inResp->completion_code = PLDM_SUCCESS;
     inResp->transfer_flag = PLDM_START - 1;
 
     rc = decode_get_device_meta_data_resp(
