@@ -571,14 +571,14 @@ int decode_request_update_resp(const struct pldm_msg *msg,
 		return PLDM_ERROR_INVALID_DATA;
 	}
 
-	if (payload_length != sizeof(struct pldm_request_update_resp)) {
-		return PLDM_ERROR_INVALID_LENGTH;
-	}
-
 	*completion_code = msg->payload[0];
 
 	if (*completion_code != PLDM_SUCCESS) {
 		return DECODE_SUCCESS;
+	}
+
+	if (payload_length != sizeof(struct pldm_request_update_resp)) {
+		return PLDM_ERROR_INVALID_LENGTH;
 	}
 
 	struct pldm_request_update_resp *response =
