@@ -66,12 +66,7 @@ int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
     uint8_t completionCode = PLDM_SUCCESS;
     uint32_t deviceIdentifiersLen = 0;
     uint8_t descriptorCount = 0;
-    constexpr size_t maxDescriptorDataLen = 255;
-    std::vector<uint8_t> descriptorDataVect(maxDescriptorDataLen);
-
-    struct variable_field descriptorData;
-    descriptorData.length = descriptorDataVect.size();
-    descriptorData.ptr = descriptorDataVect.data();
+    uint8_t* descriptorData = NULL;
 
     retVal = decode_query_device_identifiers_resp(
         msgResp, payloadLen, &completionCode, &deviceIdentifiersLen,
@@ -88,6 +83,14 @@ int FWInventoryInfo::runQueryDeviceIdentifiers(boost::asio::yield_context yield)
         return retVal;
     }
 
+    if (descriptorData == NULL)
+    {
+        return PLDM_ERROR;
+    }
+    std::vector<uint8_t> descriptorDataVect(deviceIdentifiersLen);
+
+    std::copy(descriptorData, descriptorData + deviceIdentifiersLen,
+              descriptorDataVect.begin());
     unpackDescriptors(descriptorCount, descriptorDataVect,
                       initialDescriptorType, descriptors);
     return PLDM_SUCCESS;
@@ -99,7 +102,7 @@ void FWInventoryInfo::copyCompImgSetData(
     const struct variable_field& pendingCompImgSetVerData)
 {
     fwuProperties["CapabilitiesDuringUpdate"] =
-        htole32(respData.capabilities_during_update);
+        htole32(respData.capabilities_during_update.value);
     fwuProperties["ComponentCount"] = htole16(respData.comp_count);
     activeCompImgSetVerStr = toString(activeCompImgSetVerData);
     fwuProperties["ActiveCompImgSetVerStr"] = activeCompImgSetVerStr;
