@@ -29,10 +29,16 @@ using FRU =
 std::string fruPath = "/xyz/openbmc_project/pldm/fru/";
 
 std::shared_ptr<sdbusplus::asio::dbus_interface> setFRUIface;
+std::shared_ptr<sdbusplus::asio::dbus_interface> getFRUIface;
 std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>> fruInterface;
 
 static std::map<pldm_tid_t, FRUMetadata> terminusFRUMetadata;
 static std::map<pldm_tid_t, FRUProperties> terminusFRUProperties;
+
+// Fru record data is saved in byte format as it is received. This data is
+// used by GetPldmFRU method
+using FRUData = std::unordered_map<pldm_tid_t, std::vector<uint8_t>>;
+static FRUData fruData;
 
 constexpr size_t pldmHdrSize = sizeof(pldm_msg_hdr);
 
@@ -311,6 +317,18 @@ int GetPLDMFRU::getFRURecordTableCmd(FRUProperties& fruProperties)
         return PLDM_ERROR;
     }
 
+    auto it = fruData.find(tid);
+    if (it != fruData.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM FRU device already exist for TID " + std::to_string(tid))
+                .c_str());
+        fruData.erase(it);
+    }
+    // Fru record data is saved in byte format as it is received. This data is
+    // used by GetPldmFRU method
+    fruData.emplace(tid, fruRecordTableData);
+
     PLDMFRUTable tableParse(std::move(fruRecordTableData), tid);
 
     std::optional<FRUProperties> fruProp = tableParse.parseTable();
@@ -472,6 +490,20 @@ bool deleteFRUDevice(const pldm_tid_t tid)
     }
     terminusFRUProperties.erase(itr);
 
+    auto itData = fruData.find(tid);
+    if (itData == fruData.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM FRU device not available for TID " + std::to_string(tid))
+                .c_str());
+        // terminusFRUMeta[tid] is present, which is cleared.
+        // terminusFRUProperties[tid] is cleared .NO fruData present meaning
+        // terminusFRUProperties / fruInterface will not be there to clear. So
+        // return true.
+        return true;
+    }
+    fruData.erase(itData);
+
     std::string tidFRUObjPath = fruPath + std::to_string(tid);
     removeInterface(tidFRUObjPath, fruInterface);
 
@@ -479,6 +511,21 @@ bool deleteFRUDevice(const pldm_tid_t tid)
         ("PLDM FRU device resource deleted for TID " + std::to_string(tid))
             .c_str());
     return true;
+}
+
+std::optional<std::vector<uint8_t>> GetPLDMFRU::getPLDMFruRecordData()
+{
+    auto it = terminusFRUMetadata.find(tid);
+    auto itr = fruData.find(tid);
+    if (it == terminusFRUMetadata.end() || itr == fruData.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("PLDM FRU device not matched for TID " + std::to_string(tid))
+                .c_str());
+        return std::nullopt;
+    }
+
+    return itr->second;
 }
 
 int setFruRecordTableCmd(boost::asio::yield_context yield, const pldm_tid_t tid,
@@ -591,6 +638,30 @@ int setFruRecordTableCmd(boost::asio::yield_context yield, const pldm_tid_t tid,
     return PLDM_SUCCESS;
 }
 
+static void initializeGetFruIntf()
+{
+    auto objServer = getObjServer();
+    getFRUIface = objServer->add_interface("/xyz/openbmc_project/pldm/fru",
+                                           "xyz.openbmc_project.PLDM.GetFRU");
+    getFRUIface->register_method(
+        "GetPldmFRU",
+        [](boost::asio::yield_context yieldVal, const pldm_tid_t tidVal) {
+            GetPLDMFRU fruManager(yieldVal, tidVal);
+            std::optional<std::vector<uint8_t>> retVal =
+                fruManager.getPLDMFruRecordData();
+
+            if (!retVal)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Failed to get GetFruRecordTable details");
+                throw std::system_error(
+                    std::make_error_code(std::errc::no_message_available));
+            }
+            return std::move(retVal).value();
+        });
+    getFRUIface->initialize();
+}
+
 static void initializeFRUBase()
 {
     auto objServer = getObjServer();
@@ -612,6 +683,15 @@ static void initializeFRUBase()
             return retVal;
         });
     setFRUIface->initialize();
+
+    if (auto envPtr = std::getenv("PLDM_DEBUG"))
+    {
+        std::string value(envPtr);
+        if (value == "1")
+        {
+            initializeGetFruIntf();
+        }
+    }
 }
 
 bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)

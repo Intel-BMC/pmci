@@ -71,6 +71,14 @@ class GetPLDMFRU
      */
     bool runGetFRUCommands();
 
+    /** @brief returns the FruRecord table
+     *
+     * @return FruRecord table on success; empty table otherwise
+     * on failure
+     * This is used for validation.
+     */
+    std::optional<std::vector<uint8_t>> getPLDMFruRecordData();
+
   private:
     /** @brief run GetFRURecordTableMetadata command
      *
