@@ -297,7 +297,7 @@ struct component_parameter_table {
  */
 struct get_firmware_parameters_resp {
 	uint8_t completion_code;
-	bitfield32_t capabilities_during_update;
+	uint32_t capabilities_during_update;
 	uint16_t comp_count;
 	uint8_t active_comp_image_set_ver_str_type;
 	uint8_t active_comp_image_set_ver_str_len;
@@ -412,12 +412,10 @@ int encode_query_device_identifiers_req(const uint8_t instance_id,
  *  @param[out] descriptor_data - Pointer to descriptor data
  *  @return pldm_completion_codes
  */
-int decode_query_device_identifiers_resp(const struct pldm_msg *msg,
-					 const size_t payload_length,
-					 uint8_t *completion_code,
-					 uint32_t *device_identifiers_len,
-					 uint8_t *descriptor_count,
-					 uint8_t **descriptor_data);
+int decode_query_device_identifiers_resp(
+    const struct pldm_msg *msg, const size_t payload_length,
+    uint8_t *completion_code, uint32_t *device_identifiers_len,
+    uint8_t *descriptor_count, struct variable_field *descriptor_data);
 
 /* GetFirmwareParameters */
 

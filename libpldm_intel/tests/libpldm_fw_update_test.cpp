@@ -1013,9 +1013,12 @@ TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
     uint8_t completionCode = PLDM_SUCCESS;
     uint32_t deviceIdentifiersLen = 0;
     uint8_t descriptorCount = 0;
-    uint8_t* outDescriptorData = nullptr;
     // descriptorDataLen is not fixed here taking it as 6
     constexpr uint8_t descriptorDataLen = 6;
+    std::array<uint8_t, descriptorDataLen> descriptorData;
+    struct variable_field outDescriptorData;
+    outDescriptorData.length = descriptorData.size();
+    outDescriptorData.ptr = descriptorData.data();
 
     std::array<uint8_t, hdrSize + sizeof(struct query_device_identifiers_resp) +
                             descriptorDataLen>
@@ -1044,8 +1047,7 @@ TEST(QueryDeviceIdentifiers, testGoodDecodeResponse)
     EXPECT_EQ(deviceIdentifiersLen, inResp->device_identifiers_len);
     EXPECT_EQ(descriptorCount, inResp->descriptor_count);
     EXPECT_EQ(true,
-              std::equal(outDescriptorData,
-                         outDescriptorData + deviceIdentifiersLen,
+              std::equal(descriptorData.begin(), descriptorData.end() - 1,
                          responseMsg.data() + hdrSize +
                              sizeof(struct query_device_identifiers_resp)));
 }
@@ -1081,7 +1083,7 @@ TEST(GetFWParams, testGoodDecodeCompImgSetResponse)
         reinterpret_cast<struct get_firmware_parameters_resp*>(response.data() +
                                                                hdrSize);
     inResp->completion_code = PLDM_SUCCESS;
-    inResp->capabilities_during_update.value = 0x0F;
+    inResp->capabilities_during_update = 0x0F;
     inResp->comp_count = 1;
     inResp->active_comp_image_set_ver_str_type = 1;
     inResp->active_comp_image_set_ver_str_len = activeCompImageSetVerStrLen;
@@ -1114,8 +1116,8 @@ TEST(GetFWParams, testGoodDecodeCompImgSetResponse)
     EXPECT_EQ(rc, PLDM_SUCCESS);
     EXPECT_EQ(inResp->completion_code, PLDM_SUCCESS);
 
-    EXPECT_EQ(inResp->capabilities_during_update.value,
-              outResp.capabilities_during_update.value);
+    EXPECT_EQ(inResp->capabilities_during_update,
+              outResp.capabilities_during_update);
     EXPECT_EQ(inResp->comp_count, outResp.comp_count);
     EXPECT_EQ(inResp->active_comp_image_set_ver_str_type,
               outResp.active_comp_image_set_ver_str_type);
