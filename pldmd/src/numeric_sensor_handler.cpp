@@ -274,7 +274,7 @@ bool NumericSensorHandler::handleSensorReading(
             if (_pdr->sensor_data_size != sensorDataSize)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Invalid sensor reading. Sensor data size missmatch",
+                    "Invalid sensor reading. Sensor data size mismatch",
                     phosphor::logging::entry("TID=%d", _tid),
                     phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
                     phosphor::logging::entry("DATA_SIZE=%d", sensorDataSize));

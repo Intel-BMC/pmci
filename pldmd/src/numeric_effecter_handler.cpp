@@ -207,7 +207,7 @@ bool NumericEffecterHandler::handleEffecterReading(
             if (_pdr->effecter_data_size != effecterDataSize)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Invalid effecter reading. Effecter data size missmatch",
+                    "Invalid effecter reading. Effecter data size mismatch",
                     phosphor::logging::entry("TID=%d", _tid),
                     phosphor::logging::entry("EFFECTER_ID=0x%0X", _effecterID),
                     phosphor::logging::entry("DATA_SIZE=%d", effecterDataSize));
