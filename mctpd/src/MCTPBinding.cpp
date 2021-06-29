@@ -555,6 +555,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                 }
                 if (!message->response)
                 {
+                    transmissionQueue.dispose(dstEid, message);
                     phosphor::logging::log<phosphor::logging::level::ERR>(
                         "No response");
                     throw std::system_error(
@@ -1861,6 +1862,9 @@ void MctpBinding::populateEndpointProperties(
         vendorIdInterface.emplace(epProperties.endpointEid,
                                   std::move(vendorIdIntf));
     }
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        ("Device Registered: EID = " + std::to_string(epProperties.endpointEid))
+            .c_str());
 }
 
 mctp_server::BindingModeTypes MctpBinding::getEndpointType(const uint8_t types)
@@ -2254,13 +2258,13 @@ void MctpBinding::removeInterface(mctp_eid_t eid,
 
 void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
 {
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        ("Unregistering EID = " + std::to_string(eid)).c_str());
-
     removeInterface(eid, endpointInterface);
     removeInterface(eid, msgTypeInterface);
     removeInterface(eid, uuidInterface);
     removeInterface(eid, vendorIdInterface);
+
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        ("Device Unregistered: EID = " + std::to_string(eid)).c_str());
 }
 
 std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)

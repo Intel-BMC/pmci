@@ -741,11 +741,6 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
             {
                 smbusDeviceTable.push_back(
                     std::make_pair(eid.value(), smbusBindingPvt));
-
-                phosphor::logging::log<phosphor::logging::level::INFO>(
-                    ("New Device Registered: EID = " +
-                     std::to_string(eid.value()))
-                        .c_str());
             }
         }
         else
