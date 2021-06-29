@@ -128,7 +128,8 @@ void FWInventoryInfo::copyCompData(
     compProperties["ActiveComponentComparisonStamp"] =
         componentData->active_comp_comparison_stamp;
     compProperties["ActiveComponentReleaseDate"] =
-        reinterpret_cast<uint64_t>(componentData->active_comp_release_date);
+        le64toh(*reinterpret_cast<const uint64_t*>(
+            componentData->active_comp_release_date));
     std::string activeCompVerStr(
         reinterpret_cast<const char*>(activeCompVerData->ptr),
         activeCompVerData->length);
@@ -137,7 +138,8 @@ void FWInventoryInfo::copyCompData(
     compProperties["PendingComponentComparisonStamp"] =
         componentData->pending_comp_comparison_stamp;
     compProperties["PendingComponentReleaseDate"] =
-        reinterpret_cast<uint64_t>(componentData->pending_comp_release_date);
+        le64toh(*reinterpret_cast<const uint64_t*>(
+            componentData->pending_comp_release_date));
     std::string pendingCompVerStr(
         reinterpret_cast<const char*>(pendingCompVerData->ptr),
         pendingCompVerData->length);
