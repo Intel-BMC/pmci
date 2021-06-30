@@ -61,6 +61,30 @@ struct PLDMEmptyRequest
     struct pldm_msg_hdr header;
 } __attribute__((packed));
 
+/** @brief  Manage EID-TID mapping */
+struct TIDMapper
+{
+    // Mapper will have 1:1 mapping between TID and EID
+    using TIDMap = std::unordered_map<
+    pldm_tid_t, /*TID as key*/
+    mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
+
+  public:
+    void addEntry(const pldm_tid_t tid, const mctpw_eid_t eid);
+    void removeEntry(const pldm_tid_t tid);
+    std::optional<pldm_tid_t> getMappedTID(const mctpw_eid_t eid);
+    std::optional<mctpw_eid_t> getMappedEID(const pldm_tid_t tid);
+    TIDMap getTIDMap()
+    {
+        return tidMap;
+    }
+
+  private:
+    TIDMap tidMap;
+};
+
+extern TIDMapper tidMapper;
+
 /** @brief Creates new Instance ID for PLDM messages
  *
  * Generated instance ID will be unique for each TID
@@ -137,12 +161,6 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
                             size_t retryCount, std::vector<uint8_t> pldmReq,
                             std::vector<uint8_t>& pldmResp,
                             std::optional<mctpw_eid_t> eid = std::nullopt);
-
-// Helper functions to manage EID-TID mapping
-void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid);
-void removeFromMapper(const pldm_tid_t tid);
-std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid);
-std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid);
 
 /** @brief Validate PLDM message encode
  *

@@ -687,7 +687,7 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     {
         uuidMapping.emplace(uuid.value(), tid);
     }
-    addToMapper(tid, eid);
+    tidMapper.addEntry(tid, eid);
     discoveryDataTable.insert_or_assign(tid, DiscoveryData({cmdSupportTable}));
     return true;
 }
@@ -704,7 +704,7 @@ bool deleteDeviceBaseInfo(const pldm_tid_t tid)
         auto const& [uuid, mappedTID] = *itr;
         releaseTIDAfterReclaimInterval(mappedTID);
     }
-    removeFromMapper(tid);
+    tidMapper.removeEntry(tid);
     return discoveryDataTable.erase(tid) == 1;
 }
 

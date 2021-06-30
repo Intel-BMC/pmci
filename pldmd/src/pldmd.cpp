@@ -33,15 +33,12 @@ bool debug = false;
 namespace pldm
 {
 
-// Mapper will have 1:1 mapping between TID and EID
-using Mapper = std::unordered_map<
-    pldm_tid_t, /*TID as key*/
-    mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
-static Mapper tidMapper;
-
 static bool rsvBWActive = false;
 static pldm_tid_t reservedTID = pldmInvalidTid;
 static uint8_t reservedPLDMType = pldmInvalidType;
+
+TIDMapper tidMapper;
+std::unique_ptr<mctpw::MCTPWrapper> mctpWrapper;
 
 static bool validateReserveBW(const pldm_tid_t tid, const uint8_t pldmType)
 {
@@ -62,7 +59,7 @@ bool reserveBandwidth(const boost::asio::yield_context yield,
         return false;
     }
     mctpw_eid_t eid = 0;
-    if (auto eidPtr = getEidFromMapper(tid))
+    if (auto eidPtr = tidMapper.getMappedEID(tid))
     {
         eid = *eidPtr;
     }
@@ -105,7 +102,7 @@ bool releaseBandwidth(const boost::asio::yield_context yield,
             "releaseBandwidth: Invalid TID or pldm type");
         return false;
     }
-    std::optional<mctpw_eid_t> eid = getEidFromMapper(tid);
+    std::optional<mctpw_eid_t> eid = tidMapper.getMappedEID(tid);
     if (eid == std::nullopt)
     {
         return false;
@@ -129,11 +126,10 @@ bool releaseBandwidth(const boost::asio::yield_context yield,
     reservedPLDMType = pldmInvalidType;
     return true;
 }
-std::unique_ptr<mctpw::MCTPWrapper> mctpWrapper;
 
-std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
+std::optional<pldm_tid_t> TIDMapper::getMappedTID(const mctpw_eid_t eid)
 {
-    for (auto& eidMap : tidMapper)
+    for (auto& eidMap : tidMap)
     {
         if (eidMap.second == eid)
         {
@@ -145,18 +141,18 @@ std::optional<pldm_tid_t> getTidFromMapper(const mctpw_eid_t eid)
     return std::nullopt;
 }
 
-void addToMapper(const pldm_tid_t tid, const mctpw_eid_t eid)
+void TIDMapper::addEntry(const pldm_tid_t tid, const mctpw_eid_t eid)
 {
-    tidMapper[tid] = eid;
+    tidMap.insert_or_assign(tid, eid);
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Mapper: TID " + std::to_string(static_cast<int>(tid)) +
          " mapped to EID " + std::to_string(static_cast<int>(eid)))
             .c_str());
 }
 
-void removeFromMapper(const pldm_tid_t tid)
+void TIDMapper::removeEntry(const pldm_tid_t tid)
 {
-    if (1 == tidMapper.erase(tid))
+    if (1 == tidMap.erase(tid))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("TID " + std::to_string(static_cast<int>(tid)) +
@@ -165,10 +161,10 @@ void removeFromMapper(const pldm_tid_t tid)
     }
 }
 
-std::optional<mctpw_eid_t> getEidFromMapper(const pldm_tid_t tid)
+std::optional<mctpw_eid_t> TIDMapper::getMappedEID(const pldm_tid_t tid)
 {
-    auto mapperPtr = tidMapper.find(tid);
-    if (mapperPtr != tidMapper.end())
+    auto mapperPtr = tidMap.find(tid);
+    if (mapperPtr != tidMap.end())
     {
         return mapperPtr->second;
     }
@@ -309,7 +305,7 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
         {
             // A PLDM device removal can cause an update to TID mapper. In such
             // case the retry should be aborted immediately.
-            if (auto eidPtr = getEidFromMapper(tid))
+            if (auto eidPtr = tidMapper.getMappedEID(tid))
             {
                 dstEid = *eidPtr;
             }
@@ -413,7 +409,7 @@ bool sendPldmMessage(const pldm_tid_t tid, const uint8_t msgTag,
     }
 
     mctpw_eid_t dstEid;
-    if (auto eidPtr = getEidFromMapper(tid))
+    if (auto eidPtr = tidMapper.getMappedEID(tid))
     {
         dstEid = *eidPtr;
     }
@@ -454,7 +450,7 @@ auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
     {
         // Discard the packet if no matching TID is found
         // Why: We do not have to process packets from uninitialised Termini
-        if (auto tid = getTidFromMapper(srcEid))
+        if (auto tid = tidMapper.getMappedTID(srcEid))
         {
             utils::printVect("PLDM message received(MCTP payload):", payload);
             payload.erase(payload.begin());
@@ -572,7 +568,7 @@ void onDeviceUpdate(void*, const mctpw::Event& evt,
             break;
         }
         case mctpw::Event::EventType::deviceRemoved: {
-            auto tid = pldm::getTidFromMapper(evt.eid);
+            auto tid = pldm::tidMapper.getMappedTID(evt.eid);
             if (tid)
             {
                 deleteDevice(tid.value());
@@ -611,7 +607,8 @@ int main(void)
     signals.async_wait(
         [&ioc](const boost::system::error_code&, const int sigNum) {
             pldm::platform::pauseSensorPolling();
-            for (auto& [tid, eid] : pldm::tidMapper)
+            pldm::TIDMapper::TIDMap tidMap = pldm::tidMapper.getTIDMap();
+            for (auto& [tid, eid] : tidMap)
             {
                 deleteDevice(tid);
             }
