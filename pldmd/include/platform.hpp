@@ -47,7 +47,7 @@ class Platform
 
   private:
     bool introduceDelayInPolling(boost::asio::yield_context yield);
-    void pollAllSensors(boost::asio::yield_context yield);
+    void pollAllSensors();
     void initSensorPoll();
     void initializeSensorPollIntf();
     void initializePlatformIntf();

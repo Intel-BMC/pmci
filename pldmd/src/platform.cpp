@@ -59,45 +59,49 @@ bool Platform::introduceDelayInPolling(boost::asio::yield_context yield)
 // associated sensors. Which will result in higher number(M*N) of PLDM
 // message traffic through mux. In this case mux switching is a constraint.
 // Thus poll sensors sequentially.
-void Platform::pollAllSensors(boost::asio::yield_context yield)
+void Platform::pollAllSensors()
 {
-    for (auto const& [tid, platformTerminus] : platforms)
-    {
-        for (auto const& [sensorID, numericSensorHandler] :
-             platformTerminus.numericSensors)
+    auto doPoll = [this](boost::asio::yield_context yield) {
+        for (auto const& [tid, platformTerminus] : platforms)
         {
-            if (numericSensorHandler->isSensorDisabled())
+            for (auto const& [sensorID, numericSensorHandler] :
+                 platformTerminus.numericSensors)
             {
-                continue;
+                if (numericSensorHandler->isSensorDisabled())
+                {
+                    continue;
+                }
+                numericSensorHandler->populateSensorValue(yield);
+                if (!introduceDelayInPolling(yield))
+                {
+                    isSensorPollRunning = false;
+                    return;
+                }
+                isSensorPollRunning = true;
             }
-            numericSensorHandler->populateSensorValue(yield);
-            if (!introduceDelayInPolling(yield))
+            for (auto const& [sensorID, stateSensorHandler] :
+                 platformTerminus.stateSensors)
             {
-                isSensorPollRunning = false;
-                return;
+                if (stateSensorHandler->isSensorDisabled())
+                {
+                    continue;
+                }
+                stateSensorHandler->populateSensorValue(yield);
+                if (!introduceDelayInPolling(yield))
+                {
+                    isSensorPollRunning = false;
+                    return;
+                }
+                isSensorPollRunning = true;
             }
-            isSensorPollRunning = true;
         }
-        for (auto const& [sensorID, stateSensorHandler] :
-             platformTerminus.stateSensors)
+        if (isSensorPollRunning)
         {
-            if (stateSensorHandler->isSensorDisabled())
-            {
-                continue;
-            }
-            stateSensorHandler->populateSensorValue(yield);
-            if (!introduceDelayInPolling(yield))
-            {
-                isSensorPollRunning = false;
-                return;
-            }
-            isSensorPollRunning = true;
+            pollAllSensors();
         }
-    }
-    if (isSensorPollRunning)
-    {
-        pollAllSensors(yield);
-    }
+    };
+
+    boost::asio::spawn(*getIoContext(), doPoll);
 }
 
 void Platform::initSensorPoll()
@@ -109,9 +113,7 @@ void Platform::initSensorPoll()
         return;
     }
     sensorTimer = std::make_unique<boost::asio::steady_timer>(*getIoContext());
-    boost::asio::spawn(
-        *getIoContext(),
-        [this](boost::asio::yield_context yield) { pollAllSensors(yield); });
+    pollAllSensors();
 }
 
 std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
