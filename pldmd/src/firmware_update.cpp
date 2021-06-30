@@ -2110,22 +2110,21 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
         initializeFWUBase();
     }
     FWInventoryInfo inventoryInfo(tid);
+    std::optional<FDProperties> properties =
+        inventoryInfo.runInventoryCommands(yield);
 
-    if (auto properties = inventoryInfo.runInventoryCommands(yield))
-    {
-        terminusFwuProperties[tid] = *properties;
-    }
-    else
+    if (properties == std::nullopt)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Failed to run runInventory commands",
-            phosphor::logging::entry("TID=%d", tid));
+            ("Failed to run runInventory commands for TID: " +
+             std::to_string(tid))
+                .c_str());
         return false;
     }
-
     inventoryInfo.addInventoryInfoToDBus();
     fwuIface.insert(
         std::make_pair(tid, std::move(inventoryInfo.getInterfaces())));
+    terminusFwuProperties[tid] = *properties;
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("fwuInit success for TID:" + std::to_string(tid)).c_str());
 
