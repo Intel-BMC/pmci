@@ -392,14 +392,16 @@ int FWUpdate::requestUpdate(const boost::asio::yield_context yield,
         retVal = decode_request_update_resp(
             msgResp, pldmResp.size() - hdrSize, &completionCode,
             &fwDeviceMetaDataLen, &fdWillSendGetPkgDataCmd);
-    } while ((retVal == RETRY_REQUEST_UPDATE) && (++count < retryCount));
-    if (retVal == RETRY_REQUEST_UPDATE)
+    } while ((completionCode == RETRY_REQUEST_UPDATE) &&
+             (++count < retryCount));
+    if (completionCode == RETRY_REQUEST_UPDATE)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            "requestUpdate: FD is not able to enter update mode immediately, "
-            "requests for retry",
-            phosphor::logging::entry("TID=%d", currentTid),
-            phosphor::logging::entry("RETRY_COUNT=%d", ++count));
+            ("requestUpdate: FD is not able to enter update mode immediately, "
+             "requests for retry and count: " +
+             std::to_string(++count))
+                .c_str());
+
         return retVal;
     }
     if (!validatePLDMRespDecode(currentTid, retVal, completionCode,
