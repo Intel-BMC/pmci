@@ -33,7 +33,6 @@ class FWUpdate
     FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord);
     int runUpdate(const boost::asio::yield_context yield);
     void validateReqForFWUpdCmd(const pldm_tid_t tid, const uint8_t messageTag,
-                                const bool _tagOwner,
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
     void terminateFwUpdate(const boost::asio::yield_context yield);
@@ -149,7 +148,6 @@ class FWUpdate
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
     uint8_t msgTag;
-    bool tagOwner;
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
     bool isReserveBandwidthActive = false;

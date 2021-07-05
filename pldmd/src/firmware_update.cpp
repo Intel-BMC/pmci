@@ -72,7 +72,6 @@ FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
 
 void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
                                       const uint8_t messageTag,
-                                      const bool _tagOwner,
                                       const std::vector<uint8_t>& req)
 {
     if (req.size() < hdrSize)
@@ -104,7 +103,6 @@ void FWUpdate::validateReqForFWUpdCmd(const pldm_tid_t tid,
         return;
     }
     msgTag = messageTag;
-    tagOwner = _tagOwner;
     fdReqMatched = true;
     fdReq = req;
     expectedCommandTimer->cancel();
@@ -145,7 +143,7 @@ bool FWUpdate::sendErrorCompletionCode(const boost::asio::yield_context yield,
             phosphor::logging::entry("RETVAL=%d", retVal));
         return false;
     }
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -782,7 +780,8 @@ int FWUpdate::transferComplete(const boost::asio::yield_context yield,
                 .c_str());
         return retVal;
     }
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    // tag Owner bit cleared to false for respose message
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -873,7 +872,8 @@ int FWUpdate::verifyComplete(const boost::asio::yield_context yield,
                 .c_str());
         return retVal;
     }
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    // tag Owner bit cleared to false for respose message
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -959,7 +959,8 @@ int FWUpdate::applyComplete(const boost::asio::yield_context yield,
             phosphor::logging::entry("RETVAL=%d", retVal));
         return retVal;
     }
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    // tag Owner bit cleared to false for respose message
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1121,7 +1122,8 @@ int FWUpdate::requestFirmwareData(const boost::asio::yield_context yield,
         return retVal;
     }
 
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    // tag Owner bit cleared to false for respose message
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1324,7 +1326,8 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
         return retVal;
     }
 
-    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, tagOwner,
+    // tag Owner bit cleared to false for respose message
+    if (!sendPldmMessage(yield, currentTid, retryCount, msgTag, false,
                          pldmResp))
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1968,7 +1971,13 @@ void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
             "Firmware update is not in process, command not excepted");
         return;
     }
-    fwUpdate->validateReqForFWUpdCmd(tid, msgTag, tagOwner, message);
+    if (!tagOwner)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "MCTP Tag Owner is not set, dropping unexpected packet");
+        return;
+    }
+    fwUpdate->validateReqForFWUpdCmd(tid, msgTag, message);
     return;
 }
 
