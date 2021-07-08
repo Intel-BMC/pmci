@@ -59,6 +59,7 @@ set (SRC_FILES ${PROJECT_SOURCE_DIR}/src/pldmd.cpp
                ${PROJECT_SOURCE_DIR}/src/fru.cpp
                ${PROJECT_SOURCE_DIR}/src/base.cpp
                ${PROJECT_SOURCE_DIR}/src/utils.cpp
+               ${PROJECT_SOURCE_DIR}/src/fru_support.cpp
 )
 
 set (HEADER_FILES ${PROJECT_SOURCE_DIR}/include/pldm.hpp

@@ -15,6 +15,8 @@
  */
 #include "fru.hpp"
 
+#include "fru_support.hpp"
+
 #include <string>
 #include <xyz/openbmc_project/Inventory/Source/PLDM/FRU/server.hpp>
 
@@ -41,6 +43,9 @@ using FRUData = std::unordered_map<pldm_tid_t, std::vector<uint8_t>>;
 static FRUData fruData;
 
 constexpr size_t pldmHdrSize = sizeof(pldm_msg_hdr);
+
+// Fru Support object is used to covert PLDM FRU to IPMI Format
+FruSupport ipmiFru;
 
 std::optional<FRUProperties> getProperties(const pldm_tid_t tid)
 {
@@ -516,6 +521,7 @@ bool deleteFRUDevice(const pldm_tid_t tid)
 
     std::string tidFRUObjPath = fruPath + std::to_string(tid);
     removeInterface(tidFRUObjPath, fruInterface);
+    ipmiFru.removeInterfaces(tid);
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("PLDM FRU device resource deleted for TID " + std::to_string(tid))
@@ -721,6 +727,16 @@ bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)
             phosphor::logging::entry("TID=%d", tid));
     }
 
+    try
+    {
+        ipmiFru.convertFRUToIpmiFRU(tid, terminusFRUProperties.at(tid));
+    }
+    catch (const std::out_of_range&)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to map PLDM Fru to IPMI fru",
+            phosphor::logging::entry("TID=%d", tid));
+    }
     return retVal;
 }
 } // namespace fru
