@@ -6,6 +6,8 @@ ExecStart=/usr/bin/pldmd
 Type=dbus
 BusName=xyz.openbmc_project.pldm
 SyslogIdentifier=pldmd
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
