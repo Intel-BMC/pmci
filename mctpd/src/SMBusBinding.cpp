@@ -400,29 +400,34 @@ void SMBusBinding::scanDevices()
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Scanning devices");
 
-    if (!rsvBWActive)
-    {
-        boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+    boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
+        if (!rsvBWActive)
+        {
             initEndpointDiscovery(yield);
-        });
-    }
+        }
+        else
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Reserve bandwidth active. Unable to scan devices");
+        }
 
-    // TODO: Get timer tick frequency from EntityManager
-    scanTimer.expires_after(std::chrono::seconds(60));
-    scanTimer.async_wait([this](const boost::system::error_code& ec) {
-        if (ec == boost::asio::error::operation_aborted)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "Device scanning aborted");
-            return;
-        }
-        if (ec)
-        {
-            phosphor::logging::log<phosphor::logging::level::ERR>(
-                "Device scanning timer failed");
-            return;
-        }
-        scanDevices();
+        // TODO: Get timer tick frequency from EntityManager
+        scanTimer.expires_after(std::chrono::seconds(60));
+        scanTimer.async_wait([this](const boost::system::error_code& ec) {
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Device scanning aborted");
+                return;
+            }
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Device scanning timer failed");
+                return;
+            }
+            scanDevices();
+        });
     });
 }
 
@@ -681,6 +686,8 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
 
     if (registerDeviceMap.empty())
     {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "No device found");
         return;
     }
 
