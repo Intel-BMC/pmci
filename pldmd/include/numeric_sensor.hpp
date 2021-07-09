@@ -70,6 +70,9 @@ struct NumericSensor
     /** @brief Increment the error count in case of failure*/
     void incrementError();
 
+    /** @brief Check if error threshold crossed*/
+    bool checkErrorThreshold();
+
     /** @brief Update sensor value*/
     void updateValue(const double& newValue);
 

@@ -52,6 +52,9 @@ class StateSensorHandler
         return sensorDisabled;
     }
 
+    /** @brief Check if sensor error threshold crossed*/
+    bool sensorErrorCheck();
+
   private:
     /** @brief Enable/Disable sensor*/
     bool setStateSensorEnables(boost::asio::yield_context yield);

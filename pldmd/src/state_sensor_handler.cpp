@@ -26,7 +26,7 @@ namespace pldm
 namespace platform
 {
 const static constexpr char* pldmPath = "/xyz/openbmc_project/pldm/";
-constexpr const size_t errorThreshold = 5;
+constexpr const size_t errorThreshold = 3;
 
 StateSensorHandler::StateSensorHandler(
     const pldm_tid_t tid, const SensorID sensorID, const std::string& name,
@@ -154,6 +154,11 @@ void StateSensorHandler::incrementError()
             phosphor::logging::entry("TID=%d", _tid));
         markFunctional(false);
     }
+}
+
+bool StateSensorHandler::sensorErrorCheck()
+{
+    return errCount < errorThreshold;
 }
 
 void StateSensorHandler::logStateChangeEvent(const uint8_t currentState,

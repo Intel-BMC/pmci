@@ -46,9 +46,9 @@ class Platform
     bool deleteTerminus(const pldm_tid_t tid);
 
   private:
-    bool introduceDelayInPolling(boost::asio::yield_context yield);
+    bool induceAsyncDelay(boost::asio::yield_context yield, int delay);
+    void doPoll(boost::asio::yield_context yield);
     void pollAllSensors();
-    void initSensorPoll();
     void initializeSensorPollIntf();
     void initializePlatformIntf();
     bool isTerminusRemoved(const pldm_tid_t tid);
@@ -57,6 +57,8 @@ class Platform
     std::map<pldm_tid_t, PlatformTerminus> platforms{};
     std::unique_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
     bool isSensorPollRunning = false;
+    bool startSensorPoll = false;
+    bool stopSensorPoll = false;
     std::set<pldm_tid_t> tidsUnderInitialization{};
 };
 

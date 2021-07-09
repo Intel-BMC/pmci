@@ -23,32 +23,28 @@ namespace platform
 {
 // TODO: Optimize poll interval
 static constexpr const int pollIntervalMillisec = 500;
+static constexpr const int pauseIntervalMillisec = 1;
 static Platform platform;
 
-bool Platform::introduceDelayInPolling(boost::asio::yield_context yield)
+bool Platform::induceAsyncDelay(boost::asio::yield_context yield, int delay)
 {
     if (!sensorTimer)
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            "Sensor poll timer not active");
-        return false;
+        throw std::runtime_error("Sensor poll timer not active");
     }
 
     boost::system::error_code ec;
-    sensorTimer->expires_after(
-        boost::asio::chrono::milliseconds(pollIntervalMillisec));
+    sensorTimer->expires_after(boost::asio::chrono::milliseconds(delay));
     sensorTimer->async_wait(yield[ec]);
     if (ec == boost::asio::error::operation_aborted)
     {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Sensor poll timer aborted");
         return false;
     }
     else if (ec)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "Sensor poll timer failed");
-        return false;
+        throw std::runtime_error("Sensor poll timer failed");
     }
     return true;
 }
@@ -59,68 +55,152 @@ bool Platform::introduceDelayInPolling(boost::asio::yield_context yield)
 // associated sensors. Which will result in higher number(M*N) of PLDM
 // message traffic through mux. In this case mux switching is a constraint.
 // Thus poll sensors sequentially.
-void Platform::pollAllSensors()
+void Platform::doPoll(boost::asio::yield_context yield)
 {
-    auto doPoll = [this](boost::asio::yield_context yield) {
-        for (auto const& [tid, platformTerminus] : platforms)
+    isSensorPollRunning = false;
+    for (auto const& [tid, platformTerminus] : platforms)
+    {
+        for (auto const& [sensorID, numericSensorHandler] :
+             platformTerminus.numericSensors)
         {
-            for (auto const& [sensorID, numericSensorHandler] :
-                 platformTerminus.numericSensors)
+            if (numericSensorHandler->isSensorDisabled())
             {
-                if (numericSensorHandler->isSensorDisabled())
-                {
-                    continue;
-                }
-                numericSensorHandler->populateSensorValue(yield);
-                if (!introduceDelayInPolling(yield))
-                {
-                    isSensorPollRunning = false;
-                    return;
-                }
-                isSensorPollRunning = true;
+                continue;
             }
-            for (auto const& [sensorID, stateSensorHandler] :
-                 platformTerminus.stateSensors)
+            if (!numericSensorHandler->sensorErrorCheck())
             {
-                if (stateSensorHandler->isSensorDisabled())
-                {
-                    continue;
-                }
-                stateSensorHandler->populateSensorValue(yield);
-                if (!introduceDelayInPolling(yield))
-                {
-                    isSensorPollRunning = false;
-                    return;
-                }
-                isSensorPollRunning = true;
+                continue;
             }
-        }
-        if (isSensorPollRunning)
-        {
-            pollAllSensors();
-        }
-    };
+            isSensorPollRunning = true;
 
-    boost::asio::spawn(*getIoContext(), doPoll);
+            numericSensorHandler->populateSensorValue(yield);
+            if (!induceAsyncDelay(yield, pollIntervalMillisec))
+            {
+                return;
+            }
+            if (stopSensorPoll)
+            {
+                return;
+            }
+        }
+        for (auto const& [sensorID, stateSensorHandler] :
+             platformTerminus.stateSensors)
+        {
+            if (stateSensorHandler->isSensorDisabled())
+            {
+                continue;
+            }
+            if (!stateSensorHandler->sensorErrorCheck())
+            {
+                continue;
+            }
+            isSensorPollRunning = true;
+
+            stateSensorHandler->populateSensorValue(yield);
+            if (!induceAsyncDelay(yield, pollIntervalMillisec))
+            {
+                return;
+            }
+            if (stopSensorPoll)
+            {
+                return;
+            }
+        }
+    }
 }
 
-void Platform::initSensorPoll()
+// Sensor polling co-routine can have transactions in-flight when
+// stopSensorPolling() is called. Due to the same reason, there can be cases
+// where sensor polling loop will miss stopSensorPolling() function call if
+// startSensorPolling() is called before in-flight transactions time out.
+// Thus use seperate startSensorPoll and stopSensorPoll flag to synchronize
+// polling loop with caller.
+void Platform::pollAllSensors()
 {
-    if (isSensorPollRunning)
+    boost::asio::spawn(
+        *getIoContext(), [this](boost::asio::yield_context yield) {
+            while (1)
+            {
+                if (!startSensorPoll)
+                {
+                    try
+                    {
+                        induceAsyncDelay(yield, pauseIntervalMillisec);
+                        continue;
+                    }
+                    catch (const std::exception& e)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            e.what());
+                        return;
+                    }
+                }
+
+                do
+                {
+                    try
+                    {
+                        doPoll(yield);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        phosphor::logging::log<phosphor::logging::level::ERR>(
+                            e.what());
+                        return;
+                    }
+
+                    if (!isSensorPollRunning)
+                    {
+                        sensorTimer.reset();
+                        phosphor::logging::log<phosphor::logging::level::INFO>(
+                            "Sensor polling terminated");
+                        return;
+                    }
+                } while (!stopSensorPoll);
+                stopSensorPoll = false;
+            }
+        });
+}
+
+void Platform::startSensorPolling()
+{
+    startSensorPoll = true;
+
+    if (!sensorTimer)
     {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Sensor poll already running");
-        return;
+        sensorTimer =
+            std::make_unique<boost::asio::steady_timer>(*getIoContext());
+        pollAllSensors();
     }
-    sensorTimer = std::make_unique<boost::asio::steady_timer>(*getIoContext());
-    pollAllSensors();
+    else
+    {
+        // This exit's the pause timer
+        sensorTimer->cancel();
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Sensor polling triggered");
+}
+
+void Platform::stopSensorPolling()
+{
+    startSensorPoll = false;
+    stopSensorPoll = true;
+
+    if (sensorTimer)
+    {
+        // This exit's the poll timer
+        sensorTimer->cancel();
+    }
+
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        "Sensor polling paused");
 }
 
 std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
                                    const pldm_tid_t tid,
                                    std::optional<mctpw_eid_t> eid)
 {
-
     static constexpr size_t hdrSize = sizeof(PLDMEmptyRequest);
     uint8_t instanceID = createInstanceId(tid);
     std::vector<uint8_t> getUIDRequest(hdrSize, 0x00);
@@ -151,27 +231,6 @@ std::optional<UUID> getTerminusUID(boost::asio::yield_context yield,
         return std::nullopt;
     }
     return uuid;
-}
-
-void Platform::stopSensorPolling()
-{
-    if (!sensorTimer)
-    {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
-            "Sensor polling timer not yet active");
-        return;
-    }
-    sensorTimer->cancel();
-    sensorTimer.reset();
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Sensor polling paused");
-}
-
-void Platform::startSensorPolling()
-{
-    initSensorPoll();
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        "Sensor polling resumed");
 }
 
 void Platform::initializeSensorPollIntf()

@@ -24,7 +24,7 @@ constexpr const char* availableInterfaceName =
     "xyz.openbmc_project.State.Decorator.Availability";
 constexpr const char* operationalInterfaceName =
     "xyz.openbmc_project.State.Decorator.OperationalStatus";
-constexpr const size_t errorThreshold = 5;
+constexpr const size_t errorThreshold = 3;
 
 NumericSensor::NumericSensor(const std::string& sensorName,
                              std::vector<thresholds::Threshold>& thresholdData,
@@ -249,6 +249,11 @@ void NumericSensor::incrementError()
             ("Sensor " + name + " reading error").c_str());
         markFunctional(false);
     }
+}
+
+bool NumericSensor::checkErrorThreshold()
+{
+    return errCount < errorThreshold;
 }
 
 void NumericSensor::updateValue(const double& newValue)

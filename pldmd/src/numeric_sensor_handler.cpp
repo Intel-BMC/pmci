@@ -34,6 +34,15 @@ NumericSensorHandler::NumericSensorHandler(
 {
 }
 
+bool NumericSensorHandler::sensorErrorCheck()
+{
+    if (_sensor)
+    {
+        return _sensor->checkErrorThreshold();
+    }
+    return false;
+}
+
 bool NumericSensorHandler::setNumericSensorEnable(
     boost::asio::yield_context yield)
 {
