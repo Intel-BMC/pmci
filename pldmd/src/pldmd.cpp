@@ -652,7 +652,8 @@ int main(void)
 
     boost::asio::spawn(*ioc, [](boost::asio::yield_context yield) {
         pldm::mctpWrapper->detectMctpEndpoints(yield);
-        auto& eidMap = pldm::mctpWrapper->getEndpointMap();
+        mctpw::MCTPWrapper::EndpointMap eidMap =
+            pldm::mctpWrapper->getEndpointMap();
         for (auto& [eid, service] : eidMap)
         {
             pldm::platform::pauseSensorPolling();
