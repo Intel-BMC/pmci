@@ -1910,15 +1910,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "ActivateFirmware command is success");
 
-    createAsyncDelay(yield, estimatedTimeForSelfContainedActivation);
-    retVal = getStatus(yield);
-    if (retVal != PLDM_SUCCESS)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            ("getStatus command  failed. RETVAL: " + std::to_string(retVal))
-                .c_str());
-        return retVal;
-    }
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Firmware update completed successfully for TID:" +
          std::to_string(currentTid))
