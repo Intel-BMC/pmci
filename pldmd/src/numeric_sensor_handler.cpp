@@ -374,6 +374,10 @@ bool NumericSensorHandler::populateSensorValue(boost::asio::yield_context yield)
     {
         return false;
     }
+    if (!_sensor)
+    {
+        return false;
+    }
     if (!getSensorReading(yield))
     {
         _sensor->incrementError();
