@@ -403,6 +403,7 @@ void SMBusBinding::scanDevices()
     boost::asio::spawn(io, [this](boost::asio::yield_context yield) {
         if (!rsvBWActive)
         {
+            deviceWatcher.deviceDiscoveryInit();
             initEndpointDiscovery(yield);
         }
         else
@@ -721,6 +722,13 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
 
         auto const ptr = reinterpret_cast<uint8_t*>(&smbusBindingPvt);
         std::vector<uint8_t> bindingPvtVect(ptr, ptr + sizeof(smbusBindingPvt));
+        if (!deviceWatcher.isDeviceGoodForInit(bindingPvtVect))
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "Device found in ignore list. Skipping discovery");
+            continue;
+        }
+
         mctp_eid_t registeredEid = getEIDFromDeviceTable(bindingPvtVect);
         std::optional<mctp_eid_t> eid =
             registerEndpoint(yield, bindingPvtVect, registeredEid);

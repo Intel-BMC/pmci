@@ -8,6 +8,8 @@
 
 #include <boost/asio/steady_timer.hpp>
 #include <iostream>
+#include <numeric>
+#include <unordered_set>
 
 class SMBusBinding;
 class PCIeBinding;
@@ -16,6 +18,24 @@ constexpr uint8_t vendorIdNoMoreSets = 0xff;
 
 using endpointInterfaceMap =
     std::unordered_map<mctp_eid_t, std::shared_ptr<dbus_interface>>;
+using BindingPrivateVect = std::vector<uint8_t>;
+
+namespace std
+{
+template <>
+struct hash<BindingPrivateVect>
+{
+    size_t operator()(const BindingPrivateVect& bindingPrivate) const
+    {
+        size_t init = 0;
+        return std::accumulate(std::begin(bindingPrivate),
+                               std::end(bindingPrivate), init,
+                               [](size_t prevHash, uint8_t byte) {
+                                   return prevHash ^ std::hash<uint8_t>{}(byte);
+                               });
+    }
+};
+} // namespace std
 
 enum MctpStatus
 {
@@ -92,6 +112,20 @@ struct InternalVdmSetDatabase
     uint8_t vendorIdFormat;
     uint16_t vendorId;
     uint16_t commandSetType;
+};
+
+struct DeviceWatcher
+{
+  public:
+    void deviceDiscoveryInit();
+    bool isDeviceGoodForInit(const BindingPrivateVect& bindingPvt);
+    bool checkDeviceInitThreshold(const BindingPrivateVect& bindingPvt);
+
+  private:
+    std::unordered_set<BindingPrivateVect> ignoreList;
+    std::unordered_set<BindingPrivateVect> previousInitList;
+    std::unordered_set<BindingPrivateVect> currentInitList;
+    std::unordered_map<BindingPrivateVect, int> successiveInitCount;
 };
 
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
@@ -174,6 +208,7 @@ class MctpBinding
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     MctpTransmissionQueue transmissionQueue;
+    DeviceWatcher deviceWatcher{};
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;

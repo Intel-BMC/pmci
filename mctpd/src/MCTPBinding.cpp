@@ -97,6 +97,70 @@ static const std::unordered_map<uint8_t,
                               /*0x41:0xFF Reserved*/
 };
 
+void DeviceWatcher::deviceDiscoveryInit()
+{
+    previousInitList = std::move(currentInitList);
+    for (auto itr = successiveInitCount.begin();
+         itr != successiveInitCount.end();)
+    {
+        if (previousInitList.count(itr->first) == 0)
+        {
+            itr = successiveInitCount.erase(itr);
+        }
+        else
+        {
+            ++itr;
+        }
+    }
+}
+
+bool DeviceWatcher::isDeviceGoodForInit(const BindingPrivateVect& bindingPvt)
+{
+    return ignoreList.count(bindingPvt) == 0;
+}
+
+bool DeviceWatcher::checkDeviceInitThreshold(
+    const BindingPrivateVect& bindingPvt)
+{
+    constexpr int successiveDeviceInitThold = 10;
+
+    currentInitList.emplace(bindingPvt);
+    if (previousInitList.count(bindingPvt) == 0)
+    {
+        successiveInitCount.insert_or_assign(bindingPvt, 0);
+        return true;
+    }
+
+    auto search = successiveInitCount.find(bindingPvt);
+    if (search != successiveInitCount.end())
+    {
+        if (search->second > successiveDeviceInitThold)
+        {
+            return false;
+        }
+
+        search->second += 1;
+        if (search->second == successiveDeviceInitThold)
+        {
+            ignoreList.emplace(bindingPvt);
+
+            std::stringstream bindingPvtStr;
+            for (auto re : bindingPvt)
+            {
+                bindingPvtStr << " 0x" << std::hex << std::setfill('0')
+                              << std::setw(2) << static_cast<int>(re);
+            }
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Device discovery failed successively for device having "
+                 "binding private:" +
+                 bindingPvtStr.str() + "; Placing the device into ignore list.")
+                    .c_str());
+            return false;
+        }
+    }
+    return true;
+}
+
 static uint8_t getInstanceId(const uint8_t msg)
 {
     return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
@@ -2094,6 +2158,11 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     if (isEIDMappedToUUID(getEidRespPtr->eid, destUUID))
     {
         return getEidRespPtr->eid;
+    }
+
+    if (!deviceWatcher.checkDeviceInitThreshold(bindingPrivate))
+    {
+        return std::nullopt;
     }
 
     if (eid == MCTP_EID_NULL)
