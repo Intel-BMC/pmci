@@ -2251,7 +2251,7 @@ std::optional<mctp_eid_t>
     return eid;
 }
 
-void MctpBinding::removeInterface(mctp_eid_t eid,
+bool MctpBinding::removeInterface(mctp_eid_t eid,
                                   endpointInterfaceMap& interfaces)
 {
     auto iter = interfaces.find(eid);
@@ -2259,18 +2259,24 @@ void MctpBinding::removeInterface(mctp_eid_t eid,
     {
         objectServer->remove_interface(iter->second);
         interfaces.erase(iter);
+        return true;
     }
+    return false;
 }
 
 void MctpBinding::unregisterEndpoint(mctp_eid_t eid)
 {
-    removeInterface(eid, endpointInterface);
-    removeInterface(eid, msgTypeInterface);
-    removeInterface(eid, uuidInterface);
+    bool epIntf = removeInterface(eid, endpointInterface);
+    bool msgTypeIntf = removeInterface(eid, msgTypeInterface);
+    bool uuidIntf = removeInterface(eid, uuidInterface);
+    // Vendor ID interface is optional thus not considering return status
     removeInterface(eid, vendorIdInterface);
 
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        ("Device Unregistered: EID = " + std::to_string(eid)).c_str());
+    if (epIntf && msgTypeIntf && uuidIntf)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("Device Unregistered: EID = " + std::to_string(eid)).c_str());
+    }
 }
 
 std::optional<mctp_eid_t> MctpBinding::getEIDFromUUID(std::string& uuidStr)
