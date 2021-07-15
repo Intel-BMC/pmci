@@ -985,6 +985,9 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
     uint32_t length = 0;
     int retVal = 0;
     int prevProgress = 0;
+    // Log interval for progess percentage
+    constexpr int progressPercentLogLimit = 25;
+
     initialize_fw_update(updateProperties.max_transfer_size, componentSize);
 
     while (--maxNumReq)
@@ -1018,7 +1021,7 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
         }
         fdReq.clear();
         int progress = ((offset + length) * 100) / componentSize;
-        if (prevProgress != progress)
+        if ((progress - prevProgress) >= progressPercentLogLimit)
         {
             prevProgress = progress;
             phosphor::logging::log<phosphor::logging::level::INFO>(
