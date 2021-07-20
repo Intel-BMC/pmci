@@ -44,6 +44,11 @@ class FWInventoryInfo
         return interfaceList;
     }
 
+    std::string getInventoryPath()
+    {
+        return inventoryPath;
+    }
+
   private:
     std::vector<std::unique_ptr<sdbusplus::asio::dbus_interface>> interfaceList;
 
@@ -99,6 +104,10 @@ class FWInventoryInfo
      */
     bool getCompAutoApply(const uint32_t capabilitiesDuringUpdate);
 
+    /** @brief API that adds firmware inventory to dbus
+     */
+    void addFirmwareInventoryToDBus();
+
     pldm_tid_t tid;
     std::shared_ptr<sdbusplus::asio::object_server> objServer;
     // map that holds the component properties of a terminus
@@ -112,6 +121,7 @@ class FWInventoryInfo
     FWUProperties fwuProperties;
     // map that holds the descriptors of a terminus
     DescriptorsMap descriptors;
+    std::string inventoryPath;
 };
 } // namespace fwu
 } // namespace pldm

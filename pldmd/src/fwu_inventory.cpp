@@ -348,6 +348,46 @@ void FWInventoryInfo::addCompImgSetDataToDBus()
     interfaceList.push_back(std::move(pendingCompImgSetInfoIntf));
 }
 
+void FWInventoryInfo::addFirmwareInventoryToDBus()
+{
+    // TODO get the inventory name from PLDM FRU, if PLDM_FRU is not supported
+    // inventoryName will be taken as pldm_fd
+    std::string inventoryName("pldm_fd");
+
+    inventoryPath = "/xyz/openbmc_project/software/" + inventoryName + "_" +
+                    std::to_string(tid);
+    std::string activation(
+        "xyz.openbmc_project.Software.Activation.Activations.Active");
+    auto activationIntf = objServer->add_unique_interface(
+        inventoryPath, "xyz.openbmc_project.Software.Activation");
+    if (!activationIntf)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Failed to add activation interface");
+    }
+    else
+    {
+        activationIntf->register_property("Activation", activation);
+        activationIntf->initialize();
+        interfaceList.push_back(std::move(activationIntf));
+    }
+    auto versionIntf = objServer->add_unique_interface(
+        inventoryPath, "xyz.openbmc_project.Software.Version");
+    if (!versionIntf)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Failed to add version interface");
+    }
+    else
+    {
+        versionIntf->register_property("Version", activeCompImgSetVerStr);
+        std::string purpose(
+            "xyz.openbmc_project.Software.Version.VersionPurpose.PLDM");
+        versionIntf->register_property("Purpose", purpose);
+        versionIntf->initialize();
+        interfaceList.push_back(std::move(versionIntf));
+    }
+}
 void FWInventoryInfo::addInventoryInfoToDBus()
 {
     try
@@ -380,6 +420,7 @@ void FWInventoryInfo::addInventoryInfoToDBus()
             "Failed to add component info to D-Bus",
             phosphor::logging::entry("TID=%d", tid));
     }
+    addFirmwareInventoryToDBus();
 }
 
 void FWInventoryInfo::addCompDataToDBus()

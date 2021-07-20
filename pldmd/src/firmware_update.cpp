@@ -64,6 +64,8 @@ extern std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
 std::shared_ptr<boost::asio::steady_timer> expectedCommandTimer = nullptr;
 std::unique_ptr<PLDMImg> pldmImg = nullptr;
 std::unique_ptr<FWUpdate> fwUpdate = nullptr;
+std::unique_ptr<sdbusplus::asio::dbus_interface> associationsIntf = nullptr;
+std::map<uint8_t, std::string> inventoryPaths;
 
 FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
     currentTid(_tid), currentDeviceIDRecord(_deviceIDRecord), state(FD_IDLE)
@@ -2178,6 +2180,24 @@ void pldmMsgRecvFwUpdCallback(const pldm_tid_t tid, const uint8_t msgTag,
     return;
 }
 
+static void updateAssociationsProperty()
+{
+    if (!associationsIntf)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Associations interface does not exist");
+        return;
+    }
+    std::vector<std::tuple<std::string, std::string, std::string>> association;
+    for (const auto& it : inventoryPaths)
+    {
+        association.insert(
+            association.begin(),
+            std::make_tuple("updateable", "software_version", it.second));
+    }
+    associationsIntf->set_property("Associations", association);
+}
+
 /** @brief API that deletes PLDM firmware device resorces. This API should be
  * called when PLDM firmware update capable device is removed from the platform.
  */
@@ -2201,6 +2221,17 @@ bool deleteFWDevice(const pldm_tid_t tid)
                 .c_str());
         return false;
     }
+
+    if (inventoryPaths.erase(tid) == 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("Firmware inventory path not present for TID " +
+             std::to_string(tid))
+                .c_str());
+        return false;
+    }
+
+    updateAssociationsProperty();
 
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("PLDM firmware update device resources deleted for TID " +
@@ -2313,7 +2344,24 @@ static void initializeFWUBase()
             return rc;
         });
     fwuBaseIface->initialize();
-    fwuBaseInitialized = true;
+}
+
+static void registerAssociationsProperty()
+{
+    auto objServer = getObjServer();
+    const std::string associationsPath = "/xyz/openbmc_project/software";
+    associationsIntf = objServer->add_unique_interface(
+        associationsPath, "xyz.openbmc_project.Association.Definitions");
+    if (!associationsIntf)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Failed to add associations interface");
+        return;
+    }
+    std::vector<std::tuple<std::string, std::string, std::string>>
+        emptyAssociation{std::make_tuple("", "", "")};
+    associationsIntf->register_property("Associations", emptyAssociation);
+    associationsIntf->initialize();
 }
 
 bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
@@ -2322,6 +2370,8 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     if (!fwuBaseInitialized)
     {
         initializeFWUBase();
+        registerAssociationsProperty();
+        fwuBaseInitialized = true;
     }
     FWInventoryInfo inventoryInfo(tid);
     std::optional<FDProperties> properties =
@@ -2338,6 +2388,12 @@ bool fwuInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     inventoryInfo.addInventoryInfoToDBus();
     fwuIface.insert(
         std::make_pair(tid, std::move(inventoryInfo.getInterfaces())));
+    inventoryPaths.insert(
+        std::make_pair(tid, inventoryInfo.getInventoryPath()));
+    // TODO: There could be some pldmd devices which supports inventory commands
+    // but does not support pldm firmware update. For such devices
+    // updateAssociationsProperty() should not be called
+    updateAssociationsProperty();
     terminusFwuProperties[tid] = *properties;
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("fwuInit success for TID:" + std::to_string(tid)).c_str());
