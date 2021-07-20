@@ -934,7 +934,7 @@ std::optional<std::string>
 std::string PDRManager::createSensorName(const SensorID sensorID)
 {
     std::string sensorName =
-        "Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
+        "PLDM_Sensor_" + std::to_string(sensorID) + "_" + std::to_string(_tid);
     _sensorAuxNames[sensorID] = sensorName;
 
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
@@ -1141,8 +1141,8 @@ std::optional<std::string>
 
 std::string PDRManager::createEffecterName(const EffecterID effecterID)
 {
-    std::string effecterName =
-        "Effecter_" + std::to_string(effecterID) + "_" + std::to_string(_tid);
+    std::string effecterName = "PLDM_Effecter_" + std::to_string(effecterID) +
+                               "_" + std::to_string(_tid);
 
     _effecterAuxNames[effecterID] = effecterName;
 
