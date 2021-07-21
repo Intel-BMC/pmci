@@ -475,6 +475,12 @@ static std::optional<std::string> getAuxName(const uint8_t nameStrCount,
             return std::nullopt;
         }
 
+#if __BYTE_ORDER != __BIG_ENDIAN
+        // The Auxiliary Name is in big endian format
+        std::transform(u16_str.cbegin(), u16_str.cend(), u16_str.begin(),
+                       [](uint16_t utf16) { return be16toh(utf16); });
+#endif
+
         // Only supports English
         if (langTag == supportedLangTag)
         {
