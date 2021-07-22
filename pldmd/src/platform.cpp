@@ -58,10 +58,10 @@ bool Platform::induceAsyncDelay(boost::asio::yield_context yield, int delay)
 void Platform::doPoll(boost::asio::yield_context yield)
 {
     isSensorPollRunning = false;
-    for (auto const& [tid, platformTerminus] : platforms)
+    for (auto [tid, platformTerminus] : platforms)
     {
         for (auto const& [sensorID, numericSensorHandler] :
-             platformTerminus.numericSensors)
+             platformTerminus->numericSensors)
         {
             if (numericSensorHandler->isSensorDisabled())
             {
@@ -84,7 +84,7 @@ void Platform::doPoll(boost::asio::yield_context yield)
             }
         }
         for (auto const& [sensorID, stateSensorHandler] :
-             platformTerminus.stateSensors)
+             platformTerminus->stateSensors)
         {
             if (stateSensorHandler->isSensorDisabled())
             {
@@ -319,7 +319,8 @@ bool Platform::initTerminus(
 
     try
     {
-        PlatformTerminus platformTerminus(yield, tid);
+        std::shared_ptr<PlatformTerminus> platformTerminus =
+            std::make_shared<PlatformTerminus>(yield, tid);
         if (isTerminusRemoved(tid))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(

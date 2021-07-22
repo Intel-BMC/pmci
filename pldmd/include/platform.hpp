@@ -54,7 +54,7 @@ class Platform
     bool isTerminusRemoved(const pldm_tid_t tid);
     void removeTIDFromInitializationList(const pldm_tid_t tid);
 
-    std::map<pldm_tid_t, PlatformTerminus> platforms{};
+    std::map<pldm_tid_t, std::shared_ptr<PlatformTerminus>> platforms{};
     std::unique_ptr<boost::asio::steady_timer> sensorTimer = nullptr;
     bool isSensorPollRunning = false;
     bool startSensorPoll = false;
