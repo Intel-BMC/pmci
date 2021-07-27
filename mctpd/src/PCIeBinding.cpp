@@ -94,6 +94,179 @@ mctp_server::BindingModeTypes
     }
 }
 
+uint16_t PCIeBinding::getRoutingEntryPhysAddr(
+    const std::vector<uint8_t>& getRoutingTableEntryResp, size_t entryOffset)
+{
+    return be16toh(static_cast<uint16_t>(
+        static_cast<uint16_t>(getRoutingTableEntryResp[entryOffset]) |
+        (static_cast<uint16_t>(getRoutingTableEntryResp[entryOffset + 1])
+         << 8)));
+}
+
+bool PCIeBinding::isEntryInRoutingTable(
+    uint16_t physAddr, get_routing_table_entry* routingEntry,
+    const std::vector<routingTableEntry_t>& rt)
+{
+    return std::find_if(rt.begin(), rt.end(),
+                        [&physAddr, &routingEntry](const auto& entry) {
+                            const auto& [eid, endpointBdf, entryType] = entry;
+                            return routingEntry->starting_eid == eid &&
+                                   physAddr == endpointBdf;
+                        }) != rt.end();
+}
+
+bool PCIeBinding::isActiveEntryBehindBridge(
+    uint16_t physAddr, get_routing_table_entry* routingEntry,
+    const std::vector<routingTableEntry_t>& rt)
+{
+    return !isEntryInRoutingTable(physAddr, routingEntry, rt) &&
+           routingEntry->eid_range_size == 1 &&
+           routingEntry->phys_transport_binding_id == MCTP_BINDING_PCIE;
+}
+
+bool PCIeBinding::isEndOfGetRoutingTableResp(uint8_t entryHandle,
+                                             uint8_t& responseCount)
+{
+    if (entryHandle == 0xff || responseCount == 0xff)
+        return true;
+    responseCount++;
+    return false;
+}
+
+bool PCIeBinding::isEntryBridge(const routingTableEntry_t& routingEntry)
+{
+    return GET_ROUTING_ENTRY_TYPE(std::get<2>(routingEntry)) ==
+               MCTP_ROUTING_ENTRY_BRIDGE ||
+           GET_ROUTING_ENTRY_TYPE(std::get<2>(routingEntry)) ==
+               MCTP_ROUTING_ENTRY_BRIDGE_AND_ENDPOINTS;
+}
+
+bool PCIeBinding::allBridgesCalled(
+    const std::vector<routingTableEntry_t>& rt,
+    const std::vector<calledBridgeEntry_t>& calledBridges)
+{
+    for (auto entry : rt)
+    {
+        if (isEntryBridge(entry) && !isBridgeCalled(entry, calledBridges))
+            return false;
+    }
+    return true;
+}
+
+bool PCIeBinding::isBridgeCalled(
+    const routingTableEntry_t& routingEntry,
+    const std::vector<calledBridgeEntry_t>& calledBridges)
+{
+    return std::find_if(calledBridges.begin(), calledBridges.end(),
+                        [&routingEntry](const auto& bridge) {
+                            const auto& [eid, physAddr] = bridge;
+                            return std::get<0>(routingEntry) == eid &&
+                                   std::get<1>(routingEntry) == physAddr;
+                        }) != calledBridges.end();
+}
+
+void PCIeBinding::readRoutingTable(
+    std::vector<routingTableEntry_t>& rt,
+    std::vector<calledBridgeEntry_t>& calledBridges,
+    std::vector<uint8_t> prvData, boost::asio::yield_context& yield,
+    uint8_t eid, uint16_t physAddr, long entryIndex)
+{
+    std::vector<uint8_t> getRoutingTableEntryResp = {};
+    uint8_t entryHandle = 0x00;
+    uint8_t responseCount = 0;
+    long insertIndex = entryIndex + 1;
+
+    while (!isEndOfGetRoutingTableResp(entryHandle, responseCount))
+    {
+        calledBridges.push_back(std::make_tuple(eid, physAddr));
+
+        if (!getRoutingTableCtrlCmd(yield, prvData, eid, entryHandle,
+                                    getRoutingTableEntryResp))
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "Get Routing Table failed");
+            return;
+        }
+
+        auto routingTableHdr =
+            reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
+                getRoutingTableEntryResp.data());
+        size_t entryOffset = sizeof(mctp_ctrl_resp_get_routing_table);
+
+        for (uint8_t i = 0; i < routingTableHdr->number_of_entries; i++)
+        {
+            auto routingTableEntry = reinterpret_cast<get_routing_table_entry*>(
+                getRoutingTableEntryResp.data() + entryOffset);
+
+            entryOffset += sizeof(get_routing_table_entry);
+            if (routingTableEntry->phys_transport_binding_id !=
+                MCTP_BINDING_PCIE)
+            {
+                entryOffset += routingTableEntry->phys_address_size;
+                continue;
+            }
+            uint16_t entryPhysAddr =
+                getRoutingEntryPhysAddr(getRoutingTableEntryResp, entryOffset);
+            entryOffset += routingTableEntry->phys_address_size;
+
+            if (eid == busOwnerEid &&
+                GET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type) ==
+                    MCTP_ROUTING_ENTRY_BRIDGE_AND_ENDPOINTS)
+            {
+                rt.push_back(std::make_tuple(
+                    routingTableEntry->starting_eid, entryPhysAddr,
+                    SET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type,
+                                           MCTP_ROUTING_ENTRY_BRIDGE)));
+            }
+            else if (eid == busOwnerEid &&
+                     !(GET_ROUTING_ENTRY_TYPE(routingTableEntry->entry_type) ==
+                       MCTP_ROUTING_ENTRY_ENDPOINTS))
+            {
+                rt.push_back(std::make_tuple(routingTableEntry->starting_eid,
+                                             entryPhysAddr,
+                                             routingTableEntry->entry_type));
+            }
+            else if (eid != busOwnerEid &&
+                     isActiveEntryBehindBridge(entryPhysAddr, routingTableEntry,
+                                               rt))
+            {
+                rt.insert(rt.begin() + insertIndex,
+                          std::make_tuple(routingTableEntry->starting_eid,
+                                          physAddr,
+                                          routingTableEntry->entry_type));
+                insertIndex++;
+            }
+        }
+        entryHandle = routingTableHdr->next_entry_handle;
+    }
+}
+
+void PCIeBinding::processBridgeEntries(
+    std::vector<routingTableEntry_t>& rt,
+    std::vector<calledBridgeEntry_t>& calledBridges,
+    boost::asio::yield_context& yield)
+{
+    std::vector<routingTableEntry_t> rtCopy = rt;
+
+    for (auto entry = rt.begin(); entry != rt.end(); entry++)
+    {
+        if (!isEntryBridge(*entry) || isBridgeCalled(*entry, calledBridges))
+            continue;
+
+        mctp_astpcie_pkt_private pktPrv;
+        pktPrv.routing = PCIE_ROUTE_BY_ID;
+        pktPrv.remote_id = std::get<1>(*entry);
+        uint8_t* pktPrvPtr = reinterpret_cast<uint8_t*>(&pktPrv);
+        std::vector<uint8_t> prvData = std::vector<uint8_t>(
+            pktPrvPtr, pktPrvPtr + sizeof(mctp_astpcie_pkt_private));
+
+        long entryIndex = std::distance(rt.begin(), entry);
+        readRoutingTable(rtCopy, calledBridges, prvData, yield,
+                         std::get<0>(*entry), std::get<1>(*entry), entryIndex);
+    }
+    rt = rtCopy;
+}
+
 void PCIeBinding::updateRoutingTable()
 {
     struct mctp_astpcie_pkt_private pktPrv;
@@ -114,55 +287,15 @@ void PCIeBinding::updateRoutingTable()
         pktPrvPtr, pktPrvPtr + sizeof(mctp_astpcie_pkt_private));
 
     boost::asio::spawn(io, [prvData, this](boost::asio::yield_context yield) {
-        std::vector<uint8_t> getRoutingTableEntryResp = {};
         std::vector<routingTableEntry_t> routingTableTmp;
-        uint8_t entryHandle = 0x00;
-        uint8_t responseCount = 0;
+        std::vector<calledBridgeEntry_t> calledBridges;
 
-        while (entryHandle != 0xff && responseCount < 0xff)
+        readRoutingTable(routingTableTmp, calledBridges, prvData, yield,
+                         busOwnerEid, busOwnerBdf);
+
+        while (!allBridgesCalled(routingTableTmp, calledBridges))
         {
-            if (!getRoutingTableCtrlCmd(yield, prvData, MCTP_EID_NULL,
-                                        entryHandle, getRoutingTableEntryResp))
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "Get Routing Table failed");
-                return;
-            }
-            auto routingTableHdr =
-                reinterpret_cast<mctp_ctrl_resp_get_routing_table*>(
-                    getRoutingTableEntryResp.data());
-            size_t entryOffset = sizeof(mctp_ctrl_resp_get_routing_table);
-
-            for (uint8_t i = 0; i < routingTableHdr->number_of_entries; i++)
-            {
-                auto routingTableEntry =
-                    reinterpret_cast<get_routing_table_entry*>(
-                        getRoutingTableEntryResp.data() + entryOffset);
-
-                entryOffset += sizeof(get_routing_table_entry);
-                if (routingTableEntry->phys_transport_binding_id !=
-                    MCTP_BINDING_PCIE)
-                {
-                    entryOffset += routingTableEntry->phys_address_size;
-                    continue;
-                }
-                uint16_t endpointBdf = be16toh(static_cast<uint16_t>(
-                    static_cast<uint16_t>(
-                        getRoutingTableEntryResp[entryOffset]) |
-                    (static_cast<uint16_t>(
-                         getRoutingTableEntryResp[entryOffset + 1])
-                     << 8)));
-
-                for (uint8_t j = 0; j < routingTableEntry->eid_range_size; j++)
-                {
-                    routingTableTmp.push_back(std::make_tuple(
-                        routingTableEntry->starting_eid + j, endpointBdf,
-                        routingTableEntry->entry_type));
-                }
-                entryOffset += routingTableEntry->phys_address_size;
-            }
-            entryHandle = routingTableHdr->next_entry_handle;
-            responseCount++;
+            processBridgeEntries(routingTableTmp, calledBridges, yield);
         }
 
         if (routingTableTmp != routingTable)
