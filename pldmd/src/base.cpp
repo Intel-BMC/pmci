@@ -57,9 +57,16 @@ using SupportedPLDMTypes = std::array<bitfield8_t, 8>;
 using PLDMVersions = std::vector<ver32_t>;
 using VersionSupportTable = std::unordered_map<uint8_t, PLDMVersions>;
 
+struct BaseInterfaces
+{
+    DBusInterfacePtr msgTypeInterface;
+    DBusInterfacePtr uuidInterface;
+};
+
 struct DiscoveryData
 {
     CommandSupportTable cmdSupportTable;
+    BaseInterfaces baseInterfaces;
 };
 
 // FIFO TID pool to
@@ -594,6 +601,107 @@ bool isTerminusUnregistered(const pldm_tid_t tid)
     return tidReclaimWindowTimers.count(tid) == 1;
 }
 
+static std::string formatUUID(const pldm::platform::UUID& uuid)
+{
+    constexpr size_t safeBufferLength = 50;
+    char buf[safeBufferLength] = {0};
+
+    snprintf(
+        buf, safeBufferLength,
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        uuid[0], uuid[1], uuid[2], uuid[3], uuid[4], uuid[5], uuid[6], uuid[7],
+        uuid[8], uuid[9], uuid[10], uuid[11], uuid[12], uuid[13], uuid[14],
+        uuid[15]);
+    // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
+    return std::string(buf);
+}
+
+PLDMMsgTypes getPldmMsgTypes(const SupportedPLDMTypes& msgType)
+{
+    PLDMMsgTypes messageTypes = {};
+    auto codeTypes = getTypeCodesFromSupportedTypes(msgType);
+
+    for (auto type : codeTypes)
+    {
+        switch (type)
+        {
+            case PLDM_BASE: {
+                messageTypes.messageCtrl = true;
+                break;
+            }
+            case PLDM_SMBIOS: {
+                messageTypes.smbios = true;
+                break;
+            }
+            case PLDM_PLATFORM: {
+                messageTypes.platform = true;
+                break;
+            }
+            case PLDM_BIOS: {
+                messageTypes.bios = true;
+                break;
+            }
+            case PLDM_FRU: {
+                messageTypes.fru = true;
+                break;
+            }
+            case PLDM_FWUP: {
+                messageTypes.fwup = true;
+                break;
+            }
+            case PLDM_OEM: {
+                messageTypes.oem = true;
+                break;
+            }
+            case PLDM_RDE: {
+                messageTypes.rde = true;
+                break;
+            }
+            default: {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "Invalid message type");
+                break;
+            }
+        }
+    }
+    return messageTypes;
+}
+
+BaseInterfaces registerBaseInterfaces(const pldm_tid_t tid,
+                                      const pldm::platform::UUID& uuid,
+                                      PLDMMsgTypes messageTypes)
+{
+    const std::string pldmDevObj = "/xyz/openbmc_project/pldm/";
+
+    DBusObjectPath interfacePath = pldmDevObj + std::to_string(tid);
+
+    DBusInterfacePtr msgTypeIntf = addUniqueInterface(
+        interfacePath, "xyz.openbmc_project.PLDM.SupportedPLDMTypes");
+
+    msgTypeIntf->register_property("MessagingControl",
+                                   messageTypes.messageCtrl);
+    msgTypeIntf->register_property("SMBIOS", messageTypes.smbios);
+    msgTypeIntf->register_property("Platform", messageTypes.platform);
+    msgTypeIntf->register_property("BIOS", messageTypes.bios);
+    msgTypeIntf->register_property("FRU", messageTypes.fru);
+    msgTypeIntf->register_property("FWUP", messageTypes.fwup);
+    msgTypeIntf->register_property("RDE", messageTypes.rde);
+    msgTypeIntf->register_property("OEM", messageTypes.oem);
+    msgTypeIntf->initialize();
+
+    DBusInterfacePtr uuidIntf =
+        addUniqueInterface(interfacePath, "xyz.openbmc_project.Common.UUID");
+    std::string uuidData = formatUUID(uuid);
+
+    uuidIntf->register_property("UUID", uuidData);
+    uuidIntf->initialize();
+
+    BaseInterfaces baseInterfaces;
+    baseInterfaces.msgTypeInterface = std::move(msgTypeIntf);
+    baseInterfaces.uuidInterface = std::move(uuidIntf);
+    return baseInterfaces;
+}
+
 bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
               pldm_tid_t& tid, CommandSupportTable& cmdSupportTable)
 {
@@ -708,7 +816,16 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     {
         uuidMapping.emplace(uuid.value(), tid);
     }
-    discoveryDataTable.insert_or_assign(tid, DiscoveryData({cmdSupportTable}));
+    else
+    {
+        uuid = {0};
+    }
+
+    DiscoveryData TIDData;
+    TIDData.cmdSupportTable = cmdSupportTable;
+    TIDData.baseInterfaces =
+        registerBaseInterfaces(tid, uuid.value(), getPldmMsgTypes(pldmTypes));
+    discoveryDataTable.insert_or_assign(tid, TIDData);
     return true;
 }
 

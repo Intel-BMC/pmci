@@ -52,6 +52,18 @@ using SupportedCommands = std::array<bitfield8_t, 32>;
 using CommandSupportTable =
     std::unordered_map<uint8_t, std::unordered_map<ver32_t, SupportedCommands>>;
 
+struct PLDMMsgTypes
+{
+    bool messageCtrl : 1;
+    bool smbios : 1;
+    bool platform : 1;
+    bool bios : 1;
+    bool fru : 1;
+    bool fwup : 1;
+    bool rde : 1;
+    bool oem : 1;
+};
+
 // TODO. Use eid_type for eid
 bool baseInit(boost::asio::yield_context yield, const uint8_t eid,
               pldm_tid_t& tid, CommandSupportTable& cmdSupportTable);
