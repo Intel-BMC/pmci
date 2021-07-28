@@ -1815,9 +1815,19 @@ void MctpBinding::registerMsgTypes(std::shared_ptr<dbus_interface>& msgTypeIntf,
     msgTypeIntf->initialize();
 }
 
-void MctpBinding::populateEndpointProperties(
+bool MctpBinding::populateEndpointProperties(
     const EndpointProperties& epProperties)
 {
+    // Taking endpointIntf as a reference to check if EID is already registered
+    auto iter = endpointInterface.find(epProperties.endpointEid);
+    if (iter != endpointInterface.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("EID " + std::to_string(epProperties.endpointEid) +
+             " is already registered")
+                .c_str());
+        return false;
+    }
 
     std::string mctpDevObj = "/xyz/openbmc_project/mctp/device/";
     std::shared_ptr<dbus_interface> endpointIntf;
@@ -1865,6 +1875,7 @@ void MctpBinding::populateEndpointProperties(
     phosphor::logging::log<phosphor::logging::level::WARNING>(
         ("Device Registered: EID = " + std::to_string(epProperties.endpointEid))
             .c_str());
+    return true;
 }
 
 mctp_server::BindingModeTypes MctpBinding::getEndpointType(const uint8_t types)
@@ -2151,7 +2162,10 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     epProperties.endpointMsgTypes = getMsgTypes(msgTypeSupportResp.msgType);
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
 
-    populateEndpointProperties(epProperties);
+    if (!populateEndpointProperties(epProperties))
+    {
+        return std::nullopt;
+    }
 
     // Update the uuidTable with eid and the uuid of the endpoint registered.
     if (destUUID != nullUUID && eid != MCTP_EID_NULL)
@@ -2247,7 +2261,10 @@ std::optional<mctp_eid_t>
 
     getVendorDefinedMessageTypes(yield, bindingPrivate, eid, epProperties);
 
-    populateEndpointProperties(epProperties);
+    if (!populateEndpointProperties(epProperties))
+    {
+        return std::nullopt;
+    }
     return eid;
 }
 
