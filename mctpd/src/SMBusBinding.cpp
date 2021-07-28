@@ -906,7 +906,8 @@ mctp_eid_t SMBusBinding::getEIDFromDeviceTable(
             reinterpret_cast<const mctp_smbus_pkt_private*>(
                 bindingPrivate.data());
         mctp_smbus_pkt_private bindingDataEntry = std::get<1>(deviceEntry);
-        if (bindingDataEntry.slave_addr == ptr->slave_addr)
+        if (bindingDataEntry.slave_addr == ptr->slave_addr &&
+            bindingDataEntry.fd == ptr->fd)
         {
             eid = std::get<0>(deviceEntry);
             break;
