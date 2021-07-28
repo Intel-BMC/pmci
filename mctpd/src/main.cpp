@@ -84,6 +84,9 @@ int main(int argc, char* argv[])
     const std::string mctpServiceName = "xyz.openbmc_project." + mctpdName;
     conn->request_name(mctpServiceName.c_str());
 
+    phosphor::logging::log<phosphor::logging::level::INFO>(
+        ("Starting MCTP service: " + mctpServiceName).c_str());
+
     auto bindingPtr = getBindingPtr(*mctpdConfiguration, objectServer, ioc);
     if (!bindingPtr)
     {
