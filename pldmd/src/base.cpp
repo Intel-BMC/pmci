@@ -628,7 +628,12 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
         createCommandSupportTable(yield, eid, versionSupportTable);
 
     auto assignedTID = getTID(yield, eid);
-    if (!assignedTID)
+    if (!assignedTID.has_value())
+    {
+        return false;
+    }
+
+    if (assignedTID.value() == 0x00)
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Terminus doesn't have a TID assigned"),
@@ -658,7 +663,8 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
         }
     }
 
-    if (prevTIDExists && assignedTID && !isTerminusUnregistered(tid))
+    if (prevTIDExists && assignedTID.value() != 0x00 &&
+        !isTerminusUnregistered(tid))
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Device already registered");
