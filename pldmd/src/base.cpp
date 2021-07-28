@@ -600,6 +600,16 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "Running Base initialisation", phosphor::logging::entry("EID=%d", eid));
 
+    if (auto mappedTID = tidMapper.getMappedTID(eid))
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("EID: " + std::to_string(static_cast<int>(eid)) +
+             " is already mapped with another TID: " +
+             std::to_string(static_cast<int>(mappedTID.value())))
+                .c_str());
+        return false;
+    }
+
     SupportedPLDMTypes pldmTypes;
     if (!getSupportedPLDMTypes(yield, eid, pldmTypes))
     {
@@ -683,11 +693,15 @@ bool baseInit(boost::asio::yield_context yield, const mctpw_eid_t eid,
         return false;
     }
 
+    if (!tidMapper.addEntry(tid, eid))
+    {
+        tidPool.pushFrontUnusedTID(tid);
+        return false;
+    }
     if (uuid)
     {
         uuidMapping.emplace(uuid.value(), tid);
     }
-    tidMapper.addEntry(tid, eid);
     discoveryDataTable.insert_or_assign(tid, DiscoveryData({cmdSupportTable}));
     return true;
 }

@@ -70,7 +70,7 @@ struct TIDMapper
     mctpw_eid_t /*TODO: Update to std::variant<MCTP_EID, RBT for NCSI) etc.*/>;
 
   public:
-    void addEntry(const pldm_tid_t tid, const mctpw_eid_t eid);
+    bool addEntry(const pldm_tid_t tid, const mctpw_eid_t eid);
     void removeEntry(const pldm_tid_t tid);
     std::optional<pldm_tid_t> getMappedTID(const mctpw_eid_t eid);
     std::optional<mctpw_eid_t> getMappedEID(const pldm_tid_t tid);

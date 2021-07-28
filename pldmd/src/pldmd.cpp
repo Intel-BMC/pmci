@@ -141,13 +141,28 @@ std::optional<pldm_tid_t> TIDMapper::getMappedTID(const mctpw_eid_t eid)
     return std::nullopt;
 }
 
-void TIDMapper::addEntry(const pldm_tid_t tid, const mctpw_eid_t eid)
+bool TIDMapper::addEntry(const pldm_tid_t tid, const mctpw_eid_t eid)
 {
+    for (auto& eidMap : tidMap)
+    {
+        if (eidMap.second == eid)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                ("Unable to add entry. EID: " +
+                 std::to_string(static_cast<int>(eid)) +
+                 " is already mapped with another TID: " +
+                 std::to_string(static_cast<int>(tid)))
+                    .c_str());
+            return false;
+        }
+    }
+
     tidMap.insert_or_assign(tid, eid);
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Mapper: TID " + std::to_string(static_cast<int>(tid)) +
          " mapped to EID " + std::to_string(static_cast<int>(eid)))
             .c_str());
+    return true;
 }
 
 void TIDMapper::removeEntry(const pldm_tid_t tid)
