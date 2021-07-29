@@ -16,11 +16,15 @@
 
 #pragma once
 
+#include "fru.hpp"
+
 #include <sstream>
+#include <variant>
 
 namespace utils
 {
 
+using VariantType = std::variant<uint8_t, uint32_t, std::string>;
 /** @brief Helper to print vector
  *
  * Helper to print an array of bytes(eg: Request,Response) with log level DEBUG
@@ -77,5 +81,8 @@ std::string changeToString(T const& t)
     ss << t;
     return ss.str();
 }
+
+std::optional<VariantType> getFruProperty(const pldm_tid_t tid,
+                                          std::string propertyName);
 
 } // namespace utils

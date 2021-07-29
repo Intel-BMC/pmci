@@ -16,6 +16,7 @@
 #pragma once
 
 #include "fwu_utils.hpp"
+#include "utils.hpp"
 
 #include "firmware_update.h"
 
@@ -107,6 +108,10 @@ class FWInventoryInfo
     /** @brief API that adds firmware inventory to dbus
      */
     void addFirmwareInventoryToDBus();
+
+    /** @brief API that returns Inventory Name
+     */
+    std::string getInventoryName();
 
     pldm_tid_t tid;
     std::shared_ptr<sdbusplus::asio::object_server> objServer;

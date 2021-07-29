@@ -350,10 +350,7 @@ void FWInventoryInfo::addCompImgSetDataToDBus()
 
 void FWInventoryInfo::addFirmwareInventoryToDBus()
 {
-    // TODO get the inventory name from PLDM FRU, if PLDM_FRU is not supported
-    // inventoryName will be taken as pldm_fd
-    std::string inventoryName("pldm_fd");
-
+    std::string inventoryName = getInventoryName();
     inventoryPath = "/xyz/openbmc_project/software/" + inventoryName + "_" +
                     std::to_string(tid);
     std::string activation(
@@ -388,6 +385,23 @@ void FWInventoryInfo::addFirmwareInventoryToDBus()
         interfaceList.push_back(std::move(versionIntf));
     }
 }
+
+std::string FWInventoryInfo::getInventoryName()
+{
+    if (auto name = utils::getFruProperty(tid, "Name"))
+    {
+        std::string inventoryName = std::get<std::string>(*name);
+
+        inventoryName.erase(
+            std::remove(inventoryName.begin(), inventoryName.end(), ' '),
+            inventoryName.end());
+        return inventoryName;
+    }
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        "Setting default Inventory Name ");
+    return "pldm_fd";
+}
+
 void FWInventoryInfo::addInventoryInfoToDBus()
 {
     try

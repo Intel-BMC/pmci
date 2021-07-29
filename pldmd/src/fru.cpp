@@ -42,6 +42,16 @@ static FRUData fruData;
 
 constexpr size_t pldmHdrSize = sizeof(pldm_msg_hdr);
 
+std::optional<FRUProperties> getProperties(const pldm_tid_t tid)
+{
+    auto it = terminusFRUProperties.find(tid);
+    if (it != terminusFRUProperties.end())
+    {
+        return it->second;
+    }
+    return std::nullopt;
+}
+
 bool PLDMFRUTable::parseFRUField(uint8_t recordType, uint8_t type,
                                  uint8_t length, const uint8_t* value)
 {

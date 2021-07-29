@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -45,9 +46,11 @@ static inline const std::map<uint8_t, const char*> fruRecordTypes{
     {PLDM_FRU_RECORD_TYPE_GENERAL, "General"},
     {PLDM_FRU_RECORD_TYPE_OEM, "OEM"}};
 
-static void removeInterface(
-    std::string& interfacePath,
-    std::vector<std::shared_ptr<sdbusplus::asio::dbus_interface>>& interfaces);
+/** @brief return properties of the Fru
+ *
+ * @return FRUProperties on success and nullopt on failure
+ */
+std::optional<FRUProperties> getProperties(const pldm_tid_t tid);
 
 /** @brief run SetFRURecordTable command
  *
