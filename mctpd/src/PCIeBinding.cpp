@@ -162,14 +162,14 @@ void PCIeBinding::updateRoutingTable()
 
         if (routingTableTmp != routingTable)
         {
-            processRoutingTableChanges(routingTableTmp, yield, prvData);
-            routingTable = routingTableTmp;
-
-            if (!setDriverEndpointMap())
+            if (!setDriverEndpointMap(routingTableTmp))
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Failed to store routing table in KMD");
             }
+
+            processRoutingTableChanges(routingTableTmp, yield, prvData);
+            routingTable = routingTableTmp;
         }
     });
 }
@@ -213,11 +213,12 @@ void PCIeBinding::processRoutingTableChanges(
     }
 }
 
-bool PCIeBinding::setDriverEndpointMap()
+bool PCIeBinding::setDriverEndpointMap(
+    const std::vector<routingTableEntry_t>& newTable)
 {
     std::vector<hw::EidInfo> endpoints;
 
-    for (const auto& [eid, busDevFunc, type] : routingTable)
+    for (const auto& [eid, busDevFunc, type] : newTable)
     {
         endpoints.push_back({eid, busDevFunc});
     }

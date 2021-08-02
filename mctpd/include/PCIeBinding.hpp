@@ -70,7 +70,7 @@ class PCIeBinding : public MctpBinding,
     void processRoutingTableChanges(
         const std::vector<routingTableEntry_t>& newTable,
         boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
-    bool setDriverEndpointMap();
+    bool setDriverEndpointMap(const std::vector<routingTableEntry_t>& newTable);
     std::optional<std::vector<uint8_t>>
         getBindingPrivateData(uint8_t dstEid) override;
     bool isReceivedPrivateDataCorrect(const void* bindingPrivate) override;
