@@ -1501,6 +1501,21 @@ bool MctpBinding::setEidCtrlCmd(boost::asio::yield_context& yield,
     return true;
 }
 
+static std::string formatUUID(guid_t& uuid)
+{
+    const size_t safeBufferLength = 50;
+    char buf[safeBufferLength] = {0};
+    auto ptr = reinterpret_cast<uint8_t*>(&uuid);
+
+    snprintf(
+        buf, safeBufferLength,
+        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+        ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8],
+        ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
+    // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
+    return std::string(buf);
+}
+
 bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
                                  const std::vector<uint8_t>& bindingPrivate,
                                  const mctp_eid_t destEid,
@@ -1527,6 +1542,16 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Get UUID failed");
+        return false;
+    }
+
+    const std::string nilUUID = "00000000-0000-0000-0000-000000000000";
+    mctp_ctrl_resp_get_uuid* getUUIDRespPtr =
+        reinterpret_cast<mctp_ctrl_resp_get_uuid*>(resp.data());
+    if (nilUUID == formatUUID(getUUIDRespPtr->uuid))
+    {
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+            "Get UUID: Device returned Nil UUID");
         return false;
     }
 
@@ -2061,21 +2086,6 @@ bool MctpBinding::setMediumId(
         return true;
     }
     return false;
-}
-
-static std::string formatUUID(guid_t& uuid)
-{
-    const size_t safeBufferLength = 50;
-    char buf[safeBufferLength] = {0};
-    auto ptr = reinterpret_cast<uint8_t*>(&uuid);
-
-    snprintf(
-        buf, safeBufferLength,
-        "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
-        ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7], ptr[8],
-        ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
-    // UUID is in RFC4122 format. Ex: 61a39523-78f2-11e5-9862-e6402cfc3223
-    return std::string(buf);
 }
 
 static std::optional<mctp_eid_t> checkEIDMismatchAndGetEID(mctp_eid_t eid,
