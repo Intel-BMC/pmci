@@ -42,7 +42,7 @@ struct NumericEffecter
     std::shared_ptr<sdbusplus::asio::dbus_interface> operationalInterface =
         nullptr;
     double value = std::numeric_limits<double>::quiet_NaN();
-    size_t errCount;
+    size_t errCount = 0;
     EffecterUnit unit;
 
     /** @brief Update the effecter functionality*/

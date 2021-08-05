@@ -100,7 +100,7 @@ class StateSensorHandler
     std::shared_ptr<StateSensorPDR> _pdr;
 
     /** @brief Error counter*/
-    size_t errCount;
+    size_t errCount = 0;
 
     /** @brief Sensor disabled flag*/
     bool sensorDisabled = false;

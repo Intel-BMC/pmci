@@ -148,7 +148,7 @@ void StateSensorHandler::incrementError()
     errCount++;
     if (errCount == errorThreshold)
     {
-        phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        phosphor::logging::log<phosphor::logging::level::ERR>(
             "State sensor reading failed",
             phosphor::logging::entry("SENSOR_ID=0x%0X", _sensorID),
             phosphor::logging::entry("TID=%d", _tid));

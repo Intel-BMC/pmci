@@ -58,7 +58,7 @@ struct NumericSensor
     double rawValue = std::numeric_limits<double>::quiet_NaN();
     double hysteresisTrigger;
     double hysteresisPublish;
-    size_t errCount;
+    size_t errCount = 0;
     SensorUnit unit;
 
     /** @brief Update the sensor functionality*/

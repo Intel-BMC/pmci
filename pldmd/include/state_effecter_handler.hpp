@@ -97,7 +97,7 @@ class StateEffecterHandler
     std::shared_ptr<StateEffecterPDR> _pdr;
 
     /** @brief Error counter*/
-    size_t errCount;
+    size_t errCount = 0;
 
     /** @brief Cache readings for later use*/
     bool isAvailableReading = false;
