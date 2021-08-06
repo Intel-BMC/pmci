@@ -710,10 +710,10 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
     uint8_t totalCompsAcceptedByFd = 0;
     for (uint16_t count = 0; count < compCount; ++count)
     {
-        struct pass_component_table_req componentTable;
-        struct variable_field ComponentVersionString;
-        uint8_t compResp;
-        uint8_t compRespCode;
+        struct pass_component_table_req componentTable = {};
+        struct variable_field ComponentVersionString = {};
+        uint8_t compResp = 0;
+        uint8_t compRespCode = 0;
         currentComp = count;
 
         if (!isComponentApplicable())
@@ -1869,11 +1869,11 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     compOffset = pldmImg->getHeaderLen();
     for (uint16_t count = 0; count < compCount; ++count)
     {
-        uint8_t compCompatabilityResp;
-        uint8_t compCompatabilityRespCode;
-        bitfield32_t updateOptFlagsEnabled;
-        uint16_t estimatedTimeReqFd;
-        uint32_t compSize;
+        uint8_t compCompatabilityResp = 0;
+        uint8_t compCompatabilityRespCode = 0;
+        bitfield32_t updateOptFlagsEnabled = {};
+        uint16_t estimatedTimeReqFd = 0;
+        uint32_t compSize = 0;
         pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
         currentComp = count;
         if (!isComponentApplicable())
