@@ -779,7 +779,7 @@ void PDRManager::parseEntityAssociationPDR(std::vector<uint8_t>& pdrData)
         for (auto& iter : entityAssociationNodes)
         {
             if (mergeContainedEntities(iter, entityAssociation))
-                break;
+                return;
         }
         entityAssociationNodes.emplace_back(std::move(entityAssociation));
     }
