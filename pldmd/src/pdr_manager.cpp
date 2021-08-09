@@ -749,8 +749,12 @@ void PDRManager::createEntityAssociationTree(
 static bool mergeContainedEntities(EntityNode::NodePtr& node,
                                    EntityNode::NodePtr& entityAssociation)
 {
-    if (node->containerEntity.entity_container_id ==
-        entityAssociation->containerEntity.entity_container_id)
+    if (node->containerEntity.entity_type ==
+            entityAssociation->containerEntity.entity_type &&
+        node->containerEntity.entity_instance_num ==
+            entityAssociation->containerEntity.entity_instance_num &&
+        node->containerEntity.entity_container_id ==
+            entityAssociation->containerEntity.entity_container_id)
     {
         std::move(entityAssociation->containedEntities.begin(),
                   entityAssociation->containedEntities.end(),
