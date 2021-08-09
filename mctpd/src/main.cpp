@@ -54,7 +54,11 @@ int main(int argc, char* argv[])
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
     signals.async_wait(
-        [&ioc](const boost::system::error_code&, const int&) { ioc.stop(); });
+        [&ioc](const boost::system::error_code&, const int& sigNum) {
+            ioc.stop();
+            signal(sigNum, SIG_DFL);
+            raise(sigNum);
+        });
 
     conn = std::make_shared<sdbusplus::asio::connection>(ioc);
 
