@@ -88,7 +88,7 @@ if(BUILD_STANDALONE)
 
   include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/sdbusplus/include)
   link_directories(${CMAKE_BINARY_DIR}/libs/sdbusplus/lib)
-  include_directories(SYSTEM ${CMAKE_BINARY_DIR}/src/phosphor-logging)
+  include_directories(SYSTEM ${CMAKE_BINARY_DIR}/src/phosphor-logging/lib/include)
   link_directories(${CMAKE_BINARY_DIR}/src/phosphor-logging/.libs)
   include_directories(SYSTEM ${CMAKE_BINARY_DIR}/libs/libmctp/include)
   link_directories(${CMAKE_BINARY_DIR}/libs/libmctp/lib)
