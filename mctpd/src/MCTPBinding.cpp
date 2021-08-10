@@ -1548,14 +1548,16 @@ bool MctpBinding::getUuidCtrlCmd(boost::asio::yield_context& yield,
     const std::string nilUUID = "00000000-0000-0000-0000-000000000000";
     mctp_ctrl_resp_get_uuid* getUUIDRespPtr =
         reinterpret_cast<mctp_ctrl_resp_get_uuid*>(resp.data());
-    if (nilUUID == formatUUID(getUUIDRespPtr->uuid))
+    std::string uuidResp = formatUUID(getUUIDRespPtr->uuid);
+    if (nilUUID == uuidResp)
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Get UUID: Device returned Nil UUID");
         return false;
     }
 
-    phosphor::logging::log<phosphor::logging::level::DEBUG>("Get UUID success");
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Get UUID success: " + uuidResp).c_str());
     return true;
 }
 
