@@ -2134,6 +2134,10 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
          std::to_string(currentTid))
             .c_str());
 
+    constexpr int bufferTimeMilliSec = 1000;
+    startTimer(yield, bufferTimeMilliSec + selfContainedActivationReq);
+    triggerDeviceDiscovery(currentTid);
+
     return PLDM_SUCCESS;
 }
 

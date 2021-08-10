@@ -40,6 +40,14 @@ static uint8_t reservedPLDMType = pldmInvalidType;
 TIDMapper tidMapper;
 std::unique_ptr<mctpw::MCTPWrapper> mctpWrapper;
 
+void triggerDeviceDiscovery(const pldm_tid_t tid)
+{
+    if (auto eidPtr = tidMapper.getMappedEID(tid))
+    {
+        mctpWrapper->triggerMCTPDeviceDiscovery(*eidPtr);
+    }
+}
+
 static bool validateReserveBW(const pldm_tid_t tid, const uint8_t pldmType)
 {
     return rsvBWActive && !(tid == reservedTID && pldmType == reservedPLDMType);

@@ -95,6 +95,16 @@ extern TIDMapper tidMapper;
  */
 uint8_t createInstanceId(pldm_tid_t tid);
 
+/** @brief Trigger device discovery scan
+ *
+ * PLDM terminus can go for reset after certain operations like PLDM firmware
+ * update. In this cases the terminus will need a rediscovery. This API helps to
+ * trigger terminus re-discovery in such situations
+ *
+ * @param tid - TID of the PLDM device
+ */
+void triggerDeviceDiscovery(const pldm_tid_t tid);
+
 /** @brief Reserves Bandwidth for firmware device to send command to update
 agent
  *
