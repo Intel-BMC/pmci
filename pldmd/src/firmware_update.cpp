@@ -1346,12 +1346,13 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
     }
 
     // get package data from pldmImg
-    pldmImg->getPkgProperty<std::vector<uint8_t>>(packageData,
-                                                  "FirmwareDevicePackageData");
-
-    if (packageData.size() == 0)
+    if (!pldmImg->getDevIdRcrdProperty<std::vector<uint8_t>>(
+            packageData, "FirmwareDevicePackageData", currentDeviceIDRecord) ||
+        !packageData.size())
     {
-        return PLDM_SUCCESS;
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Failed to get FirmwareDevicePackageData or packageData size is 0");
+        return PLDM_ERROR;
     }
     expectedCmd = PLDM_GET_PACKAGE_DATA;
 
