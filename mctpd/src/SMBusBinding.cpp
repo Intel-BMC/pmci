@@ -23,7 +23,10 @@ using smbus_server =
     sdbusplus::xyz::openbmc_project::MCTP::Binding::server::SMBus;
 
 namespace fs = std::filesystem;
-
+std::map<MuxIdleModes, std::string> muxIdleModesMap{
+    {MuxIdleModes::muxIdleModeConnect, "-1"},
+    {MuxIdleModes::muxIdleModeDisconnect, "-2"},
+};
 static void throwRunTimeError(const std::string& err)
 {
     phosphor::logging::log<phosphor::logging::level::ERR>(err.c_str());
@@ -270,15 +273,22 @@ bool SMBusBinding::reserveBandwidth(const mctp_eid_t eid,
             "reserveBandwidth not required, fd is not a mux port");
         return false;
     }
-    if (mctp_smbus_init_pull_model(prvt) < 0)
+
+    if (!rsvBWActive)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "reserveBandwidth: init pull model failed");
-        return false;
+        if (mctp_smbus_init_pull_model(prvt) < 0)
+        {
+            phosphor::logging::log<phosphor::logging::level::ERR>(
+                "reserveBandwidth: init pull model failed");
+            return false;
+        }
+        // TODO: Set only the required MUX.
+        setMuxIdleMode(MuxIdleModes::muxIdleModeConnect);
+        rsvBWActive = true;
+        reservedEID = eid;
     }
-    rsvBWActive = true;
-    reservedEID = eid;
-    startTimerAndReleaseBW(timeout, prvt);
+
+    startTimerAndReleaseBW(timeout, *prvt);
     return true;
 }
 
@@ -287,36 +297,21 @@ bool SMBusBinding::releaseBandwidth(const mctp_eid_t eid)
     if (!rsvBWActive || eid != reservedEID)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("reserveBandwidth is not active for EID: ") +
-             std::to_string(reservedEID))
+            (("reserveBandwidth is not active for EID: ") + std::to_string(eid))
                 .c_str());
         return false;
     }
-    std::optional<std::vector<uint8_t>> pvtData = getBindingPrivateData(eid);
-    if (!pvtData)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "releaseBandwidth: Invalid destination EID");
-        return false;
-    }
-    mctp_smbus_pkt_private* prvt =
-        reinterpret_cast<mctp_smbus_pkt_private*>(pvtData->data());
-    if (mctp_smbus_exit_pull_model(prvt) < 0)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "releaseBandwidth: failed to exit pull model");
-        return false;
-    }
-    rsvBWActive = false;
-    reservedEID = 0;
     reserveBWTimer.cancel();
     return true;
 }
 
 void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
-                                          const mctp_smbus_pkt_private* prvt)
+                                          const mctp_smbus_pkt_private prvt)
 {
-    reserveBWTimer.expires_after(std::chrono::milliseconds(interval * 1000));
+    // expires_after() return the number of asynchronous operations that were
+    // cancelled.
+    ret = reserveBWTimer.expires_after(
+        std::chrono::milliseconds(interval * 1000));
     reserveBWTimer.async_wait([this,
                                prvt](const boost::system::error_code& ec) {
         if (ec == boost::asio::error::operation_aborted)
@@ -330,7 +325,15 @@ void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "startTimerAndReleaseBW: reserveBWTimer failed");
         }
-        if (mctp_smbus_exit_pull_model(prvt) < 0)
+        if (ret)
+        {
+            phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                "startTimerAndReleaseBW: timer restarted");
+            ret = 0;
+            return;
+        }
+        setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
+        if (mctp_smbus_exit_pull_model(&prvt) < 0)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "startTimerAndReleaseBW: mctp_smbus_exit_pull_model failed");
@@ -473,8 +476,15 @@ void SMBusBinding::restoreMuxIdleMode()
     }
 }
 
-void SMBusBinding::setMuxIdleModeToDisconnect()
+void SMBusBinding::setMuxIdleMode(const MuxIdleModes mode)
 {
+    auto itr = muxIdleModesMap.find(mode);
+    if (itr == muxIdleModesMap.end())
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "Inavlid mux idle mode");
+        return;
+    }
     std::string rootPort;
     if (!getBusNumFromPath(bus, rootPort))
     {
@@ -484,16 +494,16 @@ void SMBusBinding::setMuxIdleModeToDisconnect()
     fs::path rootPath = fs::path("/sys/bus/i2c/devices/i2c-" + rootPort + "/");
     std::string matchString = rootPort + std::string(R"(-\d+$)");
     std::vector<std::string> i2cMuxes{};
+    static bool muxIdleModeFlag = false;
 
     // Search for mux ports
     if (!findFiles(rootPath, matchString, i2cMuxes))
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
+        phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "No mux interfaces found");
         return;
     }
 
-    const std::string muxIdleModeDisconnect = "-2";
     for (const auto& muxPath : i2cMuxes)
     {
         std::string path = muxPath + "/idle_state";
@@ -506,14 +516,17 @@ void SMBusBinding::setMuxIdleModeToDisconnect()
         std::fstream idleFile(idlePath);
         if (idleFile.good())
         {
-            std::string currentMuxIdleMode;
-            idleFile >> currentMuxIdleMode;
-            muxIdleModeMap.insert_or_assign(path, currentMuxIdleMode);
+            if (!muxIdleModeFlag)
+            {
+                std::string currentMuxIdleMode;
+                idleFile >> currentMuxIdleMode;
+                muxIdleModeMap.insert_or_assign(path, currentMuxIdleMode);
 
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                (path + " " + currentMuxIdleMode).c_str());
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    (path + " " + currentMuxIdleMode).c_str());
+            }
 
-            idleFile << muxIdleModeDisconnect;
+            idleFile << itr->second;
         }
         else
         {
@@ -522,6 +535,7 @@ void SMBusBinding::setMuxIdleModeToDisconnect()
                 phosphor::logging::entry("MUX_PATH=%s", idlePath.c_str()));
         }
     }
+    muxIdleModeFlag = true;
 }
 
 void SMBusBinding::initializeBinding()
@@ -532,7 +546,7 @@ void SMBusBinding::initializeBinding()
         auto rootPort = SMBusInit();
         phosphor::logging::log<phosphor::logging::level::INFO>(
             "Scanning root port");
-        setMuxIdleModeToDisconnect();
+        setMuxIdleMode(MuxIdleModes::muxIdleModeDisconnect);
         // Scan root port
         scanPort(outFd, rootDeviceMap);
         muxPortMap = getMuxFds(rootPort);

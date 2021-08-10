@@ -13,6 +13,12 @@ enum class DiscoveryFlags : uint8_t
     kDiscovered,
 };
 
+enum class MuxIdleModes : uint8_t
+{
+    muxIdleModeConnect = 0,
+    muxIdleModeDisconnect,
+};
+
 class SMBusBinding : public MctpBinding
 {
   public:
@@ -52,7 +58,7 @@ class SMBusBinding : public MctpBinding
     bool reserveBandwidth(const mctp_eid_t eid,
                           const uint16_t timeout) override;
     void startTimerAndReleaseBW(const uint16_t interval,
-                                const mctp_smbus_pkt_private* prvt);
+                                const mctp_smbus_pkt_private prvt);
     bool releaseBandwidth(const mctp_eid_t eid) override;
     void triggerDeviceDiscovery() override;
     std::string bus;
@@ -88,7 +94,6 @@ class SMBusBinding : public MctpBinding
     void updateDiscoveredFlag(DiscoveryFlags flag);
     std::string convertToString(DiscoveryFlags flag);
     void restoreMuxIdleMode();
-    void setMuxIdleModeToDisconnect();
     mctp_server::BindingModeTypes
         getBindingMode(const DeviceTableEntry_t& deviceTableEntry);
     bool isDeviceEntryPresent(
@@ -102,4 +107,6 @@ class SMBusBinding : public MctpBinding
     void processRoutingTableChanges(
         const std::vector<DeviceTableEntry_t>& newTable,
         boost::asio::yield_context& yield, const std::vector<uint8_t>& prvData);
+    void setMuxIdleMode(const MuxIdleModes mode);
+    size_t ret = 0;
 };
