@@ -227,6 +227,7 @@ class MctpBinding
         std::vector<uint8_t>& response);
     virtual bool reserveBandwidth(const mctp_eid_t eid, const uint16_t timeout);
     virtual bool releaseBandwidth(const mctp_eid_t eid);
+    virtual void triggerDeviceDiscovery();
     virtual bool handleEndpointDiscovery(mctp_eid_t destEid,
                                          void* bindingPrivate,
                                          std::vector<uint8_t>& request,

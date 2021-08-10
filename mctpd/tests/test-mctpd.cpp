@@ -137,6 +137,11 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
         .Times(1)
         .WillRepeatedly(Return(true));
 
+    EXPECT_CALL(*mctpInterface,
+                register_method(StrEq("TriggerDeviceDiscovery")))
+        .Times(1)
+        .WillRepeatedly(Return(true));
+
     EXPECT_CALL(
         *smbusInterface,
         register_property(StrEq("ArpMasterSupport"), An<bool>(),

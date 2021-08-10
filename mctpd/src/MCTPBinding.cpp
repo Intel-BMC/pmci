@@ -122,7 +122,7 @@ bool DeviceWatcher::isDeviceGoodForInit(const BindingPrivateVect& bindingPvt)
 bool DeviceWatcher::checkDeviceInitThreshold(
     const BindingPrivateVect& bindingPvt)
 {
-    constexpr int successiveDeviceInitThold = 10;
+    constexpr int successiveDeviceInitThold = 5;
 
     currentInitList.emplace(bindingPvt);
     if (previousInitList.count(bindingPvt) == 0)
@@ -462,6 +462,10 @@ bool MctpBinding::releaseBandwidth(const mctp_eid_t /*eid*/)
     return true;
 }
 
+void MctpBinding::triggerDeviceDiscovery()
+{
+}
+
 bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
 {
     return true;
@@ -684,6 +688,9 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
             [this](uint16_t vendorIdx, uint16_t cmdSetType) -> bool {
                 return manageVdpciVersionInfo(vendorIdx, cmdSetType);
             });
+
+        mctpInterface->register_method("TriggerDeviceDiscovery",
+                                       [this]() { triggerDeviceDiscovery(); });
 
         if (mctpInterface->initialize() == false)
         {

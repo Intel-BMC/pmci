@@ -396,6 +396,11 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
     }
 }
 
+void SMBusBinding::triggerDeviceDiscovery()
+{
+    scanTimer.cancel();
+}
+
 void SMBusBinding::scanDevices()
 {
     phosphor::logging::log<phosphor::logging::level::DEBUG>("Scanning devices");
@@ -415,17 +420,17 @@ void SMBusBinding::scanDevices()
         // TODO: Get timer tick frequency from EntityManager
         scanTimer.expires_after(std::chrono::seconds(60));
         scanTimer.async_wait([this](const boost::system::error_code& ec) {
-            if (ec == boost::asio::error::operation_aborted)
-            {
-                phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    "Device scanning aborted");
-                return;
-            }
-            if (ec)
+            if (ec && ec != boost::asio::error::operation_aborted)
             {
                 phosphor::logging::log<phosphor::logging::level::ERR>(
                     "Device scanning timer failed");
                 return;
+            }
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    "Device scan wait timer aborted. Re-triggering device "
+                    "discovery");
             }
             scanDevices();
         });
