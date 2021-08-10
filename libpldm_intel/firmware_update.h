@@ -149,7 +149,6 @@ enum pldm_firmware_update_reason_code {
 };
 
 #define UPDATE_OPTION_FLAGS_ENABLED_MASK 0x1
-#define PLDM_FWU_BASELINE_TRANSFER_SIZE 32
 
 /** @brief PLDM FWU codes for transfer result
  */
