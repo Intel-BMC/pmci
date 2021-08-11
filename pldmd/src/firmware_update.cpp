@@ -217,7 +217,8 @@ bool FWUpdate::prepareRequestUpdateCommand()
 }
 
 bool FWUpdate::preparePassComponentRequest(
-    struct pass_component_table_req& componentTable, const uint16_t compCnt)
+    struct pass_component_table_req& componentTable,
+    std::string& compVersionString, const uint16_t compCnt)
 {
     uint16_t tempShort = 0;
     uint32_t tempLong = 0;
@@ -251,7 +252,11 @@ bool FWUpdate::preparePassComponentRequest(
     {
         return false;
     }
-
+    if (!pldmImg->getCompProperty<std::string>(compVersionString, "CompVerStr",
+                                               compCnt))
+    {
+        return false;
+    }
     return initTransferFlag(compCnt, componentTable.transfer_flag);
 }
 
@@ -712,16 +717,22 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
     for (uint16_t count = 0; count < compCount; ++count)
     {
         struct pass_component_table_req componentTable = {};
-        struct variable_field ComponentVersionString = {};
+        struct variable_field componentVersionString = {};
+        std::string versionStr;
         uint8_t compResp = 0;
         uint8_t compRespCode = 0;
         currentComp = count;
 
         if (!isComponentApplicable())
         {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("component not applicable. Skipping PassComponentRequest for "
+                 "COMPONENT: " +
+                 std::to_string(currentComp))
+                    .c_str());
             continue;
         }
-        if (!preparePassComponentRequest(componentTable, count))
+        if (!preparePassComponentRequest(componentTable, versionStr, count))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
                 "processPassComponentTable: PassComponentRequest preparation "
@@ -729,11 +740,11 @@ int FWUpdate::processPassComponentTable(const boost::asio::yield_context yield)
             return PLDM_ERROR;
         }
 
-        ComponentVersionString.ptr = reinterpret_cast<const uint8_t*>(
-            componentImageSetVersionString.c_str());
-        ComponentVersionString.length = componentImageSetVersionString.length();
+        componentVersionString.ptr =
+            reinterpret_cast<const uint8_t*>(versionStr.c_str());
+        componentVersionString.length = versionStr.length();
         int retVal =
-            passComponentTable(yield, componentTable, ComponentVersionString,
+            passComponentTable(yield, componentTable, componentVersionString,
                                compResp, compRespCode);
         if (retVal != PLDM_SUCCESS)
         {

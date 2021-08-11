@@ -141,7 +141,7 @@ class FWUpdate
     bool prepareRequestUpdateCommand();
     bool preparePassComponentRequest(
         struct pass_component_table_req& componentTable,
-        const uint16_t compCnt);
+        std::string& compVersionString, const uint16_t compCnt);
     bool initTransferFlag(const uint16_t compCnt, uint8_t& flag);
     bool prepareUpdateComponentRequest(struct update_component_req& component);
 
