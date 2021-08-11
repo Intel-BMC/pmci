@@ -291,7 +291,7 @@ bool FWUpdate::initTransferFlag(const uint16_t compCnt, uint8_t& flag)
 }
 
 bool FWUpdate::prepareUpdateComponentRequest(
-    struct update_component_req& component)
+    std::string& compVersionString, struct update_component_req& component)
 {
     uint16_t tempShort = 0;
     uint32_t tempLong = 0;
@@ -331,7 +331,11 @@ bool FWUpdate::prepareUpdateComponentRequest(
     {
         return false;
     }
-
+    if (!pldmImg->getCompProperty<std::string>(compVersionString, "CompVerStr",
+                                               currentComp))
+    {
+        return false;
+    }
     return true;
 }
 
@@ -823,20 +827,21 @@ int FWUpdate::processUpdateComponent(const boost::asio::yield_context yield,
     {
         return COMMAND_NOT_EXPECTED;
     }
-    variable_field ComponentVersionString;
+    variable_field componentVersionString;
     struct update_component_req component;
-    ComponentVersionString.ptr = reinterpret_cast<const uint8_t*>(
-        componentImageSetVersionString.c_str());
-    ComponentVersionString.length = componentImageSetVersionString.length();
+    std::string versionStr;
 
-    if (!prepareUpdateComponentRequest(component))
+    if (!prepareUpdateComponentRequest(versionStr, component))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(
             "UpdateComponentRequest preparation failed");
 
         return PLDM_SUCCESS;
     }
-    return updateComponent(yield, component, ComponentVersionString,
+    componentVersionString.ptr =
+        reinterpret_cast<const uint8_t*>(versionStr.c_str());
+    componentVersionString.length = versionStr.length();
+    return updateComponent(yield, component, componentVersionString,
                            compCompatabilityResp, compCompatabilityRespCode,
                            updateOptFlagsEnabled, estimatedTimeReqFd);
 }
