@@ -7,10 +7,12 @@
  */
 enum pldm_supported_types {
 	PLDM_BASE = 0x00,
+	PLDM_SMBIOS = 0x01,
 	PLDM_PLATFORM = 0x02,
 	PLDM_BIOS = 0x03,
 	PLDM_FRU = 0x04,
 	PLDM_FWUP = 0x05,
+	PLDM_RDE = 0x06,
 	PLDM_OEM = 0x3F,
 };
 
