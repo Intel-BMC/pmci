@@ -1954,6 +1954,26 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         expectedCmd = PLDM_REQUEST_FIRMWARE_DATA;
 
         retVal = processRequestFirmwareData(yield, compSize, compOffset);
+        if (retVal != PLDM_SUCCESS)
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("runUpdate: processRequestFirmwareData failed. RETVAL: " +
+                 std::to_string(retVal) +
+                 ". COMPONENT: " + std::to_string(count))
+                    .c_str());
+            int ret = doCancelUpdateComponent(yield);
+            if (ret != PLDM_SUCCESS)
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("runUpdate: Failed to run CancelUpdateComponent. "
+                     "RETVAL: " +
+                     std::to_string(ret) +
+                     ". COMPONENT: " + std::to_string(count))
+                        .c_str());
+            }
+            compOffset += compSize;
+            continue;
+        }
         startTimer(yield, fdCmdTimeout);
 
         if (!fdReqMatched)
