@@ -229,8 +229,15 @@ class MCTPWrapper
      *
      * @return const EndpointMap&
      */
-
     const EndpointMap& getEndpointMap();
+
+    /**
+     * @brief Trigger MCTP device discovery
+     * @param dstEId Destination MCTP Endpoint ID
+     *
+     */
+    void triggerMCTPDeviceDiscovery(const eid_t dstEId);
+
     /**
      * @brief Send request to dstEId and receive response asynchronously in
      * receiveCb

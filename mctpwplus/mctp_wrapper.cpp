@@ -125,3 +125,8 @@ const MCTPWrapper::EndpointMap& MCTPWrapper::getEndpointMap()
 {
     return pimpl->getEndpointMap();
 }
+
+void MCTPWrapper::triggerMCTPDeviceDiscovery(const eid_t dstEId)
+{
+    pimpl->triggerMCTPDeviceDiscovery(dstEId);
+}

@@ -135,6 +135,12 @@ class MCTPImpl
     }
 
     /**
+     * @brief Trigger MCTP device discovery
+     *
+     */
+    void triggerMCTPDeviceDiscovery(const eid_t dstEId);
+
+    /**
      * @brief Send request to dstEId and receive response asynchronously in
      * receiveCb
      *

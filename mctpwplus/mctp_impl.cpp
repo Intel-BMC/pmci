@@ -90,6 +90,29 @@ void MCTPImpl::detectMctpEndpointsAsync(StatusCallback&& registerCB)
                        });
 }
 
+void MCTPImpl::triggerMCTPDeviceDiscovery(const eid_t dstEId)
+{
+    auto it = this->endpointMap.find(dstEId);
+    if (this->endpointMap.end() == it)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            "triggerMCTPDeviceDiscovery: EID not found in end point map",
+            phosphor::logging::entry("EID=%d", dstEId));
+        return;
+    }
+
+    connection->async_method_call(
+        [](boost::system::error_code ec) {
+            if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    ("MCTP device discovery error: " + ec.message()).c_str());
+            }
+        },
+        it->second.second, "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP.Base", "TriggerDeviceDiscovery");
+}
+
 void MCTPImpl::unRegisterListeners(const std::string& serviceName)
 {
     auto itr = matchers.find(serviceName);
