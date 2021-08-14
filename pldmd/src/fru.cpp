@@ -716,6 +716,7 @@ bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)
     if (!setFRUIface || !setFRUIface->is_initialized())
     {
         initializeFRUBase();
+        ipmiFru.initializeFRUSupport();
     }
 
     GetPLDMFRU getFRUCommands(yield, tid);
@@ -725,6 +726,7 @@ bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Failed to run FRU commands",
             phosphor::logging::entry("TID=%d", tid));
+        return retVal;
     }
 
     try
@@ -737,6 +739,7 @@ bool fruInit(boost::asio::yield_context yield, const pldm_tid_t tid)
             "Failed to map PLDM Fru to IPMI fru",
             phosphor::logging::entry("TID=%d", tid));
     }
+
     return retVal;
 }
 } // namespace fru

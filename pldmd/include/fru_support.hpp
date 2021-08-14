@@ -27,6 +27,12 @@ using FRUProperties = std::map<std::string, FRUVariantType>;
 class FruSupport
 {
   public:
+    /** @brief Add IPMI Fru interfaces, Add GetRawFru method
+     *
+     * @return void
+     */
+    void initializeFRUSupport();
+
     /** @brief Converts PLDM FRU to IPMI FRU
      *  @param tid - TID of the PLDM device
      *  @param fruProperties - Properties of PLDM device
@@ -45,4 +51,38 @@ class FruSupport
     std::unordered_map<pldm_tid_t,
                        std::shared_ptr<sdbusplus::asio::dbus_interface>>
         ipmiFruInterface;
+    std::shared_ptr<sdbusplus::asio::dbus_interface> fruIface;
+    std::map<pldm_tid_t, FRUProperties> ipmiFRUProperties;
+
+    /** @brief returns the FRUData in IPMI format
+     *
+     * @return FRURecord in IPMI format on success; empty table otherwise
+     * on failure
+     */
+    std::optional<std::vector<uint8_t>>
+        getRawFRURecordData(const pldm_tid_t tid);
+
+    /** @brief Returns checksum
+     */
+    uint8_t calculateChecksum(std::vector<uint8_t>::const_iterator iter,
+                              std::vector<uint8_t>::const_iterator end);
+
+    /** @brief Set the Common Header of IPMI FRU
+     */
+    void setCommonHeader(const uint8_t internalAreaLen,
+                         const uint8_t chassisAreaLen,
+                         const uint8_t boardAreaLen,
+                         const uint8_t productAreaLen,
+                         std::vector<uint8_t>& ipmiFruData);
+
+    uint8_t setInternalArea(std::vector<uint8_t>& fruData);
+
+    uint8_t setChassisArea(std::vector<uint8_t>& fruData);
+
+    uint8_t setBoardArea(std::vector<uint8_t>& fruData);
+
+    uint8_t setProductArea(const FRUProperties& properties,
+                           std::vector<uint8_t>& fruData);
+
+    uint8_t setHeaderAreaOffset(uint8_t& fruOffset, const uint8_t areaOffset);
 };
