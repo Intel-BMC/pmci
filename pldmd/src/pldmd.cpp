@@ -136,8 +136,10 @@ std::optional<pldm_tid_t> TIDMapper::getMappedTID(const mctpw_eid_t eid)
             return eidMap.first;
         }
     }
-    phosphor::logging::log<phosphor::logging::level::WARNING>(
-        "EID not found in the mapper");
+    phosphor::logging::log<phosphor::logging::level::DEBUG>(
+        ("Mapper: EID " + utils::changeToString(static_cast<int>(eid)) +
+         " is not mapped to any TID")
+            .c_str());
     return std::nullopt;
 }
 
@@ -478,28 +480,34 @@ auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
     {
         // Discard the packet if no matching TID is found
         // Why: We do not have to process packets from uninitialised Termini
-        if (auto tid = tidMapper.getMappedTID(srcEid))
+        auto tid = tidMapper.getMappedTID(srcEid);
+        if (!tid)
         {
-            utils::printVect("PLDM message received(MCTP payload):", payload);
-            payload.erase(payload.begin());
-            if (auto pldmMsgType = getPldmMessageType(payload))
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("EID " + utils::changeToString(static_cast<int>(srcEid)) +
+                 " is not mapped to any TID; Discarding the packet")
+                    .c_str());
+            return;
+        }
+
+        utils::printVect("PLDM message received(MCTP payload):", payload);
+        payload.erase(payload.begin());
+        if (auto pldmMsgType = getPldmMessageType(payload))
+        {
+            switch (*pldmMsgType)
             {
-                switch (*pldmMsgType)
-                {
-                    case PLDM_FWUP:
-                        pldm::fwu::pldmMsgRecvFwUpdCallback(*tid, msgTag,
-                                                            tagOwner, payload);
-                        break;
-                        // No use case for other PLDM message types
-                    default:
-                        phosphor::logging::log<phosphor::logging::level::INFO>(
-                            "Unsupported PLDM message received",
-                            phosphor::logging::entry("TID=%d", *tid),
-                            phosphor::logging::entry("EID=%d", srcEid),
-                            phosphor::logging::entry("MSG_TYPE=%d",
-                                                     *pldmMsgType));
-                        break;
-                }
+                case PLDM_FWUP:
+                    pldm::fwu::pldmMsgRecvFwUpdCallback(*tid, msgTag, tagOwner,
+                                                        payload);
+                    break;
+                    // No use case for other PLDM message types
+                default:
+                    phosphor::logging::log<phosphor::logging::level::INFO>(
+                        "Unsupported PLDM message received",
+                        phosphor::logging::entry("TID=%d", *tid),
+                        phosphor::logging::entry("EID=%d", srcEid),
+                        phosphor::logging::entry("MSG_TYPE=%d", *pldmMsgType));
+                    break;
             }
         }
     }
@@ -600,6 +608,13 @@ void onDeviceUpdate(void*, const mctpw::Event& evt,
             if (tid)
             {
                 deleteDevice(tid.value());
+            }
+            else
+            {
+                phosphor::logging::log<phosphor::logging::level::WARNING>(
+                    ("EID " + utils::changeToString(static_cast<int>(evt.eid)) +
+                     " is not mapped to any TID")
+                        .c_str());
             }
             break;
         }
