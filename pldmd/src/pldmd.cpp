@@ -53,8 +53,8 @@ bool reserveBandwidth(const boost::asio::yield_context yield,
     {
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("Reserve bandwidth is active for TID: " +
-             utils::changeToString(reservedTID) +
-             ". RESERVED_PLDM_TYPE: " + utils::changeToString(reservedPLDMType))
+             std::to_string(reservedTID) +
+             ". RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
@@ -77,8 +77,7 @@ bool reserveBandwidth(const boost::asio::yield_context yield,
     if (ec || rc < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("ReserveBandwidth: failed for EID: ") +
-             utils::changeToString(eid))
+            (("ReserveBandwidth: failed for EID: ") + std::to_string(eid))
                 .c_str());
         return false;
     }
@@ -118,8 +117,7 @@ bool releaseBandwidth(const boost::asio::yield_context yield,
     if (ec || rc < 0)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("releaseBandwidth: failed for EID: ") +
-             utils::changeToString(*eid))
+            (("releaseBandwidth: failed for EID: ") + std::to_string(*eid))
                 .c_str());
         return false;
     }
@@ -161,8 +159,8 @@ bool TIDMapper::addEntry(const pldm_tid_t tid, const mctpw_eid_t eid)
 
     tidMap.insert_or_assign(tid, eid);
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("Mapper: TID " + utils::changeToString(static_cast<int>(tid)) +
-         " mapped to EID " + utils::changeToString(static_cast<int>(eid)))
+        ("Mapper: TID " + std::to_string(static_cast<int>(tid)) +
+         " mapped to EID " + std::to_string(static_cast<int>(eid)))
             .c_str());
     return true;
 }
@@ -289,8 +287,8 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("sendReceivePldmMessage is not allowed. Reserve bandwidth is "
              "active for TID: " +
-             utils::changeToString(reservedTID) +
-             " RESERVED_PLDM_TYPE: " + utils::changeToString(reservedPLDMType))
+             std::to_string(reservedTID) +
+             " RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
@@ -422,8 +420,8 @@ bool sendPldmMessage(boost::asio::yield_context yield, const pldm_tid_t tid,
         phosphor::logging::log<phosphor::logging::level::INFO>(
             ("sendPldmMessage is not allowed. Reserve bandwidth is active for "
              "TID: " +
-             utils::changeToString(reservedTID) +
-             " RESERVED_PLDM_TYPE: " + utils::changeToString(reservedPLDMType))
+             std::to_string(reservedTID) +
+             " RESERVED_PLDM_TYPE: " + std::to_string(reservedPLDMType))
                 .c_str());
         return false;
     }
@@ -521,7 +519,7 @@ uint8_t createInstanceId(pldm_tid_t tid)
 void initDevice(const mctpw_eid_t eid, boost::asio::yield_context yield)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("Initializing MCTP EID " + utils::changeToString(eid)).c_str());
+        ("Initializing MCTP EID " + std::to_string(eid)).c_str());
 
     pldm_tid_t assignedTID = 0x00;
     pldm::base::CommandSupportTable cmdSupportTable;
@@ -560,7 +558,7 @@ void initDevice(const mctpw_eid_t eid, boost::asio::yield_context yield)
 void deleteDevice(const pldm_tid_t tid)
 {
     phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("Delete PLDM device with TID " + utils::changeToString(tid)).c_str());
+        ("Delete PLDM device with TID " + std::to_string(tid)).c_str());
 
     // Delete the resources in reverse order of init to avoid errors due to
     // dependency if any
