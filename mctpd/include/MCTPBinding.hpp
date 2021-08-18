@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/Configuration.hpp"
+#include "utils/device_watcher.hpp"
 #include "utils/types.hpp"
 
 #include <libmctp-cmds.h>
@@ -18,24 +19,6 @@ constexpr uint8_t vendorIdNoMoreSets = 0xff;
 
 using endpointInterfaceMap =
     std::unordered_map<mctp_eid_t, std::shared_ptr<dbus_interface>>;
-using BindingPrivateVect = std::vector<uint8_t>;
-
-namespace std
-{
-template <>
-struct hash<BindingPrivateVect>
-{
-    size_t operator()(const BindingPrivateVect& bindingPrivate) const
-    {
-        size_t init = 0;
-        return std::accumulate(std::begin(bindingPrivate),
-                               std::end(bindingPrivate), init,
-                               [](size_t prevHash, uint8_t byte) {
-                                   return prevHash ^ std::hash<uint8_t>{}(byte);
-                               });
-    }
-};
-} // namespace std
 
 enum MctpStatus
 {
@@ -122,20 +105,6 @@ struct InternalVdmSetDatabase
     uint16_t commandSetType;
 };
 
-struct DeviceWatcher
-{
-  public:
-    void deviceDiscoveryInit();
-    bool isDeviceGoodForInit(const BindingPrivateVect& bindingPvt);
-    bool checkDeviceInitThreshold(const BindingPrivateVect& bindingPvt);
-
-  private:
-    std::unordered_set<BindingPrivateVect> ignoreList;
-    std::unordered_set<BindingPrivateVect> previousInitList;
-    std::unordered_set<BindingPrivateVect> currentInitList;
-    std::unordered_map<BindingPrivateVect, int> successiveInitCount;
-};
-
 extern std::shared_ptr<sdbusplus::asio::connection> conn;
 
 class MctpTransmissionQueue
@@ -217,7 +186,7 @@ class MctpBinding
     bool rsvBWActive = false;
     mctp_eid_t reservedEID = 0;
     MctpTransmissionQueue transmissionQueue;
-    DeviceWatcher deviceWatcher{};
+    mctpd::DeviceWatcher deviceWatcher{};
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
