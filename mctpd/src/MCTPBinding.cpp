@@ -680,82 +680,6 @@ void MctpBinding::initializeLogging(void)
     }
 }
 
-void MctpBinding::initializeEidPool(const std::set<mctp_eid_t>& pool)
-{
-    for (auto const& epId : pool)
-    {
-        eidPool.push_back(std::make_pair(epId, false));
-    }
-}
-
-void MctpBinding::updateEidStatus(const mctp_eid_t endpointId,
-                                  const bool assigned)
-{
-    bool eidPresent = false;
-    for (auto const& eidPair : eidPool)
-    {
-        if (eidPair.first == endpointId)
-        {
-            eidPresent = true;
-            break;
-        }
-    }
-    // To implement EID pool in FIFO: The eid entry in the pool is removed and
-    // inserted at the end, so that the older EID from the pool is picked for
-    // registering the endpoint.
-
-    eidPool.erase(std::remove_if(eidPool.begin(), eidPool.end(),
-                                 [endpointId](auto const& eidPair) {
-                                     return (eidPair.first == endpointId);
-                                 }),
-                  eidPool.end());
-
-    if (eidPresent)
-    {
-        eidPool.push_back(std::make_pair(endpointId, assigned));
-
-        if (assigned)
-        {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("EID " + std::to_string(endpointId) + " is assigned").c_str());
-        }
-        else
-        {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("EID " + std::to_string(endpointId) + " added to pool")
-                    .c_str());
-        }
-    }
-    else
-    {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            ("Unable to find EID " + std::to_string(endpointId) +
-             " in the pool")
-                .c_str());
-    }
-}
-
-mctp_eid_t MctpBinding::getAvailableEidFromPool()
-{
-    // Note:- No need to check for busowner role explicitly when accessing EID
-    // pool since getAvailableEidFromPool will be called only in busowner mode.
-
-    for (auto& [eid, eidAssignedStatus] : eidPool)
-    {
-        if (!eidAssignedStatus)
-        {
-            phosphor::logging::log<phosphor::logging::level::DEBUG>(
-                ("Allocated EID: " + std::to_string(eid)).c_str());
-            eidAssignedStatus = true;
-            return eid;
-        }
-    }
-    phosphor::logging::log<phosphor::logging::level::ERR>(
-        "No free EID in the pool");
-    throw std::system_error(
-        std::make_error_code(std::errc::address_not_available));
-}
-
 bool MctpBinding::sendMctpCtrlMessage(mctp_eid_t destEid,
                                       std::vector<uint8_t> req, bool tagOwner,
                                       uint8_t msgTag,
@@ -2079,7 +2003,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     {
         try
         {
-            eid = getAvailableEidFromPool();
+            eid = eidPool.getAvailableEidFromPool();
         }
         catch (const std::exception&)
         {
@@ -2098,7 +2022,7 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "Set EID failed");
-        updateEidStatus(eid, false);
+        eidPool.updateEidStatus(eid, false);
         return std::nullopt;
     }
     mctp_ctrl_resp_set_eid* setEidRespPtr =
@@ -2108,10 +2032,10 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         // TODO: Force setEID if needed
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Set EID failed. Reported different EID in the response.");
-        updateEidStatus(eid, false);
+        eidPool.updateEidStatus(eid, false);
         return std::nullopt;
     }
-    updateEidStatus(eid, true);
+    eidPool.updateEidStatus(eid, true);
 
     // Get Message Type Support
     MsgTypeSupportCtrlResp msgTypeSupportResp;
@@ -2301,7 +2225,7 @@ void MctpBinding::clearRegisteredDevice(const mctp_eid_t eid)
             unregisterEndpoint(eid);
             // Return EID to the pool of EIDs available for assignment
             // as the Endpoint is non-responsive.
-            updateEidStatus(eid, false);
+            eidPool.updateEidStatus(eid, false);
             break;
         }
     }

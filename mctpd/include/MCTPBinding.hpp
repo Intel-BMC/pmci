@@ -2,6 +2,7 @@
 
 #include "utils/Configuration.hpp"
 #include "utils/device_watcher.hpp"
+#include "utils/eid_pool.hpp"
 #include "utils/transmission_queue.hpp"
 #include "utils/types.hpp"
 
@@ -117,7 +118,6 @@ class MctpBinding
     MctpBinding() = delete;
     virtual ~MctpBinding();
     virtual void initializeBinding() = 0;
-    void initializeEidPool(const std::set<mctp_eid_t>& eidPool);
 
     void handleCtrlReq(uint8_t destEid, void* bindingPrivate, const void* req,
                        size_t len, uint8_t msgTag);
@@ -137,6 +137,7 @@ class MctpBinding
     mctp_eid_t reservedEID = 0;
     mctpd::MctpTransmissionQueue transmissionQueue;
     mctpd::DeviceWatcher deviceWatcher{};
+    mctpd::EidPool eidPool;
 
     std::unordered_map<uint8_t, version_entry>
         versionNumbersForUpperLayerResponder;
@@ -267,7 +268,6 @@ class MctpBinding
 
     boost::asio::steady_timer ctrlTxTimer;
 
-    std::vector<std::pair<mctp_eid_t, bool>> eidPool;
     bool ctrlTxTimerExpired = true;
     // <state, retryCount, maxRespDelay, destEid, BindingPrivate, ReqPacket,
     //  Callback>
@@ -280,8 +280,6 @@ class MctpBinding
     std::vector<std::pair<mctp_eid_t, std::string>> uuidTable;
 
     void createUuid();
-    void updateEidStatus(const mctp_eid_t endpointId, const bool assigned);
-    mctp_eid_t getAvailableEidFromPool();
     bool sendMctpCtrlMessage(mctp_eid_t destEid, std::vector<uint8_t> req,
                              bool tagOwner, uint8_t msgTag,
                              std::vector<uint8_t> bindingPrivate);

@@ -366,7 +366,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
         // to issue EID Pool
         if (conf.mode == mctp_server::BindingModeTypes::BusOwner)
         {
-            initializeEidPool(conf.eidPool);
+            eidPool.initializeEidPool(conf.eidPool);
         }
 
         if (bindingModeType == mctp_server::BindingModeTypes::BusOwner)
