@@ -4,8 +4,6 @@
 
 #include <libmctp-smbus.h>
 
-#include <iostream>
-
 enum class DiscoveryFlags : uint8_t
 {
     kNotApplicable = 0,

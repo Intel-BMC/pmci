@@ -8,7 +8,6 @@
 #include <libmctp.h>
 
 #include <boost/asio/steady_timer.hpp>
-#include <iostream>
 #include <numeric>
 #include <unordered_set>
 
