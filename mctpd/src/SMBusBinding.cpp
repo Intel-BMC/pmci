@@ -344,11 +344,12 @@ void SMBusBinding::startTimerAndReleaseBW(const uint16_t interval,
     });
 }
 
-SMBusBinding::SMBusBinding(std::shared_ptr<object_server>& objServer,
+SMBusBinding::SMBusBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                           std::shared_ptr<object_server>& objServer,
                            const std::string& objPath,
                            const SMBusConfiguration& conf,
                            boost::asio::io_context& ioc) :
-    MctpBinding(objServer, objPath, conf, ioc,
+    MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverSmbus),
     smbusReceiverFd(ioc), reserveBWTimer(ioc), scanTimer(ioc),
     addRootDevices(true)

@@ -106,12 +106,11 @@ struct InternalVdmSetDatabase
     uint16_t commandSetType;
 };
 
-extern std::shared_ptr<sdbusplus::asio::connection> conn;
-
 class MctpBinding
 {
   public:
-    MctpBinding(std::shared_ptr<object_server>& objServer,
+    MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, const Configuration& conf,
                 boost::asio::io_context& ioc,
                 const mctp_server::BindingTypes bindingType);
@@ -123,6 +122,7 @@ class MctpBinding
                        size_t len, uint8_t msgTag);
 
   protected:
+    std::shared_ptr<sdbusplus::asio::connection> connection;
     unsigned int ctrlTxRetryDelay;
     uint8_t ctrlTxRetryCount;
     boost::asio::io_context& io;

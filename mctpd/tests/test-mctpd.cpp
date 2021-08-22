@@ -181,7 +181,7 @@ TEST_F(MctpdBaseTest, BaseIfPropertyTest)
     /*Invoke constructor */
     boost::asio::io_context ioc;
 
-    std::unique_ptr<MctpBinding> bindingPtr =
-        std::make_unique<SMBusBinding>(bus, mctpBaseObj, smbusConfig, ioc);
+    std::unique_ptr<MctpBinding> bindingPtr = std::make_unique<SMBusBinding>(
+        conn, bus, mctpBaseObj, smbusConfig, ioc);
     bindingPtr->initializeBinding();
 }

@@ -7,13 +7,14 @@ PCIeBinding::~PCIeBinding()
     objectServer->remove_interface(pcieInterface);
 }
 
-PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
+PCIeBinding::PCIeBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                         std::shared_ptr<object_server>& objServer,
                          const std::string& objPath,
                          const PcieConfiguration& conf,
                          boost::asio::io_context& ioc,
                          std::shared_ptr<hw::PCIeDriver>&& hwParam,
                          std::shared_ptr<hw::DeviceMonitor>&& hwMonitorParam) :
-    MctpBinding(objServer, objPath, conf, ioc,
+    MctpBinding(conn, objServer, objPath, conf, ioc,
                 mctp_server::BindingTypes::MctpOverPcieVdm),
     hw{std::move(hwParam)}, hwMonitor{std::move(hwMonitorParam)},
     getRoutingInterval(conf.getRoutingInterval),

@@ -25,11 +25,12 @@ class TestPCIeBinding : public PCIeBinding
     template <typename Payload>
     using BindingIO = Backdoor::BindingIO<Payload>;
 
-    TestPCIeBinding(std::shared_ptr<object_server>& objServer,
+    TestPCIeBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                    std::shared_ptr<object_server>& objServer,
                     const std::string& objPath, PcieConfiguration& conf,
                     boost::asio::io_context& ioc) :
         PCIeBinding(
-            objServer, objPath, conf, ioc,
+            conn, objServer, objPath, conf, ioc,
             std::make_shared<FakePCIeDriver>(packetSize, sizeof(PrvDataType)),
             std::make_shared<::testing::NiceMock<TestDeviceMonitor>>()),
         backdoor{std::static_pointer_cast<FakePCIeDriver>(hw)->hw}

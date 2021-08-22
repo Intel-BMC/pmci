@@ -38,5 +38,6 @@ struct PcieConfiguration : Configuration
 };
 
 std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
-    getConfiguration(const std::string& configurationName,
+    getConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
+                     const std::string& configurationName,
                      const std::filesystem::path& configPath);

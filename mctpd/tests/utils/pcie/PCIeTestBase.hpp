@@ -30,7 +30,7 @@ class PCIeTestBase : public AsyncTestBase
         config.getRoutingInterval = std::chrono::seconds{1}.count();
 
         binding = std::make_shared<TestPCIeBinding>(
-            bus, "/xyz/openbmc_project/test_mctp", config, ioc);
+            conn, bus, "/xyz/openbmc_project/test_mctp", config, ioc);
         binding->initializeBinding();
     }
 
@@ -172,6 +172,7 @@ class PCIeTestBase : public AsyncTestBase
     PcieConfiguration config{};
     std::shared_ptr<TestPCIeBinding> binding;
 
+    std::shared_ptr<sdbusplus::asio::connection> conn;
     std::shared_ptr<mctpd_mock::object_server_mock> bus;
     std::shared_ptr<mctpd_mock::dbus_interface_mock> mctpInterface;
     std::shared_ptr<mctpd_mock::dbus_interface_mock> pcieInterface;

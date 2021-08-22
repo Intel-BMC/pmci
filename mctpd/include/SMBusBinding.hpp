@@ -21,7 +21,8 @@ class SMBusBinding : public MctpBinding
 {
   public:
     SMBusBinding() = delete;
-    SMBusBinding(std::shared_ptr<object_server>& objServer,
+    SMBusBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                 std::shared_ptr<object_server>& objServer,
                  const std::string& objPath, const SMBusConfiguration& conf,
                  boost::asio::io_context& ioc);
     ~SMBusBinding() override;

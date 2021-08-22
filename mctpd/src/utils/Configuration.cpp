@@ -14,8 +14,6 @@
 #include <variant>
 #include <vector>
 
-extern std::shared_ptr<sdbusplus::asio::connection> conn;
-
 using json = nlohmann::json;
 
 using ConfigurationField =
@@ -296,7 +294,8 @@ static std::optional<PcieConfiguration> getPcieConfiguration(const T& map)
 }
 
 static ConfigurationMap
-    getConfigurationMap(const std::string& configurationPath)
+    getConfigurationMap(std::shared_ptr<sdbusplus::asio::connection> conn,
+                        const std::string& configurationPath)
 {
     auto method_call = conn->new_method_call(
         "xyz.openbmc_project.EntityManager", configurationPath.c_str(),
@@ -312,7 +311,9 @@ static ConfigurationMap
 }
 
 static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
-    getConfigurationFromEntityManager(const std::string& configurationName)
+    getConfigurationFromEntityManager(
+        std::shared_ptr<sdbusplus::asio::connection> conn,
+        const std::string& configurationName)
 {
     const std::string relativePath =
         boost::algorithm::replace_all_copy(configurationName, "_2f", "/");
@@ -325,7 +326,7 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     ConfigurationMap map;
     try
     {
-        map = getConfigurationMap(objectPath);
+        map = getConfigurationMap(conn, objectPath);
     }
     catch (const std::exception& e)
     {
@@ -416,11 +417,12 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
 }
 
 std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
-    getConfiguration(const std::string& configurationName,
+    getConfiguration(std::shared_ptr<sdbusplus::asio::connection> conn,
+                     const std::string& configurationName,
                      const std::filesystem::path& configPath)
 {
     auto configurationPair =
-        getConfigurationFromEntityManager(configurationName);
+        getConfigurationFromEntityManager(conn, configurationName);
     if (!configurationPair)
     {
         configurationPair =

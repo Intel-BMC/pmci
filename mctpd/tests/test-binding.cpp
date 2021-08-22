@@ -22,10 +22,12 @@ class BindingBasicTest : public AsyncTestBase, public ::testing::Test
             std::chrono::milliseconds{messageTimeout}.count();
 
         binding = std::make_shared<TestBinding>(
-            bus, "/xyz/openbmc_project/test_mctp", config, ioc);
+            conn, bus, "/xyz/openbmc_project/test_mctp", config, ioc);
         binding->initializeBinding();
     }
 
+    boost::asio::io_context io;
+    std::shared_ptr<sdbusplus::asio::connection> conn;
     std::shared_ptr<TestBinding> binding;
 
     std::shared_ptr<mctpd_mock::object_server_mock> bus;

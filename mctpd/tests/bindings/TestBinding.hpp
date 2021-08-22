@@ -11,10 +11,11 @@ class TestBinding : public MctpBinding
     static constexpr mctp_eid_t eid = 8;
     static constexpr size_t packetSize = 4096;
 
-    TestBinding(std::shared_ptr<object_server>& objServer,
+    TestBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, Configuration& conf,
                 boost::asio::io_context& ioc) :
-        MctpBinding(objServer, objPath, conf, ioc,
+        MctpBinding(conn, objServer, objPath, conf, ioc,
                     mctp_server::BindingTypes::VendorDefined),
         driver(packetSize, sizeof(PrvData)), backdoor(driver)
     {

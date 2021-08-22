@@ -199,9 +199,9 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
             return;
         }
 
-        auto msgSignal =
-            conn->new_signal("/xyz/openbmc_project/mctp",
-                             mctp_server::interface, "MessageReceivedSignal");
+        auto msgSignal = binding.connection->new_signal(
+            "/xyz/openbmc_project/mctp", mctp_server::interface,
+            "MessageReceivedSignal");
         msgSignal.append(msgType, srcEid, msgTag, tagOwner, response);
         msgSignal.signal_send();
         return;
@@ -283,12 +283,13 @@ bool MctpBinding::isReceivedPrivateDataCorrect(const void* /*bindingPrivate*/)
     return true;
 }
 
-MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
+MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                         std::shared_ptr<object_server>& objServer,
                          const std::string& objPath, const Configuration& conf,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
-    io(ioc),
-    objectServer(objServer), bindingID(bindingType), ctrlTxTimer(io)
+    connection(conn),
+    io(ioc), objectServer(objServer), bindingID(bindingType), ctrlTxTimer(io)
 {
     objServer->add_manager(objPath);
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);

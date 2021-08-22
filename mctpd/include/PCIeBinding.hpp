@@ -19,7 +19,8 @@ class PCIeBinding : public MctpBinding,
 {
   public:
     PCIeBinding() = delete;
-    PCIeBinding(std::shared_ptr<object_server>& objServer,
+    PCIeBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
+                std::shared_ptr<object_server>& objServer,
                 const std::string& objPath, const PcieConfiguration& conf,
                 boost::asio::io_context& ioc,
                 std::shared_ptr<hw::PCIeDriver>&& hw,
