@@ -2,6 +2,11 @@
 
 #include <phosphor-logging/log.hpp>
 
+PCIeBinding::~PCIeBinding()
+{
+    objectServer->remove_interface(pcieInterface);
+}
+
 PCIeBinding::PCIeBinding(std::shared_ptr<object_server>& objServer,
                          const std::string& objPath,
                          const PcieConfiguration& conf,

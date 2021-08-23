@@ -24,7 +24,7 @@ class PCIeBinding : public MctpBinding,
                 boost::asio::io_context& ioc,
                 std::shared_ptr<hw::PCIeDriver>&& hw,
                 std::shared_ptr<hw::DeviceMonitor>&& hwMonitor);
-    ~PCIeBinding() override = default;
+    ~PCIeBinding() override;
     void initializeBinding() override;
 
   protected:

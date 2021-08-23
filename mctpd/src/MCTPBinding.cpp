@@ -472,7 +472,7 @@ MctpBinding::MctpBinding(std::shared_ptr<object_server>& objServer,
                          boost::asio::io_context& ioc,
                          const mctp_server::BindingTypes bindingType) :
     io(ioc),
-    bindingID(bindingType), objectServer(objServer), ctrlTxTimer(io)
+    objectServer(objServer), bindingID(bindingType), ctrlTxTimer(io)
 {
     objServer->add_manager(objPath);
     mctpInterface = objServer->add_interface(objPath, mctp_server::interface);

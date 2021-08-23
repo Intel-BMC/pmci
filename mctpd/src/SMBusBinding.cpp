@@ -558,6 +558,7 @@ SMBusBinding::~SMBusBinding()
         close(outFd);
     }
     mctp_smbus_free(smbus);
+    objectServer->remove_interface(smbusInterface);
 }
 
 std::string SMBusBinding::SMBusInit()

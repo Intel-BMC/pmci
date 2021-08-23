@@ -199,6 +199,7 @@ class MctpBinding
     unsigned int ctrlTxRetryDelay;
     uint8_t ctrlTxRetryCount;
     boost::asio::io_context& io;
+    std::shared_ptr<object_server> objectServer;
     mctp_server::BindingModeTypes bindingModeType{};
     mctp_server::MctpPhysicalMediumIdentifiers bindingMediumID{};
     std::shared_ptr<dbus_interface> mctpInterface;
@@ -327,7 +328,6 @@ class MctpBinding
     bool staticEid;
     std::vector<uint8_t> uuid;
     mctp_server::BindingTypes bindingID{};
-    std::shared_ptr<object_server> objectServer;
     endpointInterfaceMap endpointInterface;
     endpointInterfaceMap msgTypeInterface;
     endpointInterfaceMap uuidInterface;

@@ -11,7 +11,7 @@
 
 std::shared_ptr<sdbusplus::asio::connection> conn;
 
-std::shared_ptr<MctpBinding>
+std::unique_ptr<MctpBinding>
     getBindingPtr(const Configuration& configuration,
                   std::shared_ptr<object_server>& objectServer,
                   boost::asio::io_context& ioc)
@@ -21,13 +21,13 @@ std::shared_ptr<MctpBinding>
     if (auto smbusConfig =
             dynamic_cast<const SMBusConfiguration*>(&configuration))
     {
-        return std::make_shared<SMBusBinding>(objectServer, mctpBaseObj,
+        return std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
                                               *smbusConfig, ioc);
     }
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
     {
-        return std::make_shared<PCIeBinding>(
+        return std::make_unique<PCIeBinding>(
             objectServer, mctpBaseObj, *pcieConfig, ioc,
             std::make_unique<hw::aspeed::PCIeDriver>(ioc),
             std::make_unique<hw::aspeed::PCIeMonitor>(ioc));
@@ -53,11 +53,12 @@ int main(int argc, char* argv[])
 
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
+    std::unique_ptr<MctpBinding> bindingPtr;
     signals.async_wait(
-        [&ioc](const boost::system::error_code&, const int& sigNum) {
+        [&ioc, &bindingPtr](const boost::system::error_code&, const int&) {
+            // Ensure we destroy binding object before we do an ioc stop
+            bindingPtr.reset();
             ioc.stop();
-            signal(sigNum, SIG_DFL);
-            raise(sigNum);
         });
 
     conn = std::make_shared<sdbusplus::asio::connection>(ioc);
@@ -91,7 +92,7 @@ int main(int argc, char* argv[])
     phosphor::logging::log<phosphor::logging::level::INFO>(
         ("Starting MCTP service: " + mctpServiceName).c_str());
 
-    auto bindingPtr = getBindingPtr(*mctpdConfiguration, objectServer, ioc);
+    bindingPtr = getBindingPtr(*mctpdConfiguration, objectServer, ioc);
     if (!bindingPtr)
     {
         phosphor::logging::log<phosphor::logging::level::ERR>(
