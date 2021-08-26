@@ -233,12 +233,12 @@ int onMessageReceivedSignal(sd_bus_message* rawMsg, void* userData,
             VendorHeader* vendorHdr =
                 reinterpret_cast<VendorHeader*>(payload.data());
 
-            if (!context->config.vendorDefinedValues ||
-                (vendorHdr->vendorId !=
-                 context->config.vendorDefinedValues->vendorId) ||
+            if (!context->config.vendorId ||
+                !context->config.vendorMessageType ||
+                (vendorHdr->vendorId != context->config.vendorId) ||
                 ((vendorHdr->vendorMessageId &
-                  context->config.vendorDefinedValues->vendorMessageTypeMask) !=
-                 context->config.vendorDefinedValues->vendorMessageTypeMask))
+                  context->config.vendorMessageType->mask) !=
+                 context->config.vendorMessageType->mask))
             {
                 return -1;
             }

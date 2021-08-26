@@ -103,34 +103,44 @@ struct MCTPConfiguration
     /// MCTP binding type
     BindingType bindingType;
 
-    struct VendorDefinedValues
+    struct VendorMessageType
     {
-        VendorDefinedValues(uint16_t vid, uint16_t type, uint16_t mask) :
-            vendorId(vid), vendorMessageType(type), vendorMessageTypeMask(mask)
+        VendorMessageType(uint16_t vendorMsgType, uint16_t vendorMsgTypeMask) :
+            value(vendorMsgType), mask(vendorMsgTypeMask)
         {
         }
-        /// Vendor Id
-        uint16_t vendorId;
+
         /// Vendor defined message type
-        uint16_t vendorMessageType;
+        uint16_t value;
         /// Vendor defined message mask
-        uint16_t vendorMessageTypeMask;
+        uint16_t mask;
     };
-    std::optional<VendorDefinedValues> vendorDefinedValues = std::nullopt;
+
+    /// Vendor Id
+    std::optional<uint16_t> vendorId = std::nullopt;
+    std::optional<VendorMessageType> vendorMessageType = std::nullopt;
 
     /**
-     * @brief Set vendor defined parameters. Input values are expected to be in
-     * CPU byte order
+     * @brief Set vendor id. Input values are expected to be in CPU byte order
      *
      * @param vid Vendor Id
+     */
+    inline void setVendorId(uint16_t vid)
+    {
+        this->vendorId = std::make_optional<uint16_t>(htobe16(vid));
+    }
+
+    /**
+     * @brief Set vendor defined message type. Input values are expected to be
+     * in CPU byte order
+     *
      * @param msgType Vendor Message Type
      * @param mask Vednor Message Type Mask
      */
-    inline void setVendorDefinedValues(uint16_t vid, uint16_t msgType,
-                                       uint16_t mask)
+    inline void setVendorMessageType(uint16_t msgType, uint16_t mask)
     {
-        this->vendorDefinedValues = std::make_optional<VendorDefinedValues>(
-            htobe16(vid), htobe16(msgType), htobe16(mask));
+        this->vendorMessageType = std::make_optional<VendorMessageType>(
+            htobe16(msgType), htobe16(mask));
     }
 };
 

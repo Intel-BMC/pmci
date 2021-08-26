@@ -345,8 +345,7 @@ MCTPImpl::EndpointMap MCTPImpl::buildMatchingEndpointMap(
                         vdMsgTypeInterface, "VendorID");
                     uint16_t vendorId = static_cast<uint16_t>(
                         std::stoi(vendorIdStr, nullptr, 16));
-                    if (vendorId !=
-                        be16toh(config.vendorDefinedValues->vendorId))
+                    if (vendorId != be16toh(*config.vendorId))
                     {
                         phosphor::logging::log<phosphor::logging::level::INFO>(
                             ("VendorID not matching for " + objectPath.str)
@@ -356,9 +355,9 @@ MCTPImpl::EndpointMap MCTPImpl::buildMatchingEndpointMap(
                     auto msgTypes = readPropertyValue<std::vector<uint16_t>>(
                         *connection, bus.second.c_str(), objectPath.str,
                         vdMsgTypeInterface, "MessageTypeProperty");
-                    auto itMsgType = std::find(
-                        msgTypes.begin(), msgTypes.end(),
-                        be16toh(config.vendorDefinedValues->vendorMessageType));
+                    auto itMsgType =
+                        std::find(msgTypes.begin(), msgTypes.end(),
+                                  be16toh(config.vendorMessageType->value));
                     if (msgTypes.end() == itMsgType)
                     {
                         phosphor::logging::log<phosphor::logging::level::INFO>(

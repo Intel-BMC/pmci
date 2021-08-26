@@ -49,7 +49,8 @@ MCTPConfiguration::MCTPConfiguration(MessageType msgType, BindingType binding,
     {
         throw std::invalid_argument("MsgType expected VDPCI");
     }
-    setVendorDefinedValues(vid, vendorMsgType, vendorMsgTypeMask);
+    setVendorId(vid);
+    setVendorMessageType(vendorMsgType, vendorMsgTypeMask);
 }
 
 MCTPWrapper::MCTPWrapper(boost::asio::io_context& ioContext,
