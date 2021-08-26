@@ -343,21 +343,8 @@ MCTPImpl::EndpointMap MCTPImpl::buildMatchingEndpointMap(
                     auto vendorIdStr = readPropertyValue<std::string>(
                         *connection, bus.second.c_str(), objectPath.str,
                         vdMsgTypeInterface, "VendorID");
-                    uint16_t vendorId;
-                    {
-                        std::stringstream ss;
-                        ss << std::hex << vendorIdStr;
-                        ss >> vendorId;
-                        if (ss.fail())
-                        {
-                            phosphor::logging::log<
-                                phosphor::logging::level::WARNING>(
-                                ("Unable to parse vendor id from " +
-                                 vendorIdStr)
-                                    .c_str());
-                            continue;
-                        }
-                    }
+                    uint16_t vendorId = static_cast<uint16_t>(
+                        std::stoi(vendorIdStr, nullptr, 16));
                     if (vendorId !=
                         be16toh(config.vendorDefinedValues->vendorId))
                     {
