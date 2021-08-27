@@ -2314,6 +2314,9 @@ void MctpBinding::getVendorDefinedMessageTypes(
               If this command fails, still go ahead with endpoint
               registration since this is an optional command
             */
+            epProperties.vendorIdFormat = "0x0";
+            epProperties.vendorIdCapabilitySets = {};
+            return;
         }
         epProperties.vendorIdCapabilitySets.assign(vendorSetIdList.begin(),
                                                    vendorSetIdList.end());
