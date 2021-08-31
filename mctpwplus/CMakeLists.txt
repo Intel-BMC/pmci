@@ -95,6 +95,11 @@ if(${BUILD_EXAMPLES})
   add_dependencies(mctp_device_manager ${PROJECT_NAME})
   target_link_libraries(mctp_device_manager mctpwplus sdbusplus
                         -lboost_coroutine -lpthread)
+
+  add_executable(mctp_probe examples/probe_device.cpp)
+  add_dependencies(mctp_probe ${PROJECT_NAME})
+  target_link_libraries(mctp_probe mctpwplus sdbusplus
+                        -lboost_coroutine -lpthread)
 endif()
 
 set_target_properties(mctpwplus PROPERTIES VERSION 1.0.0 SOVERSION 1)
