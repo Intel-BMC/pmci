@@ -93,6 +93,15 @@ struct MCTPConfiguration
      * defined parameters
      * @param binding MCTP binding type
      * @param vid Vendor Id
+     */
+    MCTPConfiguration(MessageType msgType, BindingType binding, uint16_t vid);
+    /**
+     * @brief Construct a new MCTPConfiguration object
+     *
+     * @param msgType MCTP message type. Only VDPCI supported now with vendor
+     * defined parameters
+     * @param binding MCTP binding type
+     * @param vid Vendor Id
      * @param vendorMsgType Vendor defined message type
      * @param vendorMsgTypeMask Vendor defines message type mask
      */

@@ -40,8 +40,7 @@ MCTPConfiguration::MCTPConfiguration(MessageType msgType, BindingType binding) :
 }
 
 MCTPConfiguration::MCTPConfiguration(MessageType msgType, BindingType binding,
-                                     uint16_t vid, uint16_t vendorMsgType,
-                                     uint16_t vendorMsgTypeMask) :
+                                     uint16_t vid) :
     type(msgType),
     bindingType(binding)
 {
@@ -50,6 +49,13 @@ MCTPConfiguration::MCTPConfiguration(MessageType msgType, BindingType binding,
         throw std::invalid_argument("MsgType expected VDPCI");
     }
     setVendorId(vid);
+}
+
+MCTPConfiguration::MCTPConfiguration(MessageType msgType, BindingType binding,
+                                     uint16_t vid, uint16_t vendorMsgType,
+                                     uint16_t vendorMsgTypeMask) :
+    MCTPConfiguration(msgType, binding, vid)
+{
     setVendorMessageType(vendorMsgType, vendorMsgTypeMask);
 }
 

@@ -338,33 +338,55 @@ MCTPImpl::EndpointMap MCTPImpl::buildMatchingEndpointMap(
                 }
                 if (mctpw::MessageType::vdpci == config.type)
                 {
-                    static const char* vdMsgTypeInterface =
-                        "xyz.openbmc_project.MCTP.PCIVendorDefined";
-                    auto vendorIdStr = readPropertyValue<std::string>(
-                        *connection, bus.second.c_str(), objectPath.str,
-                        vdMsgTypeInterface, "VendorID");
-                    uint16_t vendorId = static_cast<uint16_t>(
-                        std::stoi(vendorIdStr, nullptr, 16));
-                    if (vendorId != be16toh(*config.vendorId))
+                    if (config.vendorId)
                     {
-                        phosphor::logging::log<phosphor::logging::level::INFO>(
-                            ("VendorID not matching for " + objectPath.str)
-                                .c_str());
-                        continue;
+                        static const char* vdMsgTypeInterface =
+                            "xyz.openbmc_project.MCTP.PCIVendorDefined";
+                        auto vendorIdStr = readPropertyValue<std::string>(
+                            *connection, bus.second.c_str(), objectPath.str,
+                            vdMsgTypeInterface, "VendorID");
+                        uint16_t vendorId = static_cast<uint16_t>(
+                            std::stoi(vendorIdStr, nullptr, 16));
+                        if (vendorId != be16toh(*config.vendorId))
+                        {
+                            phosphor::logging::log<
+                                phosphor::logging::level::INFO>(
+                                ("VendorID not matching for " + objectPath.str)
+                                    .c_str());
+                            continue;
+                        }
+
+                        if (config.vendorMessageType)
+                        {
+                            auto msgTypes =
+                                readPropertyValue<std::vector<uint16_t>>(
+                                    *connection, bus.second.c_str(),
+                                    objectPath.str, vdMsgTypeInterface,
+                                    "MessageTypeProperty");
+                            auto itMsgType = std::find(
+                                msgTypes.begin(), msgTypes.end(),
+                                be16toh(config.vendorMessageType->value));
+                            if (msgTypes.end() == itMsgType)
+                            {
+                                phosphor::logging::log<
+                                    phosphor::logging::level::INFO>(
+                                    ("Vendor Message Type not matching for " +
+                                     objectPath.str)
+                                        .c_str());
+                                continue;
+                            }
+                        }
                     }
-                    auto msgTypes = readPropertyValue<std::vector<uint16_t>>(
-                        *connection, bus.second.c_str(), objectPath.str,
-                        vdMsgTypeInterface, "MessageTypeProperty");
-                    auto itMsgType =
-                        std::find(msgTypes.begin(), msgTypes.end(),
-                                  be16toh(config.vendorMessageType->value));
-                    if (msgTypes.end() == itMsgType)
+                    else
                     {
-                        phosphor::logging::log<phosphor::logging::level::INFO>(
-                            ("Vendor Message Type not matching for " +
-                             objectPath.str)
-                                .c_str());
-                        continue;
+                        if (config.vendorMessageType)
+                        {
+                            phosphor::logging::log<
+                                phosphor::logging::level::ERR>(
+                                "Vendor Message Type matching is not allowed "
+                                "when Vendor ID is not set");
+                            continue;
+                        }
                     }
                 }
                 /* format of of endpoint path: path/Eid */
