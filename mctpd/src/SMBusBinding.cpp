@@ -424,7 +424,7 @@ void SMBusBinding::scanDevices()
         }
 
         // TODO: Get timer tick frequency from EntityManager
-        scanTimer.expires_after(std::chrono::seconds(60));
+        scanTimer.expires_after(std::chrono::minutes(10));
         scanTimer.async_wait([this](const boost::system::error_code& ec) {
             if (ec && ec != boost::asio::error::operation_aborted)
             {
