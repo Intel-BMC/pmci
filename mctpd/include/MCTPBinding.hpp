@@ -79,12 +79,20 @@ struct MsgTypeSupportCtrlResp
     std::vector<uint8_t> msgType;
 };
 
+struct MCTPVersionFields
+{
+    uint8_t major;
+    uint8_t minor;
+    uint8_t update;
+    uint8_t alpha;
+};
+
 struct MctpVersionSupportCtrlResp
 {
     mctp_ctrl_msg_hdr ctrlMsgHeader;
     uint8_t completionCode;
     uint8_t verNoEntryCount;
-    std::vector<std::vector<uint8_t>> verNoEntry;
+    std::vector<struct MCTPVersionFields> verNoEntry;
 };
 
 // VendorPCI ID Support Structure
@@ -321,6 +329,11 @@ class MctpBinding
     }
     bool setMediumId(uint8_t value,
                      mctp_server::MctpPhysicalMediumIdentifiers& mediumId);
+
+    bool isMCTPVersionSupported(const MCTPVersionFields& version);
+    void logUnsupportedMCTPVersion(
+        const std::vector<struct MCTPVersionFields> versionsData,
+        const mctp_eid_t eid);
 
     // Register MCTP responder for upper layer
     std::vector<InternalVdmSetDatabase> vdmSetDatabase;

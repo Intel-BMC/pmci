@@ -97,6 +97,9 @@ static const std::unordered_map<uint8_t,
                               /*0x41:0xFF Reserved*/
 };
 
+// Supported MCTP Version 1.3.1
+struct MCTPVersionFields supportedMCTPVersion = {241, 243, 241, 0};
+
 void DeviceWatcher::deviceDiscoveryInit()
 {
     previousInitList = std::move(currentInitList);
@@ -1665,8 +1668,8 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
         return false;
     }
 
-    const ssize_t minMsgTypeRespLen = 5;
-    const ssize_t mctpVersionLen = 4;
+    const size_t minMsgTypeRespLen = 5;
+    const size_t mctpVersionLen = 4;
     uint8_t completionCode = resp[completionCodeIndex];
     if (completionCode != MCTP_CTRL_CC_SUCCESS ||
         resp.size() <= minMsgTypeRespLen)
@@ -1695,18 +1698,20 @@ bool MctpBinding::getMctpVersionSupportCtrlCmd(
         return false;
     }
 
-    for (int iter = 1; iter <= mctpVersionSupportCtrlResp->verNoEntryCount;
+    for (size_t iter = 1; iter <= mctpVersionSupportCtrlResp->verNoEntryCount;
          iter++)
     {
-        ssize_t verNoEntryStartOffset =
+        size_t verNoEntryStartOffset =
             minMsgTypeRespLen + (mctpVersionLen * (iter - 1));
-        ssize_t verNoEntryEndOffset =
-            minMsgTypeRespLen + (mctpVersionLen * iter);
-        std::vector<uint8_t> version(resp.begin() + verNoEntryStartOffset,
-                                     resp.begin() + verNoEntryEndOffset);
-
-        mctpVersionSupportCtrlResp->verNoEntry.push_back(version);
+        struct MCTPVersionFields versionData = {};
+        versionData.major = resp[verNoEntryStartOffset];
+        versionData.minor = resp[verNoEntryStartOffset + 1];
+        versionData.update = resp[verNoEntryStartOffset + 2];
+        versionData.alpha = resp[verNoEntryStartOffset + 3];
+        mctpVersionSupportCtrlResp->verNoEntry.push_back(
+            std::move(versionData));
     }
+
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         "Get MCTP Version Support success");
     return true;
@@ -2150,6 +2155,49 @@ bool MctpBinding::isEIDMappedToUUID(mctp_eid_t& eid, std::string& destUUID)
     return false;
 }
 
+bool MctpBinding::isMCTPVersionSupported(const MCTPVersionFields& version)
+{
+    if ((version.major == supportedMCTPVersion.major) &&
+        (version.minor == supportedMCTPVersion.minor) &&
+        (version.update == supportedMCTPVersion.update))
+    {
+        return true;
+    }
+    return false;
+}
+
+void MctpBinding::logUnsupportedMCTPVersion(
+    const std::vector<struct MCTPVersionFields> versionsData,
+    const mctp_eid_t eid)
+{
+    static std::vector<mctp_eid_t> incompatibleEIDs;
+
+    if (find(incompatibleEIDs.begin(), incompatibleEIDs.end(), eid) !=
+        incompatibleEIDs.end())
+    {
+        return;
+    }
+
+    auto versionIter =
+        std::find_if(versionsData.begin(), versionsData.end(),
+                     [this](const auto& versionEntry) {
+                         return isMCTPVersionSupported(versionEntry);
+                     });
+
+    if (versionIter != versionsData.end())
+    {
+        return;
+    }
+
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        ("Get MCTP version support command returned unsupported version for "
+         "EID " +
+         std::to_string(eid))
+            .c_str());
+
+    incompatibleEIDs.push_back(eid);
+}
+
 std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
     boost::asio::yield_context& yield,
     const std::vector<uint8_t>& bindingPrivate, mctp_eid_t eid)
@@ -2182,6 +2230,8 @@ std::optional<mctp_eid_t> MctpBinding::busOwnerRegisterEndpoint(
         return std::nullopt;
     }
     eid = destEID.value();
+
+    logUnsupportedMCTPVersion(getMctpControlVersion.verNoEntry, eid);
 
     std::vector<uint8_t> getUuidResp = {};
     if (!(getUuidCtrlCmd(yield, bindingPrivate, MCTP_EID_NULL, getUuidResp)))
