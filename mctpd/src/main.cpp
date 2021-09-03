@@ -11,7 +11,7 @@
 
 std::shared_ptr<sdbusplus::asio::connection> conn;
 
-std::unique_ptr<MctpBinding>
+std::shared_ptr<MctpBinding>
     getBindingPtr(const Configuration& configuration,
                   std::shared_ptr<object_server>& objectServer,
                   boost::asio::io_context& ioc)
@@ -21,13 +21,13 @@ std::unique_ptr<MctpBinding>
     if (auto smbusConfig =
             dynamic_cast<const SMBusConfiguration*>(&configuration))
     {
-        return std::make_unique<SMBusBinding>(objectServer, mctpBaseObj,
+        return std::make_shared<SMBusBinding>(objectServer, mctpBaseObj,
                                               *smbusConfig, ioc);
     }
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
     {
-        return std::make_unique<PCIeBinding>(
+        return std::make_shared<PCIeBinding>(
             objectServer, mctpBaseObj, *pcieConfig, ioc,
             std::make_unique<hw::aspeed::PCIeDriver>(ioc),
             std::make_unique<hw::aspeed::PCIeMonitor>(ioc));
@@ -53,7 +53,7 @@ int main(int argc, char* argv[])
 
     boost::asio::io_context ioc;
     boost::asio::signal_set signals(ioc, SIGINT, SIGTERM);
-    std::unique_ptr<MctpBinding> bindingPtr;
+    std::shared_ptr<MctpBinding> bindingPtr;
     signals.async_wait(
         [&ioc, &bindingPtr](const boost::system::error_code&, const int&) {
             // Ensure we destroy binding object before we do an ioc stop
