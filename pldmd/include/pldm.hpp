@@ -16,6 +16,7 @@
 #pragma once
 
 #include "base.hpp"
+#include "mctp_wrapper.hpp"
 
 #include <boost/asio.hpp>
 #include <boost/asio/error.hpp>
@@ -27,7 +28,8 @@
 #include <vector>
 
 #include "base.h"
-#include "mctpw.h"
+
+using mctpw_eid_t = mctpw::eid_t;
 
 std::shared_ptr<boost::asio::io_context> getIoContext();
 std::shared_ptr<sdbusplus::asio::connection> getSdBus();

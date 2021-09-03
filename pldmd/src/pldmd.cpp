@@ -345,7 +345,8 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
         // Insert MCTP Message Type to start of the payload
         if (retry == 0)
         {
-            pldmReq.insert(pldmReq.begin(), PLDM);
+            pldmReq.insert(pldmReq.begin(),
+                           static_cast<uint8_t>(mctpw::MessageType::pldm));
         }
 
         // Clear the resp vector each time before a retry
@@ -380,7 +381,8 @@ bool sendReceivePldmMessage(boost::asio::yield_context yield,
 
             // Verify the response received is of type PLDM
             constexpr int mctpMsgType = 0;
-            if (pldmResp.at(mctpMsgType) == PLDM)
+            if (pldmResp.at(mctpMsgType) ==
+                static_cast<uint8_t>(mctpw::MessageType::pldm))
             {
                 // Remove the MCTP message type and IC bit from req and resp
                 // payload.
@@ -448,7 +450,8 @@ bool sendPldmMessage(boost::asio::yield_context yield, const pldm_tid_t tid,
         return false;
     }
     // Insert MCTP Message Type to start of the payload
-    payload.insert(payload.begin(), PLDM);
+    payload.insert(payload.begin(),
+                   static_cast<uint8_t>(mctpw::MessageType::pldm));
     utils::printVect("Send PLDM message(MCTP payload):", payload);
     std::pair<boost::system::error_code, int> rc;
 
@@ -484,7 +487,8 @@ auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
     // Intentional copy. MCTPWrapper provides const reference in callback
     auto payload = data;
     // Verify the response received is of type PLDM
-    if (!payload.empty() && payload.at(0) == PLDM)
+    if (!payload.empty() &&
+        payload.at(0) == static_cast<uint8_t>(mctpw::MessageType::pldm))
     {
         // Discard the packet if no matching TID is found
         // Why: We do not have to process packets from uninitialised Termini
