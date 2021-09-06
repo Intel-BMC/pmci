@@ -145,7 +145,7 @@ std::optional<pldm_tid_t> TIDMapper::getMappedTID(const mctpw_eid_t eid)
         }
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
-        ("Mapper: EID " + utils::changeToString(static_cast<int>(eid)) +
+        ("Mapper: EID " + std::to_string(static_cast<int>(eid)) +
          " is not mapped to any TID")
             .c_str());
     return std::nullopt;
@@ -496,7 +496,7 @@ auto msgRecvCallback = [](void*, mctpw::eid_t srcEid, bool tagOwner,
         if (!tid)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("EID " + utils::changeToString(static_cast<int>(srcEid)) +
+                ("EID " + std::to_string(static_cast<int>(srcEid)) +
                  " is not mapped to any TID; Discarding the packet")
                     .c_str());
             return;
@@ -624,7 +624,7 @@ void onDeviceUpdate(void*, const mctpw::Event& evt,
             else
             {
                 phosphor::logging::log<phosphor::logging::level::WARNING>(
-                    ("EID " + utils::changeToString(static_cast<int>(evt.eid)) +
+                    ("EID " + std::to_string(static_cast<int>(evt.eid)) +
                      " is not mapped to any TID")
                         .c_str());
             }
