@@ -15,6 +15,7 @@
  */
 #include "fwu_inventory.hpp"
 
+#include "fru_utils.hpp"
 #include "pldm.hpp"
 
 #include <phosphor-logging/log.hpp>
@@ -385,7 +386,7 @@ void FWInventoryInfo::addFirmwareInventoryToDBus()
 
 std::string FWInventoryInfo::getInventoryName()
 {
-    if (auto name = utils::getFruProperty(tid, "Name"))
+    if (auto name = fruUtils::getFruProperty(tid, "Name"))
     {
         std::string inventoryName = std::get<std::string>(*name);
 

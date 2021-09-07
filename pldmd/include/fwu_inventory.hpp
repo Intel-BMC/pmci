@@ -16,7 +16,6 @@
 #pragma once
 
 #include "fwu_utils.hpp"
-#include "utils.hpp"
 
 #include "firmware_update.h"
 

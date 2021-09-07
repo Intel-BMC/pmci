@@ -17,7 +17,6 @@
 #include "utils.hpp"
 
 #include <iomanip>
-#include <optional>
 #include <phosphor-logging/log.hpp>
 #include <sstream>
 
@@ -38,26 +37,6 @@ void printVect(const std::string& msg, const std::vector<uint8_t>& vec)
     }
     phosphor::logging::log<phosphor::logging::level::DEBUG>(
         ssVec.str().c_str());
-}
-
-std::optional<VariantType> getFruProperty(const pldm_tid_t tid,
-                                          std::string propertyName)
-{
-    if (auto prop = pldm::fru::getProperties(tid))
-    {
-        pldm::fru::FRUProperties properties = *prop;
-        auto itr = properties.find(propertyName);
-        if (itr != properties.end())
-        {
-            return itr->second;
-        }
-    }
-
-    phosphor::logging::log<phosphor::logging::level::INFO>(
-        ("PLDM FRU property " + propertyName + " does not exist for TID " +
-         std::to_string(tid))
-            .c_str());
-    return std::nullopt;
 }
 
 } // namespace utils
