@@ -189,8 +189,8 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     if (!getField(map, "SupportedEndpointSlaveAddress",
                   supportedEndpointSlaveAddress))
     {
-        constexpr uint8_t startAddr = 0x03;
-        constexpr uint8_t endAddr = 0x77;
+        constexpr uint8_t startAddr = 0x08;
+        constexpr uint8_t endAddr = 0x78;
         supportedEndpointSlaveAddress.reserve(endAddr - startAddr);
         for (uint8_t it = startAddr; it < endAddr; it++)
         {
