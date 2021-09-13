@@ -136,6 +136,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
     std::vector<uint64_t> supportedEndpointSlaveAddress;
+    std::vector<uint64_t> ignoredEndpintSlaveAddress;
 
     if (!getField(map, "PhysicalMediumID", physicalMediumID))
     {
@@ -198,6 +199,22 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         }
     }
 
+    if (!getField(map, "IgnoredEndpointSlaveAddress",
+                  ignoredEndpintSlaveAddress))
+    {
+        ignoredEndpintSlaveAddress = {};
+    }
+
+    auto endpointSlaveAddress =
+        std::set<uint8_t>(supportedEndpointSlaveAddress.begin(),
+                          supportedEndpointSlaveAddress.end());
+
+    // Remove address in ignored list
+    for (uint64_t it : ignoredEndpintSlaveAddress)
+    {
+        endpointSlaveAddress.erase(static_cast<uint8_t>(it));
+    }
+
     SMBusConfiguration config;
     config.mediumId = stringToMediumID.at(physicalMediumID);
     config.mode = mode;
@@ -206,9 +223,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     {
         config.eidPool = std::set<uint8_t>(eidPool.begin(), eidPool.end());
     }
-    config.supportedEndpointSlaveAddress =
-        std::set<uint8_t>(supportedEndpointSlaveAddress.begin(),
-                          supportedEndpointSlaveAddress.end());
+    config.supportedEndpointSlaveAddress = endpointSlaveAddress;
     config.bus = bus;
     config.arpMasterSupport = arpOwnerSupport;
     config.bmcSlaveAddr = static_cast<uint8_t>(bmcReceiverAddress);
