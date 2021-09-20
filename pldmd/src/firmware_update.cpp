@@ -2346,8 +2346,7 @@ static void initializeFWUBase()
     auto objServer = getObjServer();
     auto fwuBaseIface = objServer->add_interface(objPath, FWUBase::interface);
     fwuBaseIface->register_method(
-        "StartFWUpdate",
-        [](const boost::asio::yield_context yield, const std::string filePath) {
+        "StartFWUpdate", [](const std::string filePath) {
             int rc = -1;
             if (pldmImg)
             {
@@ -2374,14 +2373,17 @@ static void initializeFWUBase()
                     "Failed to process pldm image",
                     phosphor::logging::entry("PLDM_IMAGE=%s",
                                              filePath.c_str()));
+                return rc;
             }
-            rc = initUpdate(yield);
-            if (rc != PLDM_SUCCESS)
-            {
-                phosphor::logging::log<phosphor::logging::level::ERR>(
-                    "StartFWUpdate: initUpdate failed.");
-            }
-            pldmImg = nullptr;
+            boost::asio::spawn([](boost::asio::yield_context yield) {
+                int ret = initUpdate(yield);
+                if (ret != PLDM_SUCCESS)
+                {
+                    phosphor::logging::log<phosphor::logging::level::ERR>(
+                        "StartFWUpdate: initUpdate failed.");
+                }
+                pldmImg = nullptr;
+            });
             return rc;
         });
     fwuBaseIface->initialize();
