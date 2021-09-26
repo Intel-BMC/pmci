@@ -26,41 +26,31 @@ static void processDescriptor(const DescriptorHeader& header, const T& data,
                               DescriptorsMap& descriptorData)
 
 {
-    if (!std::is_arithmetic_v<T>)
+    if (!std::is_integral_v<T>)
     {
-        return;
-    }
-    std::string value;
-    try
-    {
-        value = std::to_string(data);
-    }
-    catch (const std::exception& e)
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(e.what());
         return;
     }
 
     switch (header.type)
     {
         case pldm::fwu::DescriptorIdentifierType::pciVendorID: {
-            descriptorData["PCIVendorID"] = value;
+            descriptorData["PCIVendorID"] = data;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciDeviceID: {
-            descriptorData["PCIDeviceID"] = value;
+            descriptorData["PCIDeviceID"] = data;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciSubsystemVendorID: {
-            descriptorData["PCISubsystemVendorID"] = value;
+            descriptorData["PCISubsystemVendorID"] = data;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciSubsystemID: {
-            descriptorData["PCISubsystemID"] = value;
+            descriptorData["PCISubsystemID"] = data;
             break;
         }
         case pldm::fwu::DescriptorIdentifierType::pciRevisionID: {
-            descriptorData["PCIRevisionID"] = value;
+            descriptorData["PCIRevisionID"] = data;
             break;
         }
         // TODO Add cases for other Descriptor Identifier Types

@@ -294,9 +294,6 @@ void FWInventoryInfo::addPCIDescriptorsToDBus(const std::string& objPath)
         objPath, "xyz.openbmc_project.PLDM.FWU.PCIDescriptor");
     for (auto& it : descriptors)
     {
-        std::replace_if(
-            it.second.begin(), it.second.end(),
-            [](const char& c) { return !isprint(c); }, ' ');
         pciDevIntf->register_property(it.first, it.second);
     }
     pciDevIntf->initialize();

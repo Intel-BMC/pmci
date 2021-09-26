@@ -25,7 +25,8 @@ namespace pldm
 {
 namespace fwu
 {
-using DescriptorsMap = std::map<std::string, std::string>;
+using DescriptorType = std::variant<uint8_t, uint16_t, uint32_t>;
+using DescriptorsMap = std::map<std::string, DescriptorType>;
 using FWUVariantType =
     std::variant<uint8_t, uint16_t, uint32_t, uint64_t, bitfield16_t,
                  bitfield32_t, std::string, std::vector<uint8_t>>;
