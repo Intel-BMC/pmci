@@ -229,7 +229,7 @@ class MctpBinding
     void unregisterEndpoint(mctp_eid_t eid);
 
     // MCTP Callbacks
-    void handleCtrlResp(void* msg, const size_t len);
+    bool handleCtrlResp(void* msg, const size_t len);
     static void rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
                           bool tagOwner, uint8_t msgTag, void* bindingPrivate);
     static void handleMCTPControlRequests(uint8_t srcEid, void* data, void* msg,

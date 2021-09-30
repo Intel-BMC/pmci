@@ -105,7 +105,7 @@ static uint8_t getInstanceId(const uint8_t msg)
     return msg & MCTP_CTRL_HDR_INSTANCE_ID_MASK;
 }
 
-void MctpBinding::handleCtrlResp(void* msg, const size_t len)
+bool MctpBinding::handleCtrlResp(void* msg, const size_t len)
 {
     mctp_ctrl_msg_hdr* respHeader = reinterpret_cast<mctp_ctrl_msg_hdr*>(msg);
 
@@ -148,12 +148,12 @@ void MctpBinding::handleCtrlResp(void* msg, const size_t len)
     {
         // Delete the entry from queue after receiving response
         ctrlTxQueue.erase(reqItr);
+        return true;
     }
-    else
-    {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            "No matching Control command request found");
-    }
+
+    phosphor::logging::log<phosphor::logging::level::WARNING>(
+        "No matching Control command request found for the response");
+    return false;
 }
 
 /*
@@ -190,31 +190,30 @@ void MctpBinding::rxMessage(uint8_t srcEid, void* data, void* msg, size_t len,
         binding.addUnknownEIDToDeviceTable(srcEid, bindingPrivate);
     }
 
-    if (msgType != MCTP_MESSAGE_TYPE_MCTP_CTRL)
-    {
-        if (!tagOwner &&
-            binding.transmissionQueue.receive(binding.mctp, srcEid, msgTag,
-                                              std::move(response), binding.io))
-        {
-            return;
-        }
-
-        auto msgSignal = binding.connection->new_signal(
-            "/xyz/openbmc_project/mctp", mctp_server::interface,
-            "MessageReceivedSignal");
-        msgSignal.append(msgType, srcEid, msgTag, tagOwner, response);
-        msgSignal.signal_send();
-        return;
-    }
-
     // TODO: Take into account the msgTags too when we verify control messages.
     if (!tagOwner && mctp_is_mctp_ctrl_msg(msg, len) &&
         !mctp_ctrl_msg_is_req(msg, len))
     {
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "MCTP Control packet response received!!");
-        binding.handleCtrlResp(msg, len);
+        if (binding.handleCtrlResp(msg, len))
+        {
+            return;
+        }
     }
+
+    if (!tagOwner &&
+        binding.transmissionQueue.receive(binding.mctp, srcEid, msgTag,
+                                          std::move(response), binding.io))
+    {
+        return;
+    }
+
+    auto msgSignal = binding.connection->new_signal("/xyz/openbmc_project/mctp",
+                                                    mctp_server::interface,
+                                                    "MessageReceivedSignal");
+    msgSignal.append(msgType, srcEid, msgTag, tagOwner, response);
+    msgSignal.signal_send();
 }
 
 void MctpBinding::handleMCTPControlRequests(uint8_t srcEid, void* data,
@@ -346,8 +345,7 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                     {
                         phosphor::logging::log<
                             phosphor::logging::level::WARNING>(
-                            "Cannot transmit control messages");
-                        return static_cast<int>(mctpErrorOperationNotAllowed);
+                            "Transmiting control messages");
                     }
                 }
 
@@ -431,10 +429,9 @@ MctpBinding::MctpBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
                     uint8_t msgType = payload[0]; // Always the first byte
                     if (msgType == MCTP_MESSAGE_TYPE_MCTP_CTRL)
                     {
-                        phosphor::logging::log<phosphor::logging::level::ERR>(
-                            "Cannot transmit control messages");
-                        throw std::system_error(
-                            std::make_error_code(std::errc::invalid_argument));
+                        phosphor::logging::log<
+                            phosphor::logging::level::WARNING>(
+                            "Transmiting control message");
                     }
                 }
 
