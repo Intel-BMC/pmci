@@ -1205,10 +1205,13 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield)
         if (!fdReqMatched)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
-                "TimeoutWaiting for requestFirmwareData packet");
+                ("TimeoutWaiting for requestFirmwareData packet. COMPONENT: " +
+                 std::to_string(currentComp))
+                    .c_str());
 
             break;
         }
+        fdReqMatched = false;
 
         if (fdTransferCompleted)
         {
@@ -1245,6 +1248,12 @@ int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield)
             expectedCmd = PLDM_TRANSFER_COMPLETE;
             break;
         }
+    }
+    if (!maxNumReq)
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            "Exceeded maximum no of RequestFirmwareData requests");
+        return PLDM_ERROR;
     }
 
     return retVal;
@@ -1983,18 +1992,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
             }
             continue;
         }
-        startTimer(yield, fdCmdTimeout);
-
-        if (!fdReqMatched)
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("Timeout waiting for Transfer complete. COMPONENT: " +
-                 std::to_string(count))
-                    .c_str());
-
-            continue;
-        }
-
         // Add Activation progress percentage of update to D-Bus interface
         compUpdateProgress(yield);
 
@@ -2037,7 +2034,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                 phosphor::logging::entry("COMPONENT=%d", count));
             continue;
         }
-
+        fdReqMatched = false;
         retVal = processVerifyComplete(yield, fdReq, verifyResult);
         if (retVal != PLDM_SUCCESS)
         {
@@ -2079,6 +2076,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 
             continue;
         }
+        fdReqMatched = false;
         retVal = processApplyComplete(yield, fdReq, applyResult,
                                       compActivationMethodsModification);
         if (retVal != PLDM_SUCCESS)
