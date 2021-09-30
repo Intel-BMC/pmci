@@ -1875,6 +1875,17 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
+    if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("runUpdate: reserveBandwidth failed. TID: " +
+             std::to_string(currentTid))
+                .c_str());
+    }
+    else
+    {
+        isReserveBandwidthActive = true;
+    }
     retVal = processSendPackageData(yield);
     if (retVal != PLDM_SUCCESS)
     {
@@ -1955,17 +1966,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
              std::to_string(count))
                 .c_str());
 
-        if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
-        {
-            phosphor::logging::log<phosphor::logging::level::WARNING>(
-                ("runUpdate: reserveBandwidth failed. TID: " +
-                 std::to_string(currentTid))
-                    .c_str());
-        }
-        else
-        {
-            isReserveBandwidthActive = true;
-        }
         uint8_t verifyResult = 0;
         uint8_t transferResult = 0;
         uint8_t applyResult = 0;
