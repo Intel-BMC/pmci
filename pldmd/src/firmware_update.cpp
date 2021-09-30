@@ -1164,22 +1164,39 @@ int FWUpdate::applyComplete(const boost::asio::yield_context yield,
     return PLDM_SUCCESS;
 }
 
-int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield,
-                                         const uint32_t componentSize,
-                                         const uint32_t componentOffset)
+int FWUpdate::processRequestFirmwareData(const boost::asio::yield_context yield)
 {
     if (!updateMode || fdState != FD_DOWNLOAD)
     {
         return COMMAND_NOT_EXPECTED;
     }
-    uint32_t maxNumReq = findMaxNumReq(componentSize);
     uint32_t offset = 0;
     uint32_t length = 0;
     int retVal = 0;
     int prevProgress = 0;
     // Log interval for progess percentage
     constexpr int progressPercentLogLimit = 25;
-
+    uint32_t componentSize;
+    uint32_t componentOffset;
+    if (!pldmImg->getCompProperty<uint32_t>(componentSize, "CompSize",
+                                            currentComp))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("Failed to get component size. COMPONENT: " +
+             std::to_string(currentComp))
+                .c_str());
+        return PLDM_ERROR;
+    }
+    if (!pldmImg->getCompProperty<uint32_t>(componentOffset,
+                                            "CompLocationOffset", currentComp))
+    {
+        phosphor::logging::log<phosphor::logging::level::WARNING>(
+            ("Failed to get component location offset. COMPONENT: " +
+             std::to_string(currentComp))
+                .c_str());
+        return PLDM_ERROR;
+    }
+    uint32_t maxNumReq = findMaxNumReq(componentSize);
     initialize_fw_update(updateProperties.max_transfer_size, componentSize);
 
     while (--maxNumReq)
@@ -1834,7 +1851,6 @@ boost::system::error_code
 
 int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 {
-    uint32_t compOffset = 0;
     compCount = pldmImg->getTotalCompCount();
     int retVal = processRequestUpdate(yield);
     if (retVal != PLDM_SUCCESS)
@@ -1883,21 +1899,17 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to READY XFER");
 
-    compOffset = pldmImg->getHeaderLen();
     for (uint16_t count = 0; count < compCount; ++count)
     {
         uint8_t compCompatabilityResp = 0;
         uint8_t compCompatabilityRespCode = 0;
         bitfield32_t updateOptFlagsEnabled = {};
         uint16_t estimatedTimeReqFd = 0;
-        uint32_t compSize = 0;
-        pldmImg->getCompProperty<uint32_t>(compSize, "CompSize", count);
         currentComp = count;
         if (!isComponentApplicable())
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "component not applicable");
-            compOffset += compSize;
             continue;
         }
 
@@ -1913,7 +1925,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  ". COMPONENT: " + std::to_string(count))
                     .c_str());
 
-            compOffset += compSize;
             continue;
         }
         if (compCompatabilityResp != COMPONENT_CAN_BE_UPDATED)
@@ -1924,7 +1935,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  "ComponentCompatibilityResponse Code: " +
                  std::to_string(compCompatabilityRespCode))
                     .c_str());
-            compOffset += compSize;
             continue;
         }
 
@@ -1953,7 +1963,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         bitfield16_t compActivationMethodsModification = {};
         expectedCmd = PLDM_REQUEST_FIRMWARE_DATA;
 
-        retVal = processRequestFirmwareData(yield, compSize, compOffset);
+        retVal = processRequestFirmwareData(yield);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1971,7 +1981,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                      ". COMPONENT: " + std::to_string(count))
                         .c_str());
             }
-            compOffset += compSize;
             continue;
         }
         startTimer(yield, fdCmdTimeout);
@@ -1983,7 +1992,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  std::to_string(count))
                     .c_str());
 
-            compOffset += compSize;
             continue;
         }
 
@@ -2008,7 +2016,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                      ". COMPONENT: " + std::to_string(count))
                         .c_str());
             }
-            compOffset += compSize;
             continue;
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -2028,7 +2035,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "Timeout waiting for Verify complete",
                 phosphor::logging::entry("COMPONENT=%d", count));
-            compOffset += compSize;
             continue;
         }
 
@@ -2050,7 +2056,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                      ". COMPONENT: " + std::to_string(count))
                         .c_str());
             }
-            compOffset += compSize;
             continue;
         }
         phosphor::logging::log<phosphor::logging::level::INFO>(
@@ -2072,7 +2077,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  std::to_string(count + 1))
                     .c_str());
 
-            compOffset += compSize;
             continue;
         }
         retVal = processApplyComplete(yield, fdReq, applyResult,
@@ -2085,7 +2089,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  ". COMPONENT: " + std::to_string(count))
                     .c_str());
 
-            compOffset += compSize;
             continue;
         }
         isComponentAvailableForUpdate = true;
@@ -2096,8 +2099,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         fdState = FD_READY_XFER;
         phosphor::logging::log<phosphor::logging::level::DEBUG>(
             "FD changed state to READY XFER");
-
-        compOffset += compSize;
     }
     // TODO: The FD can send this command when it is in any state, except the
     // IDLE and LEARN COMPONENTS state. we need to note a limitation that FD

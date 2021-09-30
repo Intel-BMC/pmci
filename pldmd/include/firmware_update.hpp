@@ -86,9 +86,7 @@ class FWUpdate
                         uint8_t& compCompatabilityRespCode,
                         bitfield32_t& updateOptFlagsEnabled,
                         uint16_t& estimatedTimeReqFd);
-    int processRequestFirmwareData(const boost::asio::yield_context yield,
-                                   const uint32_t componentSize,
-                                   const uint32_t componentOffset);
+    int processRequestFirmwareData(const boost::asio::yield_context yield);
     int requestFirmwareData(const boost::asio::yield_context yield,
                             const std ::vector<uint8_t>& pldmReq,
                             uint32_t& offset, uint32_t& length,
