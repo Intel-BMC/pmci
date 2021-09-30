@@ -82,13 +82,11 @@ class PCIeBinding : public MctpBinding,
     uint16_t getRoutingEntryPhysAddr(
         const std::vector<uint8_t>& getRoutingTableEntryResp,
         size_t entryOffset);
-    bool isEntryInRoutingTable(uint16_t physAddr,
-                               get_routing_table_entry* routingEntry,
+    bool isEntryInRoutingTable(get_routing_table_entry* routingEntry,
                                const std::vector<routingTableEntry_t>& rt);
     bool isEndOfGetRoutingTableResp(uint8_t entryHandle,
                                     uint8_t& responseCount);
-    bool isActiveEntryBehindBridge(uint16_t physAddr,
-                                   get_routing_table_entry* routingEntry,
+    bool isActiveEntryBehindBridge(get_routing_table_entry* routingEntry,
                                    const std::vector<routingTableEntry_t>& rt);
     bool isEntryBridge(const routingTableEntry_t& routingEntry);
     bool isBridgeCalled(const routingTableEntry_t& routingEntry,

@@ -104,22 +104,21 @@ uint16_t PCIeBinding::getRoutingEntryPhysAddr(
 }
 
 bool PCIeBinding::isEntryInRoutingTable(
-    uint16_t physAddr, get_routing_table_entry* routingEntry,
+    get_routing_table_entry* routingEntry,
     const std::vector<routingTableEntry_t>& rt)
 {
     return std::find_if(rt.begin(), rt.end(),
-                        [&physAddr, &routingEntry](const auto& entry) {
+                        [&routingEntry](const auto& entry) {
                             const auto& [eid, endpointBdf, entryType] = entry;
-                            return routingEntry->starting_eid == eid &&
-                                   physAddr == endpointBdf;
+                            return routingEntry->starting_eid == eid;
                         }) != rt.end();
 }
 
 bool PCIeBinding::isActiveEntryBehindBridge(
-    uint16_t physAddr, get_routing_table_entry* routingEntry,
+    get_routing_table_entry* routingEntry,
     const std::vector<routingTableEntry_t>& rt)
 {
-    return !isEntryInRoutingTable(physAddr, routingEntry, rt) &&
+    return !isEntryInRoutingTable(routingEntry, rt) &&
            routingEntry->eid_range_size == 1 &&
            routingEntry->phys_transport_binding_id == MCTP_BINDING_PCIE;
 }
@@ -227,8 +226,7 @@ void PCIeBinding::readRoutingTable(
                                              routingTableEntry->entry_type));
             }
             else if (eid != busOwnerEid &&
-                     isActiveEntryBehindBridge(entryPhysAddr, routingTableEntry,
-                                               rt))
+                     isActiveEntryBehindBridge(routingTableEntry, rt))
             {
                 rt.insert(rt.begin() + insertIndex,
                           std::make_tuple(routingTableEntry->starting_eid,
