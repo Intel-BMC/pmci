@@ -256,10 +256,10 @@ bool FWUpdate::preparePassComponentRequest(
     {
         return false;
     }
-    return initTransferFlag(compCnt, componentTable.transfer_flag);
+    return initPassComponentTableTransferFlag(componentTable.transfer_flag);
 }
 
-bool FWUpdate::initTransferFlag(const uint16_t compCnt, uint8_t& flag)
+bool FWUpdate::initPassComponentTableTransferFlag(uint8_t& flag)
 {
 
     if (updateProperties.no_of_comp == 1)
@@ -270,19 +270,19 @@ bool FWUpdate::initTransferFlag(const uint16_t compCnt, uint8_t& flag)
 
     if (updateProperties.no_of_comp > 1)
     {
-        if (compCnt == 0)
+        if (passCompCount == 0)
         {
             flag = PLDM_START;
         }
-        else if (compCnt + 1 < updateProperties.no_of_comp)
+        else if (passCompCount + 1 < updateProperties.no_of_comp)
         {
             flag = PLDM_MIDDLE;
         }
-        else if (compCnt + 1 == updateProperties.no_of_comp)
+        else if (passCompCount + 1 == updateProperties.no_of_comp)
         {
             flag = PLDM_END;
         }
-
+        passCompCount++;
         return true;
     }
 

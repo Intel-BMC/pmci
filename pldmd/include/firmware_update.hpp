@@ -140,7 +140,7 @@ class FWUpdate
     bool preparePassComponentRequest(
         struct pass_component_table_req& componentTable,
         std::string& compVersionString, const uint16_t compCnt);
-    bool initTransferFlag(const uint16_t compCnt, uint8_t& flag);
+    bool initPassComponentTableTransferFlag(uint8_t& flag);
     bool prepareUpdateComponentRequest(std::string& compVersionString,
                                        struct update_component_req& component);
 
@@ -149,7 +149,7 @@ class FWUpdate
     int processSendMetaData(const boost::asio::yield_context yield);
     int sendMetaData(const boost::asio::yield_context yield, uint32_t& offset,
                      uint32_t& length);
-
+    uint16_t passCompCount = 0;
     pldm_tid_t currentTid;
     uint8_t expectedCmd;
     uint8_t msgTag;
