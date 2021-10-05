@@ -441,7 +441,7 @@ static std::optional<std::string> getAuxName(const uint8_t nameStrCount,
     constexpr size_t strASCIInullSize = 1;
     constexpr size_t strUTF16nullSize = 2;
     constexpr size_t codeUnitSize = 2;
-    constexpr size_t maxStrLen = 32;
+    constexpr size_t maxStrLen = 64;
     const std::string supportedLangTag = "en";
     const uint8_t* next = auxNamesStart;
     size_t advanced{};
