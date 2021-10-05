@@ -340,11 +340,18 @@ void PCIeBinding::processRoutingTableChanges(
         if (find(routingTable.begin(), routingTable.end(), routingEntry) ==
             routingTable.end())
         {
+            mctp_eid_t remoteEid = std::get<0>(routingEntry);
+
+            if (remoteEid == ownEid)
+            {
+                continue;
+            }
+
             std::vector<uint8_t> prvDataCopy = prvData;
             mctp_astpcie_pkt_private* pciePrivate =
                 reinterpret_cast<mctp_astpcie_pkt_private*>(prvDataCopy.data());
             pciePrivate->remote_id = std::get<1>(routingEntry);
-            registerEndpoint(yield, prvDataCopy, std::get<0>(routingEntry),
+            registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
         }
     }

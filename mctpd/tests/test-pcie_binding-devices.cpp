@@ -228,10 +228,22 @@ class PCIeDevicePopulationTest : public PCIeDiscoveredTestBase,
     std::vector<EndpointParam> endpoints;
 };
 
+TEST_P(PCIeDevicePopulationTest, VeirfyOwnEidNotRegistered)
+{
+    for (const auto& iface : bus->backdoor.interfaces)
+    {
+        ASSERT_NE(iface->path, "/xyz/openbmc_project/mctp/device/" +
+                                   std::to_string(assignedEid));
+    }
+}
+
 TEST_P(PCIeDevicePopulationTest, VerifyEndpointInterface)
 {
     for (const auto& endpoint : endpoints)
     {
+        if (endpoint.eid == assignedEid)
+            continue;
+
         auto endpointIface = bus->backdoor.get_interface(
             endpoint.path, mctp_endpoint::interface);
 
@@ -246,6 +258,9 @@ TEST_P(PCIeDevicePopulationTest, VerifyMsgTypesInterface)
 {
     for (const auto& endpoint : endpoints)
     {
+        if (endpoint.eid == assignedEid)
+            continue;
+
         auto msgTypesIface = bus->backdoor.get_interface(
             endpoint.path, mctp_msg_types::interface);
 
@@ -263,6 +278,9 @@ TEST_P(PCIeDevicePopulationTest, VerifyUuidInterface)
 {
     for (const auto& endpoint : endpoints)
     {
+        if (endpoint.eid == assignedEid)
+            continue;
+
         auto uuidIface = bus->backdoor.get_interface(
             endpoint.path, "xyz.openbmc_project.Common.UUID");
 
@@ -292,6 +310,9 @@ TEST_P(PCIeDevicePopulationTest, OddDevicesRemoved)
     // Verify that proper EIDs are left
     for (auto& endpoint : endpoints)
     {
+        if (endpoint.eid == assignedEid)
+            continue;
+
         auto ifacesCount = std::count_if(
             bus->backdoor.interfaces.begin(), bus->backdoor.interfaces.end(),
             [&](auto& iface) { return endpoint.path == iface->path; });
