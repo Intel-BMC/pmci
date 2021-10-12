@@ -181,11 +181,24 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context yield)
     return;
 }
 
+uint16_t FWUpdate::getApplicableComponentsCount(uint64_t val) const
+{
+    uint16_t updatableComponents = 0;
+    while (val)
+    {
+        val &= (val - 1);
+        updatableComponents++;
+    }
+    return updatableComponents;
+}
+
 bool FWUpdate::prepareRequestUpdateCommand()
 {
     uint16_t tempShort = 0;
     updateProperties.max_transfer_size = PLDM_FWU_BASELINE_TRANSFER_SIZE;
-    updateProperties.no_of_comp = compCount;
+    applicableComponentsVal = getApplicableComponents();
+    updateProperties.no_of_comp =
+        getApplicableComponentsCount(applicableComponentsVal);
     updateProperties.max_outstand_transfer_req = 1;
     if (!pldmImg->getDevIdRcrdProperty<uint16_t>(tempShort, "FWDevPkgDataLen",
                                                  currentDeviceIDRecord))
@@ -1903,8 +1916,6 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                 .c_str());
         return retVal;
     }
-
-    applicableComponentsVal = getApplicableComponents();
 
     retVal = processPassComponentTable(yield);
     if (retVal != PLDM_SUCCESS)
