@@ -1941,6 +1941,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "component not applicable");
+            compUpdateProgress(yield);
             continue;
         }
 
@@ -1966,6 +1967,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
                  "ComponentCompatibilityResponse Code: " +
                  std::to_string(compCompatabilityRespCode))
                     .c_str());
+            compUpdateProgress(yield);
             continue;
         }
 
