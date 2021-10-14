@@ -9,7 +9,7 @@
 #include <phosphor-logging/log.hpp>
 #include <sdbusplus/asio/object_server.hpp>
 
-std::unique_ptr<MctpBinding>
+std::shared_ptr<MctpBinding>
     getBindingPtr(const Configuration& configuration,
                   std::shared_ptr<sdbusplus::asio::connection> conn,
                   std::shared_ptr<object_server>& objectServer,
@@ -20,13 +20,13 @@ std::unique_ptr<MctpBinding>
     if (auto smbusConfig =
             dynamic_cast<const SMBusConfiguration*>(&configuration))
     {
-        return std::make_unique<SMBusBinding>(conn, objectServer, mctpBaseObj,
+        return std::make_shared<SMBusBinding>(conn, objectServer, mctpBaseObj,
                                               *smbusConfig, ioc);
     }
     else if (auto pcieConfig =
                  dynamic_cast<const PcieConfiguration*>(&configuration))
     {
-        return std::make_unique<PCIeBinding>(
+        return std::make_shared<PCIeBinding>(
             conn, objectServer, mctpBaseObj, *pcieConfig, ioc,
             std::make_unique<hw::aspeed::PCIeDriver>(ioc),
             std::make_unique<hw::aspeed::PCIeMonitor>(ioc));

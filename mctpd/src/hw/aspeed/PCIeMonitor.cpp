@@ -80,6 +80,12 @@ bool PCIeMonitor::initialize()
 
 void PCIeMonitor::observe(std::weak_ptr<DeviceObserver> target)
 {
+    if (target.expired())
+    {
+        throw std::runtime_error("Observer weak_ptr is expired on arrival. Is "
+                                 "the Observer contained within shared_ptr?");
+    }
+
     ueventMonitor.async_wait(
         boost::asio::posix::stream_descriptor::wait_read,
         [this, observer{target}](const boost::system::error_code& ec) {
