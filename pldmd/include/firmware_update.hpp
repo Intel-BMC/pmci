@@ -63,11 +63,11 @@ class FWUpdate
                           uint32_t& nextDataTransferHandle,
                           uint8_t& transferFlag);
     int processSendPackageData(const boost::asio::yield_context yield);
-    int sendPackageData(const boost::asio::yield_context yield,
-                        uint32_t& offset, uint32_t& length);
-    uint8_t setTransferFlag(const uint32_t offset, const uint32_t length,
-                            const uint32_t dataSize);
-    uint32_t calcMaxNumReq(const uint32_t dataSize);
+    int sendPackageData(const boost::asio::yield_context yield, size_t& offset,
+                        size_t& length);
+    uint8_t setTransferFlag(const size_t offset, const size_t length,
+                            const size_t dataSize);
+    size_t calcMaxNumReq(const size_t dataSize);
     int processPassComponentTable(const boost::asio::yield_context yield);
     int passComponentTable(
         const boost::asio::yield_context yield,
@@ -147,8 +147,8 @@ class FWUpdate
     void compUpdateProgress(const boost::asio::yield_context yield);
 
     int processSendMetaData(const boost::asio::yield_context yield);
-    int sendMetaData(const boost::asio::yield_context yield, uint32_t& offset,
-                     uint32_t& length);
+    int sendMetaData(const boost::asio::yield_context yield, size_t& offset,
+                     size_t& length);
     uint16_t passCompCount = 0;
     pldm_tid_t currentTid;
     uint8_t expectedCmd;

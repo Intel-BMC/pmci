@@ -154,9 +154,9 @@ class PLDMImg
     bool readData(const size_t startAddr, std::vector<uint8_t>& data,
                   const size_t dataLen);
 
-    constexpr uint32_t getImagesize()
+    std::uintmax_t getImagesize()
     {
-        return static_cast<uint32_t>(pldmImgSize);
+        return pldmImgSize;
     };
     std::vector<std::pair<uint8_t, pldm_tid_t>> getMatchedTermini()
     {
@@ -239,7 +239,7 @@ class PLDMImg
     void copyCompImgInfoToMap(const uint16_t count, const CompImgInfo* compInfo,
                               const std::string& compVerStr);
 
-    std::streamoff pldmImgSize;
+    std::uintmax_t pldmImgSize;
     std::ifstream pldmImg;
     uint16_t pkgHdrLen = 0;
     std::vector<uint8_t> hdrData;

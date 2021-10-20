@@ -346,7 +346,7 @@ uint8_t FruSupport::setProductArea(const FRUProperties& properties,
     // fill padding with zeros
     productData.resize(productData.size() + numPadBytes);
 
-    int dataSize = static_cast<int>(productData.size());
+    size_t dataSize = productData.size();
     dataSize = (dataSize % mod) ? dataSize / mod + 1 : dataSize / mod;
 
     if (dataSize > maxDataSize)

@@ -18,6 +18,7 @@
 #include "fwu_inventory.hpp"
 #include "platform.hpp"
 
+#include <filesystem>
 #include <phosphor-logging/log.hpp>
 
 namespace pldm
@@ -31,16 +32,28 @@ extern std::map<pldm_tid_t, FDProperties> terminusFwuProperties;
 
 PLDMImg::PLDMImg(const std::string& pldmImgPath)
 {
+    std::error_code ec;
     pldmImg.open(pldmImgPath, std::ios::in | std::ios::binary | std::ios::ate);
     if (!pldmImg.is_open())
     {
+        ec = std::make_error_code(std::errc::no_such_file_or_directory);
+    }
+
+    std::uintmax_t imageSize = 0;
+    if (!ec)
+    {
+        std::filesystem::path path(pldmImgPath);
+        imageSize = std::filesystem::file_size(path, ec);
+    }
+
+    if (ec)
+    {
         phosphor::logging::log<phosphor::logging::level::ERR>(
             "Unable to open pldm image");
-        throw std::errc::no_such_file_or_directory;
+        throw ec;
     }
-    pldmImg.seekg(0, pldmImg.end);
-    pldmImgSize = pldmImg.tellg();
-    pldmImg.seekg(0, pldmImg.beg);
+
+    pldmImgSize = imageSize;
     imagePath = pldmImgPath;
 }
 

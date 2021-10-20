@@ -558,13 +558,13 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
     transferHandle = 0; // Resetting transferHandle
     expectedCmd = PLDM_GET_META_DATA;
 
-    uint32_t offset = 0;
+    size_t offset = 0;
     int retVal = 0;
 
-    uint32_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
+    size_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
 
     // Calculate based on size of payload and maximum transfer size
-    uint32_t maxNumReq = calcMaxNumReq(fwDeviceMetaData.size());
+    size_t maxNumReq = calcMaxNumReq(fwDeviceMetaData.size());
 
     if (maxNumReq == 0)
     {
@@ -612,7 +612,7 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
 }
 
 int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
-                           uint32_t& offset, uint32_t& length)
+                           size_t& offset, size_t& length)
 {
 
     const struct pldm_msg* msgReq =
@@ -621,7 +621,7 @@ int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
     uint32_t dataTransferHandle = 1;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
 
-    uint32_t dataSize = 0;
+    size_t dataSize = 0;
 
     int retVal =
         decode_get_meta_data_req(msgReq, sizeof(struct get_fd_data_req),
@@ -1369,14 +1369,14 @@ int FWUpdate::requestFirmwareData(const boost::asio::yield_context yield,
     return PLDM_SUCCESS;
 }
 
-uint32_t FWUpdate::calcMaxNumReq(const uint32_t dataSize)
+size_t FWUpdate::calcMaxNumReq(const size_t dataSize)
 {
     if (!dataSize)
     {
         return 0;
     }
 
-    uint32_t maxNumReq = dataSize / PLDM_FWU_BASELINE_TRANSFER_SIZE;
+    size_t maxNumReq = dataSize / PLDM_FWU_BASELINE_TRANSFER_SIZE;
 
     if (dataSize % PLDM_FWU_BASELINE_TRANSFER_SIZE > 0)
     {
@@ -1411,13 +1411,13 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
     }
     expectedCmd = PLDM_GET_PACKAGE_DATA;
 
-    uint32_t offset = 0;
+    size_t offset = 0;
     int retVal = 0;
-    uint32_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
-    const uint32_t dataSize = packageData.size();
+    size_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
+    const size_t dataSize = packageData.size();
 
     // Calculate based on size of payload and maximum transfer size
-    uint32_t maxNumReq = calcMaxNumReq(dataSize);
+    size_t maxNumReq = calcMaxNumReq(dataSize);
 
     while (maxNumReq--)
     {
@@ -1456,11 +1456,11 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
 }
 
 int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
-                              uint32_t& offset, uint32_t& length)
+                              size_t& offset, size_t& length)
 {
     uint32_t dataTransferHandle = 1;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
-    uint32_t dataSize = 0;
+    size_t dataSize = 0;
 
     const struct pldm_msg* msgReq =
         reinterpret_cast<const pldm_msg*>(fdReq.data());
@@ -1577,8 +1577,8 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
     return PLDM_SUCCESS;
 }
 
-uint8_t FWUpdate::setTransferFlag(const uint32_t offset, const uint32_t length,
-                                  const uint32_t dataSize)
+uint8_t FWUpdate::setTransferFlag(const size_t offset, const size_t length,
+                                  const size_t dataSize)
 {
     uint8_t transferFlag;
 
