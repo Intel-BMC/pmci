@@ -780,6 +780,19 @@ void SMBusBinding::initEndpointDiscovery(boost::asio::yield_context& yield)
             {
                 smbusDeviceTable.push_back(
                     std::make_pair(eid.value(), smbusBindingPvt));
+                std::string busName(bus);
+
+                if (muxPortMap.count(smbusBindingPvt.fd) != 0)
+                {
+                    auto itr = muxPortMap.find(smbusBindingPvt.fd);
+                    busName.assign(std::to_string(itr->second));
+                }
+
+                phosphor::logging::log<phosphor::logging::level::INFO>(
+                    ("SMBus device at bus:" + busName + ",8 bit address: " +
+                     std::to_string(smbusBindingPvt.slave_addr) +
+                     " registered at EID " + std::to_string(*eid))
+                        .c_str());
             }
         }
         else

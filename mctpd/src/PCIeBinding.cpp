@@ -353,6 +353,24 @@ void PCIeBinding::processRoutingTableChanges(
             pciePrivate->remote_id = std::get<1>(routingEntry);
             registerEndpoint(yield, prvDataCopy, remoteEid,
                              getBindingMode(routingEntry));
+
+            /* Log the device info:
+             * Bus - 8 bits, Device - 5 bits, Function - 3 bits
+             */
+            std::stringstream busHex, deviceHex, functionHex;
+            busHex << std::setfill('0') << std::setw(2) << std::hex
+                   << ((pciePrivate->remote_id & 0xFF00) >> 8);
+            deviceHex << std::setfill('0') << std::setw(2) << std::hex
+                      << ((pciePrivate->remote_id & 0x00F8) >> 3);
+            functionHex << std::hex << (pciePrivate->remote_id & 0x07);
+
+            std::string bus(busHex.str()), device(deviceHex.str()),
+                function(functionHex.str());
+
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                ("PCIe device " + bus + ":" + device + "." + function +
+                 " registered at EID " + std::to_string(remoteEid))
+                    .c_str());
         }
     }
 }
