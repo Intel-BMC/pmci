@@ -40,9 +40,6 @@ constexpr uint16_t timeout = 100;
 // Timeout in milliseconds in between fwu command
 constexpr uint16_t fdCmdTimeout = 5000;
 
-// Maximum timeout in seconds for reserve band width
-constexpr uint16_t reserveEidTimeOut = 900;
-
 // Maximum retry count
 constexpr size_t retryCount = 3;
 
@@ -1871,6 +1868,16 @@ boost::system::error_code
     return ec;
 }
 
+uint16_t FWUpdate::getReserveEidTimeOut()
+{
+    size_t updatableImagesize = pldmImg->getUpdatableImagesize();
+    // From the test results we observed that it took around 60 seconds for
+    // updating a pldm image of size 160KB, based on this bytesPerSec is
+    // calculated.
+    constexpr uint16_t bytesPerSec = 2730;
+    // choosing 3x of expected duration for PLDM firmware update timeout
+    return static_cast<uint16_t>((1 + updatableImagesize / bytesPerSec) * 3);
+}
 int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 {
     compCount = pldmImg->getTotalCompCount();
@@ -1888,6 +1895,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
+    uint16_t reserveEidTimeOut = getReserveEidTimeOut();
     if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
     {
         phosphor::logging::log<phosphor::logging::level::WARNING>(

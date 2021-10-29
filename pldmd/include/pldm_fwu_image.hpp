@@ -158,6 +158,10 @@ class PLDMImg
     {
         return pldmImgSize;
     };
+    constexpr size_t getUpdatableImagesize()
+    {
+        return static_cast<size_t>(pldmImgSize - pkgHdrLen);
+    };
     std::vector<std::pair<uint8_t, pldm_tid_t>> getMatchedTermini()
     {
         return matchedTermini;

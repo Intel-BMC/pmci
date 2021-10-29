@@ -52,6 +52,7 @@ class FWUpdate
         return (1 + (size / PLDM_FWU_BASELINE_TRANSFER_SIZE)) * 3;
     }
     uint64_t getApplicableComponents();
+    uint16_t getReserveEidTimeOut();
     uint16_t getApplicableComponentsCount(uint64_t val) const;
     int processRequestUpdate(const boost::asio::yield_context yield);
     int requestUpdate(const boost::asio::yield_context yield,
