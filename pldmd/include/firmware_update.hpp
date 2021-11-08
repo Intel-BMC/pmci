@@ -19,6 +19,7 @@
 
 #include <boost/asio/steady_timer.hpp>
 #include <sdbusplus/asio/object_server.hpp>
+#include <set>
 
 #include "firmware_update.h"
 
@@ -66,7 +67,7 @@ class FWUpdate
                           uint8_t& transferFlag);
     int processSendPackageData(const boost::asio::yield_context yield);
     int sendPackageData(const boost::asio::yield_context yield, size_t& offset,
-                        size_t& length);
+                        size_t& length, std::set<uint32_t>& recvdRequests);
     uint8_t setTransferFlag(const size_t offset, const size_t length,
                             const size_t dataSize);
     size_t calcMaxNumReq(const size_t dataSize);

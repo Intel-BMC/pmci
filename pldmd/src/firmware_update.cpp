@@ -1417,7 +1417,12 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
     const size_t dataSize = packageData.size();
 
     // Calculate based on size of payload and maximum transfer size
-    size_t maxNumReq = calcMaxNumReq(dataSize);
+    // Max number of requests including the requeries
+    size_t maxNumReq = findMaxNumReq(dataSize);
+    // Max number of unique requests (excluding requeries)
+    size_t numExpectedRequests = calcMaxNumReq(dataSize);
+
+    std::set<uint32_t> recvdRequests;
 
     while (maxNumReq--)
     {
@@ -1426,11 +1431,10 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "TimeoutWaiting for packageData packet");
-            retVal = PLDM_ERROR;
             break;
         }
 
-        retVal = sendPackageData(yield, offset, length);
+        retVal = sendPackageData(yield, offset, length, recvdRequests);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1444,19 +1448,31 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
         }
         fdReq.clear();
         fdReqMatched = false;
+
+        // Confirm if complete package data is been transferred
+        if (recvdRequests.size() == numExpectedRequests)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "sendPackageData successful");
+            expectedCmd = 0; // clear expected command
+            return retVal;
+        }
+
         expectedCmd = PLDM_GET_PACKAGE_DATA;
     }
-    if (retVal == PLDM_SUCCESS)
+
+    if (maxNumReq == 0)
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "sendPackageData successful");
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("processSendPackageData: Failed as requests exceed limit "));
     }
     expectedCmd = 0; // clear expected command
     return retVal;
 }
 
 int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
-                              size_t& offset, size_t& length)
+                              size_t& offset, size_t& length,
+                              std::set<uint32_t>& recvdRequests)
 {
     uint32_t dataTransferHandle = 1;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
@@ -1497,15 +1513,14 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
     {
         offset = 0;
         length = PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        // Ignoring the very first dataTransferHandle received and setting it as
+        // 0.
+        recvdRequests.insert(0);
     }
     else
     {
-        // The value of DataTransferHandle should be equal to
-        // NextDataTransferHandle
-        if (transferHandle != dataTransferHandle)
-        {
-            return PLDM_ERROR;
-        }
+        offset = dataTransferHandle * PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        recvdRequests.insert(dataTransferHandle);
     }
 
     dataSize = packageData.size();
@@ -1533,7 +1548,7 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
 
     struct get_fd_data_resp dataHeader;
     dataHeader.completion_code = PLDM_SUCCESS;
-    dataHeader.next_data_transfer_handle = ++transferHandle;
+    dataHeader.next_data_transfer_handle = ++dataTransferHandle;
 
     // Setting the Transfer flag that indiates what part of the transfer this
     // response represents
