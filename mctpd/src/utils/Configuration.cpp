@@ -133,6 +133,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     uint64_t bmcReceiverAddress = 0;
     uint64_t reqToRespTimeMs = 0;
     uint64_t reqRetryCount = 0;
+    uint64_t scanInterval = 0;
     std::vector<uint64_t> supportedEndpointSlaveAddress;
     std::vector<uint64_t> ignoredEndpintSlaveAddress;
 
@@ -173,6 +174,12 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
         !getField(map, "ReqRetryCount", reqRetryCount))
     {
         return std::nullopt;
+    }
+
+    if (!getField(map, "ScanInterval", scanInterval) || !scanInterval)
+    {
+        // Set default 10min interval if not specified or invalid
+        scanInterval = 600;
     }
 
     const auto mode = stringToBindingModeMap.at(role);
@@ -227,6 +234,7 @@ static std::optional<SMBusConfiguration> getSMBusConfiguration(const T& map)
     config.bmcSlaveAddr = static_cast<uint8_t>(bmcReceiverAddress);
     config.reqToRespTime = static_cast<unsigned int>(reqToRespTimeMs);
     config.reqRetryCount = static_cast<uint8_t>(reqRetryCount);
+    config.scanInterval = scanInterval;
 
     return config;
 }

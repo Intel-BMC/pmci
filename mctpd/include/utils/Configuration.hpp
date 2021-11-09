@@ -25,6 +25,7 @@ struct SMBusConfiguration : Configuration
     uint8_t bmcSlaveAddr;
     std::set<uint8_t> supportedEndpointSlaveAddress;
     uint8_t routingIntervalSec;
+    uint64_t scanInterval;
 
     ~SMBusConfiguration() override;
 };

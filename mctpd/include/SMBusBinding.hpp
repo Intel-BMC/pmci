@@ -73,6 +73,7 @@ class SMBusBinding : public MctpBinding
     std::shared_ptr<dbus_interface> smbusInterface;
     bool isMuxFd(const int fd);
     std::vector<DeviceTableEntry_t> smbusDeviceTable;
+    uint64_t scanInterval;
     boost::asio::steady_timer scanTimer;
     std::map<int, int> muxPortMap;
     std::set<std::pair<int, uint8_t>> rootDeviceMap;

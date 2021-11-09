@@ -362,6 +362,7 @@ SMBusBinding::SMBusBinding(std::shared_ptr<sdbusplus::asio::connection> conn,
         bus = conf.bus;
         bmcSlaveAddr = conf.bmcSlaveAddr;
         supportedEndpointSlaveAddress = conf.supportedEndpointSlaveAddress;
+        scanInterval = conf.scanInterval;
 
         // TODO: If we are not top most busowner, wait for top mostbus owner
         // to issue EID Pool
@@ -424,8 +425,7 @@ void SMBusBinding::scanDevices()
                 "Reserve bandwidth active. Unable to scan devices");
         }
 
-        // TODO: Get timer tick frequency from EntityManager
-        scanTimer.expires_after(std::chrono::minutes(10));
+        scanTimer.expires_after(std::chrono::seconds(scanInterval));
         scanTimer.async_wait([this](const boost::system::error_code& ec) {
             if (ec && ec != boost::asio::error::operation_aborted)
             {
