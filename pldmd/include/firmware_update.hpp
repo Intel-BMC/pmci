@@ -36,7 +36,6 @@ class FWUpdate
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
     void terminateFwUpdate(const boost::asio::yield_context yield);
-
     template <typename propertyType>
     void updateFWUProperty(const boost::asio::yield_context yield,
                            const std::string& interfaceName,
@@ -53,6 +52,8 @@ class FWUpdate
     }
     uint64_t getApplicableComponents();
     uint16_t getReserveEidTimeOut();
+    void cancelReserveBWTimer();
+    void activateReserveBandwidth();
     uint16_t getApplicableComponentsCount(uint64_t val) const;
     int processRequestUpdate(const boost::asio::yield_context yield);
     int requestUpdate(const boost::asio::yield_context yield,
@@ -157,6 +158,7 @@ class FWUpdate
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
     bool isReserveBandwidthActive = false;
+    std::unique_ptr<boost::asio::steady_timer> reserveBWTimer = nullptr;
     bool isComponentAvailableForUpdate = false;
     uint8_t currentDeviceIDRecord;
     bool updateMode = false;

@@ -65,6 +65,8 @@ std::unique_ptr<sdbusplus::asio::dbus_interface> associationsIntf = nullptr;
 std::map<uint8_t, std::string> inventoryPaths;
 
 FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
+    reserveBWTimer(
+        std::make_unique<boost::asio::steady_timer>(*getIoContext())),
     currentTid(_tid), currentDeviceIDRecord(_deviceIDRecord), state(FD_IDLE)
 {
 }
@@ -168,6 +170,7 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
+        cancelReserveBWTimer();
         if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1878,6 +1881,46 @@ uint16_t FWUpdate::getReserveEidTimeOut()
     // choosing 3x of expected duration for PLDM firmware update timeout
     return static_cast<uint16_t>((1 + updatableImagesize / bytesPerSec) * 3);
 }
+
+void FWUpdate::cancelReserveBWTimer()
+{
+    reserveBWTimer->cancel();
+}
+
+void FWUpdate::activateReserveBandwidth()
+{
+    boost::asio::spawn([this](boost::asio::yield_context yield) {
+        uint16_t reserveEidTimeOut = getReserveEidTimeOut();
+        if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("reserveBandwidth failed. TID: " + std::to_string(currentTid))
+                    .c_str());
+            return;
+        }
+        isReserveBandwidthActive = true;
+        // Subtracting reserveEidTimeOut by 5 seconds to make sure the reserve
+        // bandwidth is reactivated before reserve bandwidth is released.
+        reserveBWTimer->expires_after(
+            std::chrono::milliseconds((reserveEidTimeOut - 5) * 1000));
+        reserveBWTimer->async_wait([this](const boost::system::error_code& ec) {
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    "reserveBWTimer operation_aborted");
+                return;
+            }
+            else if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "reserveBWTimer failed");
+                return;
+            }
+            activateReserveBandwidth();
+        });
+    });
+}
+
 int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 {
     compCount = pldmImg->getTotalCompCount();
@@ -1895,18 +1938,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
-    uint16_t reserveEidTimeOut = getReserveEidTimeOut();
-    if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("runUpdate: reserveBandwidth failed. TID: " +
-             std::to_string(currentTid))
-                .c_str());
-    }
-    else
-    {
-        isReserveBandwidthActive = true;
-    }
+    activateReserveBandwidth();
     retVal = processSendPackageData(yield);
     if (retVal != PLDM_SUCCESS)
     {
@@ -2139,6 +2171,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
+        cancelReserveBWTimer();
         if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
