@@ -111,8 +111,8 @@ enum pldm_sensor_event_message_enable {
 };
 
 enum pldm_state_event_message_enable {
-	PLDM_DISABLE_EVENTS,
 	PLDM_ENABLE_EVENTS,
+	PLDM_DISABLE_EVENTS,
 	PLDM_NO_CHANGE_EVENTS = 0xff
 };
 
