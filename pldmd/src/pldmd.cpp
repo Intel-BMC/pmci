@@ -105,18 +105,8 @@ bool releaseBandwidth(const boost::asio::yield_context yield,
     {
         return false;
     }
-    boost::system::error_code ec;
-    auto bus = getSdBus();
-    int rc = bus->yield_method_call<int>(
-        yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
-        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
-        "ReleaseBandwidth", *eid);
-
-    if (ec || rc < 0)
+    if (mctpWrapper->releaseBandwidth(yield, *eid) < 0)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("releaseBandwidth: failed for EID: ") + std::to_string(*eid))
-                .c_str());
         return false;
     }
     rsvBWActive = false;
