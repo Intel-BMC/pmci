@@ -152,6 +152,15 @@ class MCTPImpl
                          const uint16_t timeout);
 
     /**
+     * @brief Release bandwidth for EID
+     *
+     * @param yield Boost yield_context to use on dbus call
+     * @param dstEId Destination MCTP Endpoint ID
+     * @return dbus send method call return value
+     */
+    int releaseBandwidth(boost::asio::yield_context yield, const eid_t dstEId);
+
+    /**
      * @brief Send request to dstEId and receive response asynchronously in
      * receiveCb
      *

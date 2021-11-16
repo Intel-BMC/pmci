@@ -143,3 +143,9 @@ int MCTPWrapper::reserveBandwidth(boost::asio::yield_context yield,
 {
     return pimpl->reserveBandwidth(yield, dstEId, timeout);
 }
+
+int MCTPWrapper::releaseBandwidth(boost::asio::yield_context yield,
+                                  const eid_t dstEId)
+{
+    return pimpl->releaseBandwidth(yield, dstEId);
+}
