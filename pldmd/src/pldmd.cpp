@@ -669,9 +669,6 @@ int main(void)
     setSdBus(conn);
     setObjServer(objectServer);
 
-    auto objManager =
-        std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
-
     enableDebug();
 
     // TODO - Read from entity manager about the transport bindings to be
