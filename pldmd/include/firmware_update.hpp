@@ -151,7 +151,7 @@ class FWUpdate
 
     int processSendMetaData(const boost::asio::yield_context yield);
     int sendMetaData(const boost::asio::yield_context yield, size_t& offset,
-                     size_t& length);
+                     size_t& length, std::set<uint32_t>& recvdRequests);
     uint16_t passCompCount = 0;
     pldm_tid_t currentTid;
     uint8_t expectedCmd;

@@ -564,7 +564,12 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
     size_t length = PLDM_FWU_BASELINE_TRANSFER_SIZE; // max payload size
 
     // Calculate based on size of payload and maximum transfer size
-    size_t maxNumReq = calcMaxNumReq(fwDeviceMetaData.size());
+    // Max number of requests including the requeries
+    size_t maxNumReq = findMaxNumReq(fwDeviceMetaData.size());
+    // Max number of unique requests (excluding requeries)
+    size_t numExpectedRequests = calcMaxNumReq(fwDeviceMetaData.size());
+
+    std::set<uint32_t> recvdRequests;
 
     if (maxNumReq == 0)
     {
@@ -583,7 +588,7 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
             break;
         }
 
-        retVal = sendMetaData(yield, offset, length);
+        retVal = sendMetaData(yield, offset, length, recvdRequests);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -597,13 +602,23 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
         }
         fdReq.clear();
         fdReqMatched = false;
+
+        // Confirm if meta data is been transferred completely
+        if (recvdRequests.size() == numExpectedRequests)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "sendMetaData successful");
+            expectedCmd = 0; // clear expected command
+            return retVal;
+        }
+
         expectedCmd = PLDM_GET_META_DATA;
     }
 
-    if (retVal == PLDM_SUCCESS)
+    if (maxNumReq == 0)
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "sendMetaData successful");
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("processSendMetaData: Failed as requests exceed limit "));
     }
     // Clear expected command.
     expectedCmd = 0;
@@ -612,7 +627,8 @@ int FWUpdate::processSendMetaData(const boost::asio::yield_context yield)
 }
 
 int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
-                           size_t& offset, size_t& length)
+                           size_t& offset, size_t& length,
+                           std::set<uint32_t>& recvdRequests)
 {
 
     const struct pldm_msg* msgReq =
@@ -644,6 +660,26 @@ int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
         }
         return retVal;
     }
+    // GetFirstPart can be received in 2 cases
+    // 1. first request to start the data transfer
+    // 2. If the FD sends GetFirstPart in any upcoming request of the same
+    // command
+    // then we are supposed to start the transfer starting from
+    // start of the meta data again.
+    // In both the cases transfer should start from start of meta data.
+    if (transferOperationFlag == PLDM_GET_FIRSTPART)
+    {
+        offset = 0;
+        length = PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        // Ignoring the very first dataTransferHandle received and setting it as
+        // 0.
+        recvdRequests.insert(0);
+    }
+    else
+    {
+        offset = dataTransferHandle * PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        recvdRequests.insert(dataTransferHandle);
+    }
 
     dataSize = fwDeviceMetaData.size();
 
@@ -673,19 +709,17 @@ int FWUpdate::sendMetaData(const boost::asio::yield_context yield,
     struct get_fd_data_resp dataHeader;
     dataHeader.completion_code = PLDM_SUCCESS;
     // Add a member variable and increment
-    dataHeader.next_data_transfer_handle = ++transferHandle;
+    dataHeader.next_data_transfer_handle = ++dataTransferHandle;
 
     // Setting the Transfer flag that indiates what part of the transfer this
     // response represents
-
     dataHeader.transfer_flag = setTransferFlag(offset, length, dataSize);
 
+    // Set the Portion of Metadata using offset and length
     struct variable_field portionOfData = {};
 
     portionOfData.length = length;
     portionOfData.ptr = fwDeviceMetaData.data() + offset;
-
-    // Set the Portion of Metadata using offset and length
 
     offset += length;
 
