@@ -113,6 +113,76 @@ void MCTPImpl::triggerMCTPDeviceDiscovery(const eid_t dstEId)
         "xyz.openbmc_project.MCTP.Base", "TriggerDeviceDiscovery");
 }
 
+int MCTPImpl::reserveBandwidth(boost::asio::yield_context yield,
+                               const eid_t dstEId, const uint16_t timeout)
+{
+    auto it = this->endpointMap.find(dstEId);
+    if (this->endpointMap.end() == it)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("reserveBandwidth: EID not found in end point map" +
+             std::to_string(dstEId))
+                .c_str());
+        return -1;
+    }
+    boost::system::error_code ec;
+    int status = connection->yield_method_call<int>(
+        yield, ec, it->second.second, "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP.Base", "ReserveBandwidth", dstEId, timeout);
+
+    if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("ReserveBandwidth: failed for EID: " + std::to_string(dstEId) +
+             " " + ec.message())
+                .c_str());
+        return -1;
+    }
+    else if (status < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("ReserveBandwidth: failed for EID: " + std::to_string(dstEId) +
+             " rc: " + std::to_string(status))
+                .c_str());
+    }
+    return status;
+}
+
+int MCTPImpl::releaseBandwidth(boost::asio::yield_context yield,
+                               const eid_t dstEId)
+{
+    auto it = this->endpointMap.find(dstEId);
+    if (this->endpointMap.end() == it)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("ReleaseBandwidth: EID not found in end point map" +
+             std::to_string(dstEId))
+                .c_str());
+        return -1;
+    }
+    boost::system::error_code ec;
+    int status = connection->yield_method_call<int>(
+        yield, ec, it->second.second, "/xyz/openbmc_project/mctp",
+        "xyz.openbmc_project.MCTP.Base", "ReleaseBandwidth", dstEId);
+    if (ec)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("ReleaseBandwidth: failed for EID: " + std::to_string(dstEId) +
+             " " + ec.message())
+                .c_str());
+        return -1;
+    }
+    else if (status < 0)
+    {
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("ReleaseBandwidth: failed for EID: " + std::to_string(dstEId) +
+             " rc: " + std::to_string(status))
+                .c_str());
+    }
+
+    return status;
+}
+
 void MCTPImpl::unRegisterListeners(const std::string& serviceName)
 {
     auto itr = matchers.find(serviceName);

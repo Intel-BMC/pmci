@@ -19,6 +19,7 @@
 
 #include <boost/asio/steady_timer.hpp>
 #include <sdbusplus/asio/object_server.hpp>
+#include <set>
 
 #include "firmware_update.h"
 
@@ -36,7 +37,6 @@ class FWUpdate
                                 const std::vector<uint8_t>& req);
     bool setMatchedFDDescriptors();
     void terminateFwUpdate(const boost::asio::yield_context yield);
-
     template <typename propertyType>
     void updateFWUProperty(const boost::asio::yield_context yield,
                            const std::string& interfaceName,
@@ -52,6 +52,9 @@ class FWUpdate
         return (1 + (size / PLDM_FWU_BASELINE_TRANSFER_SIZE)) * 3;
     }
     uint64_t getApplicableComponents();
+    uint16_t getReserveEidTimeOut();
+    void cancelReserveBWTimer();
+    void activateReserveBandwidth();
     uint16_t getApplicableComponentsCount(uint64_t val) const;
     int processRequestUpdate(const boost::asio::yield_context yield);
     int requestUpdate(const boost::asio::yield_context yield,
@@ -64,7 +67,7 @@ class FWUpdate
                           uint8_t& transferFlag);
     int processSendPackageData(const boost::asio::yield_context yield);
     int sendPackageData(const boost::asio::yield_context yield, size_t& offset,
-                        size_t& length);
+                        size_t& length, std::set<uint32_t>& recvdRequests);
     uint8_t setTransferFlag(const size_t offset, const size_t length,
                             const size_t dataSize);
     size_t calcMaxNumReq(const size_t dataSize);
@@ -156,6 +159,7 @@ class FWUpdate
     std::vector<uint8_t> fdReq;
     bool fdReqMatched = false;
     bool isReserveBandwidthActive = false;
+    std::unique_ptr<boost::asio::steady_timer> reserveBWTimer = nullptr;
     bool isComponentAvailableForUpdate = false;
     uint8_t currentDeviceIDRecord;
     bool updateMode = false;

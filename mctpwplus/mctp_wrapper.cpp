@@ -137,3 +137,15 @@ void MCTPWrapper::triggerMCTPDeviceDiscovery(const eid_t dstEId)
 {
     pimpl->triggerMCTPDeviceDiscovery(dstEId);
 }
+
+int MCTPWrapper::reserveBandwidth(boost::asio::yield_context yield,
+                                  const eid_t dstEId, const uint16_t timeout)
+{
+    return pimpl->reserveBandwidth(yield, dstEId, timeout);
+}
+
+int MCTPWrapper::releaseBandwidth(boost::asio::yield_context yield,
+                                  const eid_t dstEId)
+{
+    return pimpl->releaseBandwidth(yield, dstEId);
+}

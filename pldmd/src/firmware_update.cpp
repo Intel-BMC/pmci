@@ -40,9 +40,6 @@ constexpr uint16_t timeout = 100;
 // Timeout in milliseconds in between fwu command
 constexpr uint16_t fdCmdTimeout = 5000;
 
-// Maximum timeout in seconds for reserve band width
-constexpr uint16_t reserveEidTimeOut = 900;
-
 // Maximum retry count
 constexpr size_t retryCount = 3;
 
@@ -68,6 +65,8 @@ std::unique_ptr<sdbusplus::asio::dbus_interface> associationsIntf = nullptr;
 std::map<uint8_t, std::string> inventoryPaths;
 
 FWUpdate::FWUpdate(const pldm_tid_t _tid, const uint8_t _deviceIDRecord) :
+    reserveBWTimer(
+        std::make_unique<boost::asio::steady_timer>(*getIoContext())),
     currentTid(_tid), currentDeviceIDRecord(_deviceIDRecord), state(FD_IDLE)
 {
 }
@@ -171,6 +170,7 @@ void FWUpdate::terminateFwUpdate(const boost::asio::yield_context yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
+        cancelReserveBWTimer();
         if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::ERR>(
@@ -1417,7 +1417,12 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
     const size_t dataSize = packageData.size();
 
     // Calculate based on size of payload and maximum transfer size
-    size_t maxNumReq = calcMaxNumReq(dataSize);
+    // Max number of requests including the requeries
+    size_t maxNumReq = findMaxNumReq(dataSize);
+    // Max number of unique requests (excluding requeries)
+    size_t numExpectedRequests = calcMaxNumReq(dataSize);
+
+    std::set<uint32_t> recvdRequests;
 
     while (maxNumReq--)
     {
@@ -1426,11 +1431,10 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
                 "TimeoutWaiting for packageData packet");
-            retVal = PLDM_ERROR;
             break;
         }
 
-        retVal = sendPackageData(yield, offset, length);
+        retVal = sendPackageData(yield, offset, length, recvdRequests);
         if (retVal != PLDM_SUCCESS)
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(
@@ -1444,19 +1448,31 @@ int FWUpdate::processSendPackageData(const boost::asio::yield_context yield)
         }
         fdReq.clear();
         fdReqMatched = false;
+
+        // Confirm if complete package data is been transferred
+        if (recvdRequests.size() == numExpectedRequests)
+        {
+            phosphor::logging::log<phosphor::logging::level::INFO>(
+                "sendPackageData successful");
+            expectedCmd = 0; // clear expected command
+            return retVal;
+        }
+
         expectedCmd = PLDM_GET_PACKAGE_DATA;
     }
-    if (retVal == PLDM_SUCCESS)
+
+    if (maxNumReq == 0)
     {
-        phosphor::logging::log<phosphor::logging::level::INFO>(
-            "sendPackageData successful");
+        phosphor::logging::log<phosphor::logging::level::ERR>(
+            ("processSendPackageData: Failed as requests exceed limit "));
     }
     expectedCmd = 0; // clear expected command
     return retVal;
 }
 
 int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
-                              size_t& offset, size_t& length)
+                              size_t& offset, size_t& length,
+                              std::set<uint32_t>& recvdRequests)
 {
     uint32_t dataTransferHandle = 1;
     uint8_t transferOperationFlag = PLDM_GET_FIRSTPART;
@@ -1497,15 +1513,14 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
     {
         offset = 0;
         length = PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        // Ignoring the very first dataTransferHandle received and setting it as
+        // 0.
+        recvdRequests.insert(0);
     }
     else
     {
-        // The value of DataTransferHandle should be equal to
-        // NextDataTransferHandle
-        if (transferHandle != dataTransferHandle)
-        {
-            return PLDM_ERROR;
-        }
+        offset = dataTransferHandle * PLDM_FWU_BASELINE_TRANSFER_SIZE;
+        recvdRequests.insert(dataTransferHandle);
     }
 
     dataSize = packageData.size();
@@ -1533,7 +1548,7 @@ int FWUpdate::sendPackageData(const boost::asio::yield_context yield,
 
     struct get_fd_data_resp dataHeader;
     dataHeader.completion_code = PLDM_SUCCESS;
-    dataHeader.next_data_transfer_handle = ++transferHandle;
+    dataHeader.next_data_transfer_handle = ++dataTransferHandle;
 
     // Setting the Transfer flag that indiates what part of the transfer this
     // response represents
@@ -1871,6 +1886,56 @@ boost::system::error_code
     return ec;
 }
 
+uint16_t FWUpdate::getReserveEidTimeOut()
+{
+    size_t updatableImagesize = pldmImg->getUpdatableImagesize();
+    // From the test results we observed that it took around 60 seconds for
+    // updating a pldm image of size 160KB, based on this bytesPerSec is
+    // calculated.
+    constexpr uint16_t bytesPerSec = 2730;
+    // choosing 3x of expected duration for PLDM firmware update timeout
+    return static_cast<uint16_t>((1 + updatableImagesize / bytesPerSec) * 3);
+}
+
+void FWUpdate::cancelReserveBWTimer()
+{
+    reserveBWTimer->cancel();
+}
+
+void FWUpdate::activateReserveBandwidth()
+{
+    boost::asio::spawn([this](boost::asio::yield_context yield) {
+        uint16_t reserveEidTimeOut = getReserveEidTimeOut();
+        if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
+        {
+            phosphor::logging::log<phosphor::logging::level::WARNING>(
+                ("reserveBandwidth failed. TID: " + std::to_string(currentTid))
+                    .c_str());
+            return;
+        }
+        isReserveBandwidthActive = true;
+        // Subtracting reserveEidTimeOut by 5 seconds to make sure the reserve
+        // bandwidth is reactivated before reserve bandwidth is released.
+        reserveBWTimer->expires_after(
+            std::chrono::milliseconds((reserveEidTimeOut - 5) * 1000));
+        reserveBWTimer->async_wait([this](const boost::system::error_code& ec) {
+            if (ec == boost::asio::error::operation_aborted)
+            {
+                phosphor::logging::log<phosphor::logging::level::DEBUG>(
+                    "reserveBWTimer operation_aborted");
+                return;
+            }
+            else if (ec)
+            {
+                phosphor::logging::log<phosphor::logging::level::ERR>(
+                    "reserveBWTimer failed");
+                return;
+            }
+            activateReserveBandwidth();
+        });
+    });
+}
+
 int FWUpdate::runUpdate(const boost::asio::yield_context yield)
 {
     compCount = pldmImg->getTotalCompCount();
@@ -1888,17 +1953,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     phosphor::logging::log<phosphor::logging::level::INFO>(
         "FD changed state to LEARN COMPONENTS");
     createAsyncDelay(yield, delayBtw);
-    if (!reserveBandwidth(yield, currentTid, PLDM_FWUP, reserveEidTimeOut))
-    {
-        phosphor::logging::log<phosphor::logging::level::WARNING>(
-            ("runUpdate: reserveBandwidth failed. TID: " +
-             std::to_string(currentTid))
-                .c_str());
-    }
-    else
-    {
-        isReserveBandwidthActive = true;
-    }
+    activateReserveBandwidth();
     retVal = processSendPackageData(yield);
     if (retVal != PLDM_SUCCESS)
     {
@@ -2131,6 +2186,7 @@ int FWUpdate::runUpdate(const boost::asio::yield_context yield)
     if (isReserveBandwidthActive)
     {
         isReserveBandwidthActive = false;
+        cancelReserveBWTimer();
         if (!releaseBandwidth(yield, currentTid, PLDM_FWUP))
         {
             phosphor::logging::log<phosphor::logging::level::WARNING>(

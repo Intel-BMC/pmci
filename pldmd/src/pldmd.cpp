@@ -75,18 +75,8 @@ bool reserveBandwidth(const boost::asio::yield_context yield,
     {
         return false;
     }
-    boost::system::error_code ec;
-    auto bus = getSdBus();
-    int rc = bus->yield_method_call<int>(
-        yield, ec, "xyz.openbmc_project.MCTP_SMBus_PCIe_slot",
-        "/xyz/openbmc_project/mctp", "xyz.openbmc_project.MCTP.Base",
-        "ReserveBandwidth", eid, timeout);
-
-    if (ec || rc < 0)
+    if (mctpWrapper->reserveBandwidth(yield, eid, timeout) < 0)
     {
-        phosphor::logging::log<phosphor::logging::level::ERR>(
-            (("ReserveBandwidth: failed for EID: ") + std::to_string(eid))
-                .c_str());
         return false;
     }
     rsvBWActive = true;
@@ -678,9 +668,6 @@ int main(void)
     conn->request_name(pldmService);
     setSdBus(conn);
     setObjServer(objectServer);
-
-    auto objManager =
-        std::make_shared<sdbusplus::server::manager::manager>(*conn, pldmPath);
 
     enableDebug();
 

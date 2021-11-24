@@ -350,7 +350,8 @@ static std::optional<std::pair<std::string, std::unique_ptr<Configuration>>>
     }
 
     std::string bindingType;
-    if (!getField(map, "BindingType", bindingType))
+    if (!getField(map, "TransportBindingType", bindingType) &&
+        !getField(map, "BindingType", bindingType))
     {
         return std::nullopt;
     }
