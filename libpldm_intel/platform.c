@@ -1717,7 +1717,7 @@ int encode_set_numeric_effecter_enable_req(
 static bool is_state_effecter_op_field_valid(uint8_t event_message_enable,
 					     uint8_t effecter_operational_state)
 {
-	if ((event_message_enable > PLDM_ENABLE_EVENTS &&
+	if ((event_message_enable > PLDM_DISABLE_EVENTS &&
 	     event_message_enable != PLDM_NO_CHANGE_EVENTS) ||
 	    effecter_operational_state > EFFECTER_OPER_STATE_INTEST) {
 		return false;
